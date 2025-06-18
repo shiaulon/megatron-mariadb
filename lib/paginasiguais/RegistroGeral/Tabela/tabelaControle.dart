@@ -957,7 +957,7 @@ Set<String> _integracaoSelections = {};
 // ... (restante do código)
 
                 const SizedBox(height: 20), // Espaçamento antes do botão SALVAR
-                BottomInfoContainers(tablePath: 'Tabela > Controle'),
+                //BottomInfoContainers(tablePath: 'Tabela > Controle'),
               ],
             ),
           ),

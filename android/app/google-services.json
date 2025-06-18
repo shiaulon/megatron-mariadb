@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "543284488198",
+    "project_id": "megatron-f0b07",
+    "storage_bucket": "megatron-f0b07.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:543284488198:android:c903f69cec57ad6c2f3b87",
+        "android_client_info": {
+          "package_name": "com.example.flutter_application_1"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDxEDU5VD4ClcI40soxQzx_BNY--FoMmPE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

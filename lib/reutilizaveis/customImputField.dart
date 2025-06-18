@@ -262,9 +262,12 @@ class CustomInputField extends StatelessWidget {
   final String? hintText;
   final bool isDense; 
   final Color? fillColor; // <--- Adicione esta linha
+  final FocusNode? focusNode;
+  final VoidCallback? onTap;
 
   const CustomInputField({
     Key? key,
+    this.onTap, // <--- ADICIONE AQUI NO CONSTRUTOR
     required this.controller,
     required this.label,
     this.initialValue,
@@ -277,7 +280,8 @@ class CustomInputField extends StatelessWidget {
     this.suffixText,
     this.hintText,
     this.isDense = true, // Valor padrão como true, como no seu código
-    this.fillColor, // <--- Adicione aqui
+    this.fillColor,
+    this.focusNode, // <--- Adicione aqui
     
   }) : super(key: key);
 
@@ -315,7 +319,9 @@ class CustomInputField extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: TextFormField(
+        onTap: onTap,
         controller: controller,
+        focusNode: focusNode,
         readOnly: readOnly,
         keyboardType: keyboardType,
         inputFormatters: inputFormatters,

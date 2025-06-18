@@ -1,30 +1,36 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_application_1/menu.dart';
-import 'package:flutter_application_1/paginasiguais/RegistroGeral/ContatosGeral/GeraRGParaListaContatosGeral.dart';
-import 'package:flutter_application_1/paginasiguais/RegistroGeral/ContatosGeral/manutencao.dart';
-import 'package:flutter_application_1/paginasiguais/RegistroGeral/RG_main.dart';
-import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaControle.dart';
-import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaPais.dart';
-import 'package:flutter_application_1/relacao_aberta_osm.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_application_1/firebase_options.dart'; // Mantenha este import
+import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaNatureza.dart';
 import 'package:flutter_application_1/submenus.dart';
-import 'package:flutter_application_1/utilizandotelabase.dart';
 import 'login_page.dart';
+import 'menu.dart'; // Certifique-se de que TelaPrincipal está importada
 
-void main() {
+void main() async {
+  // Garante que os widgets do Flutter estejam inicializados antes de qualquer coisa
+  WidgetsFlutterBinding.ensureInitialized(); 
+  
+  // Inicializa o Firebase APENAS UMA VEZ aqui
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatelessWidget { // <--- Voltou a ser StatelessWidget
   const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
+    // Agora que o Firebase já foi inicializado no main(),
+    // podemos ir direto para o MaterialApp.
     return MaterialApp(
       title: 'Megatron Login',
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: const TabelaPais(),
+      home: const NaturezaTela(), // Inicia na LoginPage
       debugShowCheckedModeBanner: false,
     );
   }

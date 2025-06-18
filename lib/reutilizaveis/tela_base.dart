@@ -8,6 +8,7 @@ class TelaBase extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      
       backgroundColor: const Color(0xFFE6F4FB),
       resizeToAvoidBottomInset: false,
       body: Container(

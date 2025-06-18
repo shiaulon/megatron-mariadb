@@ -789,7 +789,7 @@ class _TabelaEstadoXImpostoState extends State<TabelaEstadoXImposto> {
                   ),
                 ),
               ),
-              BottomInfoContainers(tablePath: 'Tabela > Estado X Imposto'),
+              //BottomInfoContainers(tablePath: 'Tabela > Estado X Imposto'),
                     ],
                   ),
                 ),

@@ -449,8 +449,8 @@ class _TabelaPaisState extends State<TabelaPais> {
               // Estes dois containers ficarão fixos na parte inferior
               // Você pode usar `Align` ou simplesmente colocá-los no final da Column
               // como eles já são agora, mas removendo-os do SingleChildScrollView.
-              const SizedBox(height: 20),
-              BottomInfoContainers(tablePath: 'Tabela > País'),
+              const SizedBox(height: 40),
+              //BottomInfoContainers(tablePath: 'Tabela > País'),
               
             ],
           ),

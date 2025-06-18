@@ -3,6 +3,7 @@ import 'package:flutter_application_1/menu.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaControle.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaPais.dart';
 import 'package:flutter_application_1/relacao_aberta_osm.dart';
+import 'package:flutter_application_1/reutilizaveis/menuLateral.dart';
 import 'package:intl/intl.dart'; // Importe para formatar a data
 import 'package:flutter/services.dart'; // Para FilteringTextInputFormatter
 
@@ -410,9 +411,9 @@ class _TelaSubPrincipalState extends State<TelaSubPrincipal> {
                     children: [
                       // Menu Lateral (agora flex 1) - ocupará 1/5 do total de 5 partes
                       Expanded(
-                        flex: 1, // 1/5 da largura total
-                        child: _buildLeftMenu(constraints.maxWidth),
-                      ),
+                              flex: 1,
+                              child: AppDrawer(parentMaxWidth: constraints.maxWidth, breakpoint: _breakpoint),
+                            ),
                       // Área Central (agora flex 3) - ocupará 3/5 do total
                       Expanded(
                         flex: 3, // 3/5 da largura total
@@ -430,7 +431,7 @@ class _TelaSubPrincipalState extends State<TelaSubPrincipal> {
                   return SingleChildScrollView(
                     child: Column(
                       children: [
-                        _buildLeftMenu(constraints.maxWidth),
+                        AppDrawer(parentMaxWidth: constraints.maxWidth, breakpoint: _breakpoint),
                         const SizedBox(height: 20),
                         _buildAnnotationSection(), // Seção de anotações abaixo da área de informações
                       ],
@@ -446,49 +447,7 @@ class _TelaSubPrincipalState extends State<TelaSubPrincipal> {
   }
 
   // Constrói o menu lateral
-  Widget _buildLeftMenu(double parentMaxWidth) {
-    return Container(
-      margin: parentMaxWidth > _breakpoint ? const EdgeInsets.only(right: 10.0, top: 10.0, bottom: 10.0) : EdgeInsets.zero,
-      decoration: BoxDecoration(
-        color: Colors.blue[50],
-        borderRadius: BorderRadius.circular(10.0),
-        border: Border.all(color: Colors.black, width: 1.0),
-      ),
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 12.0),
-            child: Text(
-              'REGISTRO GERAL',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black),
-            ),
-          ),
-          _buildMenuItemWithSubitems(context, 'Tabelas', Icons.table_chart, [
-            _buildSubMenuItem(context, 'Controle', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const TabelaControle()),),),
-            _buildSubMenuItem(context, 'País', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const TabelaPais()),),),
-          ]),
-          
-          _buildMenuItemWithSubitems(context, 'Registro Geral', Icons.app_registration, [
-            _buildSubMenuItem(context, 'Manut RG', () => print('Manut RG')),
-            _buildSubMenuItem(context, 'TEXTO', () => print('TEXTO')),
-          ]),
-          _buildMenuItem(context, 'Crédito', Icons.credit_card, () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const TabelaControle()),),),
-          _buildMenuItem(context, 'Relatório', Icons.bar_chart, () => print('Relatório')),
-          _buildMenuItem(context, 'Relatório de Crítica', Icons.error_outline, () => print('Relatório de Crítica')),
-          _buildMenuItem(context, 'Etiqueta', Icons.label_outline, () => print('Etiqueta')),
-          _buildMenuItem(context, 'Contatos Geral', Icons.contacts, () => print('Contatos Geral')),
-          _buildMenuItem(context, 'Portaria', Icons.security, () => print('Portaria')),
-          _buildMenuItem(context, 'Qualificação RG', Icons.verified_user, () => print('Qualificação RG')),
-          _buildMenuItem(context, 'Área RG', Icons.area_chart, () => print('Área RG')),
-          _buildMenuItem(context, 'Tabela Preço X RG', Icons.price_change, () => print('Tabela Preço X RG')),
-          _buildMenuItem(context, 'Módulo Especial', Icons.extension, () => print('Módulo Especial')),
-          _buildMenuItem(context, 'CRM', Icons.support_agent, () => print('CRM')),
-          _buildMenuItem(context, 'Follow-up', Icons.follow_the_signs, () => print('Follow-up')),
-        ],
-      ),
-    );
-  }
+  
 
   // ATUALIZADO: Agora retorna um HoverMenuItem
   Widget _buildMenuItem(BuildContext context, String title, IconData icon, VoidCallback onTap) {

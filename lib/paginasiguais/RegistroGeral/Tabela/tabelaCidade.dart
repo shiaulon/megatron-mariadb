@@ -552,7 +552,19 @@ class _TabelaCidadeState extends State<TabelaCidade> {
                       ),
                       SizedBox(height: 40,),
                       // Botões de Ação - nao mais FIXOS na parte inferior da área central
-                      Padding(
+                      
+                      
+                    ],
+                  ),
+                ),
+              ),
+
+              // Botões de Ação - FIXOS na parte inferior da área central
+              
+
+              // Informações Inferiores - FIXAS na parte inferior da área central
+              const SizedBox(height: 0),
+              Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 25.0, vertical: 10.0),
                   child: Center(
                     child: Row(
@@ -568,21 +580,11 @@ class _TabelaCidadeState extends State<TabelaCidade> {
                     ),
                   ),
                 ),
-                      
-                    ],
-                  ),
-                ),
-              ),
-
-              // Botões de Ação - FIXOS na parte inferior da área central
-              
-
-              // Informações Inferiores - FIXAS na parte inferior da área central
-              const SizedBox(height: 0),
+                const SizedBox(height: 40),
               ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
               /// SE QUISER COLOCAR A BARRA INFERIOR FIXA, COLOCA AQUI
               //////////////////////////////////////////////////////////////////////////////////////////////////////////////
-              BottomInfoContainers(tablePath: 'Tabela > Estado X Imposto'),
+              //BottomInfoContainers(tablePath: 'Tabela > Estado X Imposto'),
             ],
           ),
         ),

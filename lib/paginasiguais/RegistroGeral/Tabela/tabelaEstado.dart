@@ -466,7 +466,7 @@ class _TabelaEstadoState extends State<TabelaEstado> {
               // Você pode usar `Align` ou simplesmente colocá-los no final da Column
               // como eles já são agora, mas removendo-os do SingleChildScrollView.
               const SizedBox(height: 20),
-              BottomInfoContainers(tablePath: 'Tabela > Estado'),
+              //BottomInfoContainers(tablePath: 'Tabela > Estado'),
               
             ],
           ),

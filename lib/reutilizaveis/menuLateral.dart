@@ -4,7 +4,9 @@ import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaC
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaControle.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaEstado.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaEstadoXImposto.dart';
+import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaNatureza.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaPais.dart';
+import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaSituacao.dart';
 
 // NOVO WIDGET: Item de menu com efeito de hover
 class HoverMenuItem extends StatefulWidget {
@@ -216,6 +218,8 @@ class AppDrawer extends StatelessWidget {
             _buildSubMenuItem(context, 'Estado', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const TabelaEstado()),),),
             _buildSubMenuItem(context, 'Estado x Imposto', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const TabelaEstadoXImposto()),),),
             _buildSubMenuItem(context, 'Cidade', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const TabelaCidade()),),),
+            _buildSubMenuItem(context, 'Natureza', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const NaturezaTela()),),),
+            _buildSubMenuItem(context, 'Situação', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const TabelaSituacao()),),),
 
           ]),
           _buildMenuItemWithSubitems(context, 'Registro Geral', Icons.app_registration, [
