@@ -19,7 +19,16 @@ import 'package:printing/printing.dart'; // Para visualização/download
 // ... (resto do seu código NaturezaTelaState)
 
 class NaturezaTela extends StatefulWidget {
-  const NaturezaTela({super.key});
+  final String mainCompanyId;
+  final String secondaryCompanyId;
+  final String? userRole; // Se precisar usar a permissão aqui também
+
+  const NaturezaTela({
+    super.key,
+    required this.mainCompanyId,
+    required this.secondaryCompanyId,
+    this.userRole,
+  });
 
   @override
   State<NaturezaTela> createState() => _NaturezaTelaState();
@@ -55,69 +64,110 @@ class _NaturezaTelaState extends State<NaturezaTela> {
   final Map<int, List<FocusNode>> _sequenciaFocusNodesPorCaracteristica = {};
 
   final Map<int, Map<String, dynamic>> _originalCaracteristicaData = {};
-
+  //String? _currentUserId; // Adicione esta linha
 
   @override
   void initState() {
     super.initState();
     _currentDate = DateFormat('dd/MM/yyyy').format(DateTime.now());
-    
+
+    // Obter o UID do usuário logado
+    /*_currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (_currentUserId == null) {
+      // Tratar caso o usuário não esteja logado, talvez redirecionar para tela de login
+      print("Erro: Usuário não logado. Redirecionando ou mostrando mensagem.");
+      // Exemplo de tratamento:
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Você precisa estar logado para acessar esta função.')),
+        );
+        // Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => LoginScreen())); // Exemplo de redirecionamento
+      });
+    }*/
+
     _naturezaController.addListener(_onNaturezaChanged);
     _descricaoController.addListener(_updateFieldCounters);
-    
+
     _caracteristicasEnabled = false;
   }
-
   Future<void> _onNaturezaChanged() async {
     final String naturezaCode = _naturezaController.text.trim();
+    final String? currentUserId = FirebaseAuth.instance.currentUser?.uid;
 
-    if (naturezaCode.isEmpty) {
+    // ====================== ÁREA DE DEPURAÇÃO ======================
+  final currentUser = FirebaseAuth.instance.currentUser;
+  print("--- INICIANDO DEPURAÇÃO DE PERMISSÃO ---");
+  print("UID do Usuário Logado: ${currentUser?.uid}");
+  print("Main Company ID (enviado para consulta): '${widget.mainCompanyId}'");
+  print("Secondary Company ID (enviado para consulta): '${widget.secondaryCompanyId}'");
+  print("Código da Natureza (enviado para consulta): '$naturezaCode'");
+  print("------------------------------------------");
+  // =============================================================
+
+    if (naturezaCode.isEmpty || widget.mainCompanyId.isEmpty || widget.secondaryCompanyId.isEmpty || currentUserId == null) {
       setState(() {
         _descricaoController.clear();
         _caracteristicasEnabled = false;
         _selectedCaracteristicaIndex = null;
         _clearAllDynamicFields();
       });
+      if (currentUserId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sessão expirada. Por favor, faça login novamente.')),
+        );
+      } else { // Se não é null, então mainCompanyId ou secondaryCompanyId estão vazios
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Contexto da empresa não definido. Tente selecionar uma empresa novamente.')),
+        );
+      }
+      print('--- Fim _onNaturezaChanged: Condição de guarda ativada ---');
       return;
     }
 
     try {
       final docSnapshot = await FirebaseFirestore.instance
-          .collection('naturezas')
-          .doc(naturezaCode)
-          .get();
+        .collection('companies')
+        .doc(widget.mainCompanyId)
+        .collection('secondaryCompanies')
+        .doc(widget.secondaryCompanyId)
+        .collection('data')
+        .doc('naturezas')
+        .collection('items')
+        .doc(naturezaCode)
+        .get();
 
+      
       if (docSnapshot.exists) {
+        print('6. Documento encontrado no Firestore.');
         final data = docSnapshot.data() as Map<String, dynamic>;
         setState(() {
           _descricaoController.text = data['descricao'] ?? '';
           _caracteristicasEnabled = true;
-
           _clearAllDynamicFields();
-          
+
           final List<dynamic> caracteristicasData = data['caracteristicas'] ?? [];
           if (caracteristicasData.isEmpty) {
-             _addCaracteristicaField(initialLoad: true);
-             _addSequenciaFieldToSpecificCaracteristica(caracteristicaIndex: 0, initialLoad: true);
+            _addCaracteristicaField(initialLoad: true);
+            _addSequenciaFieldToSpecificCaracteristica(caracteristicaIndex: 0, initialLoad: true);
           } else {
             for (int i = 0; i < caracteristicasData.length; i++) {
-              final caracData = caracteristicasData[i];
+              final caracData = caracteristicasData[i]; // CORREÇÃO AQUI
               _addCaracteristicaField(initialLoad: true, value: caracData['nome']);
-              _originalCaracteristicaData[i] = caracData;
+              _originalCaracteristicaData[i] = Map<String, dynamic>.from(caracData); // GARANTE CÓPIA
 
               final List<dynamic> sequenciasLoaded = caracData['sequencias'] ?? [];
               if (sequenciasLoaded.isNotEmpty) {
                 for (var seqValue in sequenciasLoaded) {
                   _addSequenciaFieldToSpecificCaracteristica(
-                    caracteristicaIndex: i, 
-                    initialLoad: true, 
-                    value: seqValue,
+                    caracteristicaIndex: i,
+                    initialLoad: true,
+                    value: seqValue.toString(), // Garante que o valor seja string
                     shouldRequestFocus: false,
                   );
                 }
               } else {
                 _addSequenciaFieldToSpecificCaracteristica(
-                  caracteristicaIndex: i, 
+                  caracteristicaIndex: i,
                   initialLoad: true,
                   shouldRequestFocus: false,
                 );
@@ -127,6 +177,7 @@ class _NaturezaTelaState extends State<NaturezaTela> {
           _selectedCaracteristicaIndex = null;
         });
       } else {
+        print('6. Documento NÃO encontrado no Firestore. Vai criar um novo.');
         setState(() {
           _descricaoController.clear();
           _caracteristicasEnabled = true;
@@ -136,7 +187,9 @@ class _NaturezaTelaState extends State<NaturezaTela> {
           _addSequenciaFieldToSpecificCaracteristica(caracteristicaIndex: 0, initialLoad: true);
         });
       }
+      print('--- Fim _onNaturezaChanged: Sucesso (ou Documento não existe) ---');
     } catch (e) {
+      print('--- Fim _onNaturezaChanged: ERRO CATCH ---');
       print('Erro ao consultar Natureza no Firebase: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao verificar Natureza: $e')),
@@ -376,7 +429,16 @@ class _NaturezaTelaState extends State<NaturezaTela> {
         children: [
           TopAppBar(
             onBackPressed: () {
-              Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const TelaSubPrincipal()),);
+              Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TelaSubPrincipal(
+          mainCompanyId: widget.mainCompanyId, // Repassa o ID da empresa principal
+          secondaryCompanyId: widget.secondaryCompanyId, // Repassa o ID da empresa secundária
+          userRole: widget.userRole, // Repassa o papel do usuário
+        ),
+      ),
+    );
             },
             currentDate: _currentDate,
           ),
@@ -395,7 +457,10 @@ class _NaturezaTelaState extends State<NaturezaTela> {
                               flex: 1,
                               child: AppDrawer(
                                 parentMaxWidth: constraints.maxWidth,
-                                breakpoint: _breakpoint,
+                          breakpoint: 700.0,
+                          mainCompanyId: widget.mainCompanyId, // Passa
+                          secondaryCompanyId: widget.secondaryCompanyId, // Passa
+                          userRole: widget.userRole,
                               ),
                             ),
                             Expanded(
@@ -446,7 +511,10 @@ class _NaturezaTelaState extends State<NaturezaTela> {
                         ),
                         AppDrawer(
                             parentMaxWidth: constraints.maxWidth,
-                            breakpoint: _breakpoint),
+                          breakpoint: 700.0,
+                          mainCompanyId: widget.mainCompanyId, // Passa
+                          secondaryCompanyId: widget.secondaryCompanyId, // Passa
+                          userRole: widget.userRole,),
                         _buildCentralInputArea(),
                       ],
                     ),
@@ -490,20 +558,23 @@ class _NaturezaTelaState extends State<NaturezaTela> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Center(
+                                /*const Center(
                                   child: Text(
                                     'Natureza',
                                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black),
                                   ),
-                                ),
+                                ),*/
                                 const SizedBox(height: 3),
                                 Padding(
                                   padding: const EdgeInsets.only(right: 20, left: 20),
                                   child: CustomInputField(
                                     controller: _naturezaController,
-                                    label: 'Natureza (Código)',
-                                    maxLength: 10,
-                                    suffixText: '${_naturezaController.text.length}/10',
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.digitsOnly, // Aceita apenas dígitos
+                                    ],
+                                    label: 'Natureza',
+                                    maxLength: 2,
+                                    suffixText: '${_naturezaController.text.length}/2',
                                   ),
                                 ),
                                 const SizedBox(height: 3),
@@ -511,9 +582,9 @@ class _NaturezaTelaState extends State<NaturezaTela> {
                                   padding: const EdgeInsets.only(right: 20, left: 20),
                                   child: CustomInputField(
                                     controller: _descricaoController,
-                                    label: 'Descrição (Nome)',
-                                    maxLength: 50,
-                                    suffixText: '${_descricaoController.text.length}/50',
+                                    label: 'Descrição',
+                                    maxLength: 20,
+                                    suffixText: '${_descricaoController.text.length}/20',
                                   ),
                                 ),
                                 const SizedBox(height: 10),
@@ -538,7 +609,7 @@ class _NaturezaTelaState extends State<NaturezaTela> {
                                     children: [
                                       const Center(
                                         child: Text(
-                                          'Característica (País)',
+                                          'Característica',
                                           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black),
                                         ),
                                       ),
@@ -631,7 +702,7 @@ class _NaturezaTelaState extends State<NaturezaTela> {
                                       children: [
                                         Center(
                                           child: Text(
-                                            'Cidades para "${_caracteristicaControllers[_selectedCaracteristicaIndex!].text.isEmpty ? 'este País' : _caracteristicaControllers[_selectedCaracteristicaIndex!].text}"',
+                                            'Sequência"${_caracteristicaControllers[_selectedCaracteristicaIndex!].text.isEmpty ? 'este País' : _caracteristicaControllers[_selectedCaracteristicaIndex!].text}"',
                                             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black),
                                             textAlign: TextAlign.center,
                                           ),
@@ -655,7 +726,7 @@ class _NaturezaTelaState extends State<NaturezaTela> {
                                                     CustomInputField(
                                                       controller: seqController,
                                                       focusNode: seqFocusNode,
-                                                      label: 'Cidade ${sequenciaIndex + 1}',
+                                                      label: 'Sequência ${sequenciaIndex + 1}',
                                                       maxLength: 30,
                                                       readOnly: false,
                                                       fillColor: Colors.white,
@@ -669,7 +740,7 @@ class _NaturezaTelaState extends State<NaturezaTela> {
                                                         child: IconButton(
                                                           icon: const Icon(Icons.remove, color: Colors.black, size: 24),
                                                           onPressed: () => _removeSequenciaField(caracteristicaIndex: _selectedCaracteristicaIndex!, sequenciaIndex: sequenciaIndex),
-                                                          tooltip: 'Remover Cidade',
+                                                          tooltip: 'Remover Sequência',
                                                         ),
                                                       ),
                                                   ],
@@ -723,7 +794,7 @@ class _NaturezaTelaState extends State<NaturezaTela> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      _buildActionButton('EXCLUIR', Colors.red, _clearAllDynamicFields),
+                      _buildActionButton('EXCLUIR', Colors.red, _deleteNaturezaData), // Alterado para chamar _deleteNaturezaData
                       const SizedBox(width: 30),
                       _buildActionButton('SALVAR', Colors.green, _saveNaturezaData),
                       const SizedBox(width: 30),
@@ -734,7 +805,7 @@ class _NaturezaTelaState extends State<NaturezaTela> {
               ),
 
               const SizedBox(height: 0),
-             // BottomInfoContainers(tablePath: 'Tabela > Natureza'),
+              // BottomInfoContainers(tablePath: 'Tabela > Natureza'),
             ],
           ),
         ),
@@ -742,15 +813,137 @@ class _NaturezaTelaState extends State<NaturezaTela> {
     );
   }
 
+  /// NOVO MÉTODO: Excluir Natureza do Firebase
+  Future<void> _deleteNaturezaData() async {
+    final String naturezaCode = _naturezaController.text.trim();
+    final String? currentUserId = FirebaseAuth.instance.currentUser?.uid;
+
+    print('--- Início _deleteNaturezaData ---');
+    print('Natureza Code: $naturezaCode');
+    print('Widget Main Company ID: ${widget.mainCompanyId}');
+    print('Widget Secondary Company ID: ${widget.secondaryCompanyId}');
+    print('Current User ID (Auth): $currentUserId');
+    print('-------------------------------');
+
+    if (naturezaCode.isEmpty || widget.mainCompanyId.isEmpty || widget.secondaryCompanyId.isEmpty || currentUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Erro: Contexto da empresa ou usuário não definido para exclusão.')),
+      );
+      print('--- Fim _deleteNaturezaData: Condição de guarda ativada ---');
+      return;
+    }
+
+    try {
+      final docRef = FirebaseFirestore.instance
+      .collection('companies')
+      .doc(widget.mainCompanyId) // <<-- CORREÇÃO
+      .collection('secondaryCompanies')
+      .doc(widget.secondaryCompanyId) // <<-- CORREÇÃO
+      .collection('data')
+      .doc('naturezas') // <<-- CORREÇÃO
+      .collection('items') // <<-- CORREÇÃO
+      .doc(naturezaCode);
+
+      print('Caminho de exclusão Firestore: ${docRef.path}');
+      final docSnapshot = await docRef.get(); // Verifica se existe antes de tentar deletar
+
+      if (!docSnapshot.exists) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('A natureza "$naturezaCode" não existe para esta empresa e não pode ser excluída.')),
+        );
+        print('Documento a ser excluído NÃO encontrado.');
+        return;
+      }
+
+      bool confirmDelete = await showDialog(
+        context: context,
+        builder: (BuildContext dialogContext) {
+          return AlertDialog(
+            title: const Text('Confirmar Exclusão'),
+            content: Text('Tem certeza que deseja excluir a natureza "$naturezaCode" desta empresa?'),
+            actions: <Widget>[
+              TextButton(
+                child: const Text('Cancelar'),
+                onPressed: () {
+                  Navigator.of(dialogContext).pop(false);
+                },
+              ),
+              TextButton(
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text('Excluir'),
+                onPressed: () {
+                  Navigator.of(dialogContext).pop(true);
+                },
+              ),
+            ],
+          );
+        },
+      );
+
+      if (confirmDelete == true) {
+        await docRef.delete();
+        setState(() {
+          _naturezaController.clear();
+          _descricaoController.clear();
+          _clearAllDynamicFields();
+          _caracteristicasEnabled = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Natureza "$naturezaCode" excluída com sucesso da empresa ${widget.secondaryCompanyId}!')),
+        );
+        print('Natureza excluída: $naturezaCode para empresa ${widget.secondaryCompanyId}');
+      }
+      print('--- Fim _deleteNaturezaData: Sucesso ---');
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao excluir natureza: $e')),
+      );
+      print('Erro ao excluir Natureza: $e');
+      print('--- Fim _deleteNaturezaData: ERRO CATCH ---');
+    }
+  }
+
+
+
   // NOVO MÉTODO: Gerar e Baixar o PDF com os dados das naturezas
   Future<void> _generateAndDownloadNaturezasPdf() async {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Gerando relatório...')),
     );
 
+    final String? currentUserId = FirebaseAuth.instance.currentUser?.uid;
+
+    print('--- Início _generateAndDownloadNaturezasPdf ---');
+    print('Widget Main Company ID: ${widget.mainCompanyId}');
+    print('Widget Secondary Company ID: ${widget.secondaryCompanyId}');
+    print('Current User ID (Auth): $currentUserId');
+    print('-------------------------------');
+
+    if (widget.mainCompanyId.isEmpty || widget.secondaryCompanyId.isEmpty || currentUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Erro: Contexto da empresa ou usuário não definido para gerar o relatório.')),
+      );
+      print('--- Fim _generateAndDownloadNaturezasPdf: Condição de guarda ativada ---');
+      return;
+    }
+
     try {
-      // 1. Buscar todos os dados de Naturezas do Firestore
-      final querySnapshot = await FirebaseFirestore.instance.collection('naturezas').get();
+      final querySnapshot = await FirebaseFirestore.instance
+      .collection('companies')
+      .doc(widget.mainCompanyId) // <<-- CORREÇÃO
+      .collection('secondaryCompanies')
+      .doc(widget.secondaryCompanyId) // <<-- CORREÇÃO
+      .collection('data')
+      .doc('naturezas') // <<-- CORREÇÃO
+      .collection('items') // <<-- CORREÇÃO
+      .get();
+
+      // Só tenta imprimir o path do primeiro documento se existirem documentos
+      if (querySnapshot.docs.isNotEmpty) {
+        print('Caminho de leitura para relatório Firestore: ${querySnapshot.docs.first.reference.path}');
+      } else {
+        print('Caminho de leitura para relatório Firestore: Coleção de itens vazia.');
+      }
       final List<Map<String, dynamic>> allNaturezasData = [];
 
       for (var doc in querySnapshot.docs) {
@@ -768,7 +961,7 @@ class _NaturezaTelaState extends State<NaturezaTela> {
             'sequencias': sequencias.map((s) => s.toString()).toList(),
           });
         }
-        
+
         allNaturezasData.add({
           'codigo': naturezaCode,
           'descricao': descricao,
@@ -778,12 +971,12 @@ class _NaturezaTelaState extends State<NaturezaTela> {
 
       if (allNaturezasData.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Nenhuma Natureza encontrada para gerar o relatório.')),
+          const SnackBar(content: Text('Nenhuma Natureza encontrada para esta empresa para gerar o relatório.')),
         );
+        print('Nenhuma Natureza encontrada para o relatório.');
         return;
       }
 
-      // 2. Criar o documento PDF
       final pdf = pw.Document();
 
       pdf.addPage(
@@ -792,7 +985,7 @@ class _NaturezaTelaState extends State<NaturezaTela> {
           build: (pw.Context context) => [
             pw.Center(
               child: pw.Text(
-                'Relatório de Naturezas',
+                'Relatório de Naturezas para ${widget.secondaryCompanyId}',
                 style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
               ),
             ),
@@ -811,9 +1004,9 @@ class _NaturezaTelaState extends State<NaturezaTela> {
                       child: pw.Column(
                         crossAxisAlignment: pw.CrossAxisAlignment.start,
                         children: [
-                          pw.Text('  - País: ${carac['nome']}'),
+                          pw.Text('   - País: ${carac['nome']}'),
                           if (carac['sequencias'].isNotEmpty)
-                            pw.Text('    Cidades: ${carac['sequencias'].join(', ')}'),
+                            pw.Text('     Cidades: ${carac['sequencias'].join(', ')}'),
                         ],
                       ),
                     );
@@ -832,24 +1025,22 @@ class _NaturezaTelaState extends State<NaturezaTela> {
         ),
       );
 
-      // 3. Visualizar/Baixar o PDF
-      // A biblioteca `printing` lida automaticamente com a melhor forma para cada plataforma.
-      // Para web, geralmente abre em uma nova aba ou inicia o download.
       await Printing.layoutPdf(
         onLayout: (PdfPageFormat format) async => pdf.save(),
-        name: 'relatorio_naturezas_${DateFormat('yyyyMMdd_HHmm').format(DateTime.now())}.pdf',
-        // dynamicLayout: true, // Pode ser útil para documentos complexos
+        name: 'relatorio_naturezas_${widget.secondaryCompanyId}_${DateFormat('yyyyMMdd_HHmm').format(DateTime.now())}.pdf',
       );
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Relatório gerado e aberto no navegador!')),
       );
+      print('Relatório gerado com sucesso.');
 
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao gerar relatório: $e')),
       );
       print('Erro ao gerar PDF: $e');
+      print('--- Fim _generateAndDownloadNaturezasPdf: ERRO CATCH ---');
     }
   }
 
@@ -867,6 +1058,23 @@ class _NaturezaTelaState extends State<NaturezaTela> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('O campo Natureza não pode ser vazio.')),
       );
+      return;
+    }
+
+    final String? currentUserId = FirebaseAuth.instance.currentUser?.uid;
+
+    print('--- Início _saveNaturezaData ---');
+    print('Natureza Code: $naturezaCode');
+    print('Widget Main Company ID: ${widget.mainCompanyId}');
+    print('Widget Secondary Company ID: ${widget.secondaryCompanyId}');
+    print('Current User ID (Auth): $currentUserId');
+    print('-------------------------------');
+
+    if (widget.mainCompanyId.isEmpty || widget.secondaryCompanyId.isEmpty || currentUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Erro: Contexto da empresa ou usuário não definido para salvar dados.')),
+      );
+      print('--- Fim _saveNaturezaData: Condição de guarda ativada ---');
       return;
     }
 
@@ -898,21 +1106,28 @@ class _NaturezaTelaState extends State<NaturezaTela> {
     };
 
     try {
-      await FirebaseFirestore.instance
-          .collection('naturezas')
-          .doc(naturezaCode)
-          .set(dataToSave, SetOptions(merge: true));
+  // Caminho CORRETO para salvar
+  await FirebaseFirestore.instance
+      .collection('companies')
+      .doc(widget.mainCompanyId) // <<-- CORREÇÃO
+      .collection('secondaryCompanies')
+      .doc(widget.secondaryCompanyId) // <<-- CORREÇÃO
+      .collection('data')
+      .doc('naturezas') // <<-- CORREÇÃO
+      .collection('items') // <<-- CORREÇÃO
+      .doc(naturezaCode)
+      .set(dataToSave, SetOptions(merge: true));
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Dados da Natureza salvos com sucesso!')),
-      );
-      print('Dados da Natureza salvos: $dataToSave');
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao salvar dados da Natureza: $e')),
-      );
-      print('Erro ao salvar Natureza: $e');
-    }
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('Dados da Natureza salvos com sucesso!')),
+  );
+  print('Dados da Natureza salvos: $dataToSave');
+} catch (e) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text('Erro ao salvar dados da Natureza: $e')),
+  );
+  print('Erro ao salvar Natureza: $e');
+}
   }
 
   Widget _buildActionButton(String text, Color color, VoidCallback onPressed) {
@@ -941,7 +1156,7 @@ class _NaturezaTelaState extends State<NaturezaTela> {
       print('Característica ${i + 1}: ${_caracteristicaControllers[i].text}');
       if (_sequenciaControllersPorCaracteristica.containsKey(i)) {
         for (int j = 0; j < _sequenciaControllersPorCaracteristica[i]!.length; j++) {
-          print('  Cidade ${j + 1}: ${_sequenciaControllersPorCaracteristica[i]![j].text}');
+          print('   Cidade ${j + 1}: ${_sequenciaControllersPorCaracteristica[i]![j].text}');
         }
       }
     }

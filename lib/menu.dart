@@ -1,18 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_application_1/login_page.dart';
-import 'package:flutter_application_1/submenus.dart';
-import 'package:intl/intl.dart'; // Importe para formatar a data
 import 'package:flutter/services.dart'; // Para FilteringTextInputFormatter
+import 'package:flutter_application_1/secondary_company_selection_page.dart';
+import 'package:intl/intl.dart'; // Importe para formatar a data
+import 'package:firebase_auth/firebase_auth.dart'; // Para FirebaseAuth.instance.currentUser
 
-import 'reutilizaveis/tela_base.dart'; // importa o widget base
-import 'relacao_aberta_osm.dart'; // **NOVO IMPORT:** Importa a Tela RelacaoAbertaOSM
-
-class TelaPrincipal extends StatefulWidget {
-  const TelaPrincipal({super.key});
-
-  @override
-  State<TelaPrincipal> createState() => _TelaPrincipalState();
-}
+import 'package:flutter_application_1/login_page.dart';
+import 'package:flutter_application_1/submenus.dart'; // Para a TelaSubPrincipal
+import 'package:flutter_application_1/reutilizaveis/tela_base.dart'; // importa o widget base
+// import 'relacao_aberta_osm.dart'; // Se esta tela existir e for usada, certifique-se de que ela também aceite os parâmetros de empresa e permissão.
 
 // Classe para representar cada botão individualmente
 class ButtonData {
@@ -76,37 +71,96 @@ class BulletListFormatter extends TextInputFormatter {
   }
 }
 
+class TelaPrincipal extends StatefulWidget {
+  // ADICIONADOS OS NOVOS PARÂMETROS
+  final String mainCompanyId;
+  final String secondaryCompanyId;
+  final String? userRole; // Para controlar permissões de menu
+
+  const TelaPrincipal({
+    super.key,
+    required this.mainCompanyId,
+    required this.secondaryCompanyId,
+    this.userRole, // Torna opcional, mas é bom ter
+  });
+
+  @override
+  State<TelaPrincipal> createState() => _TelaPrincipalState();
+}
 
 class _TelaPrincipalState extends State<TelaPrincipal> {
-  // Define o breakpoint para alternar entre layouts
   static const double _breakpoint = 700.0;
-
-  // TextEditingController para o campo de texto
   final TextEditingController _textEditingController = TextEditingController();
-
-  // Lista de dados para seus botões
-  late final List<ButtonData> _buttonsData; // Mudado para late final para inicialização no initState
-
+  late final List<ButtonData> _buttonsData;
   late String _currentDate;
+
+  // Variável para armazenar o nome de usuário (ex: MRAFAEL)
+  String _userName = 'Usuário';
 
   @override
   void initState() {
     super.initState();
     _currentDate = DateFormat('dd/MM/yyyy').format(DateTime.now());
 
-    // Inicializa _buttonsData aqui
-    _buttonsData = [
+    // Tenta obter o nome de exibição do usuário logado ou email
+    _userName = FirebaseAuth.instance.currentUser?.displayName ?? FirebaseAuth.instance.currentUser?.email?.split('@').first.toUpperCase() ?? 'Usuário';
+
+    // Inicializa _buttonsData
+    _buttonsData = _buildButtonsData(); // Chamada de um novo método para construir a lista de botões
+
+    if (_textEditingController.text.isEmpty) {
+      _textEditingController.text = '• ';
+      _textEditingController.selection = TextSelection.fromPosition(
+        TextPosition(offset: _textEditingController.text.length),
+      );
+    }
+    _textEditingController.addListener(_handleTextChange);
+  }
+
+  // NOVO MÉTODO: Constrói a lista de botões com base nas permissões
+  List<ButtonData> _buildButtonsData() {
+    // Acessa o userRole via widget.userRole
+    final String? role = widget.userRole;
+
+    List<ButtonData> buttons = [
       ButtonData(text: 'Home', iconData: Icons.home, onPressed: () => print('Clicou em Home')),
       ButtonData(text: 'Settings', iconData: Icons.settings, onPressed: () => print('Clicou em Configurações')),
       ButtonData(text: 'Profile', iconData: Icons.person, onPressed: () => print('Clicou em Perfil')),
       ButtonData(text: 'Messages', iconData: Icons.message, onPressed: () => print('Clicou em Mensagens')),
-      // **ALTERADO:** Navegação para RelacaoAbertaOSM
-      ButtonData(text: 'Registro Geral', iconData: Icons.groups, onPressed: () {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const TelaSubPrincipal()), // Navega para RelacaoAbertaOSM
-        );
-      }),
+    ];
+
+    // Exemplo de botão com permissão: 'Registro Geral' visível apenas para 'admin' e 'gerente'
+    if (role == 'admin' || role == 'gerente') {
+      buttons.add(
+        ButtonData(text: 'Registro Geral', iconData: Icons.groups, onPressed: () {
+          // Passa todos os parâmetros para a próxima tela
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => TelaSubPrincipal(
+                mainCompanyId: widget.mainCompanyId,
+                secondaryCompanyId: widget.secondaryCompanyId,
+                userRole: role,
+              ),
+            ),
+          );
+        }),
+      );
+    }
+
+    // Exemplo: Botão 'Administração de Usuários' visível apenas para 'admin'
+    if (role == 'admin') {
+      buttons.add(
+        ButtonData(text: 'Administração de Usuários', iconData: Icons.security, onPressed: () {
+          print('Clicou em Admin Usuários (Apenas Admin)');
+          // Exemplo: Navegar para uma tela de administração de usuários
+          // Navigator.push(context, MaterialPageRoute(builder: (context) => UserAdminScreen(...)));
+        }),
+      );
+    }
+
+    // Adicione mais botões e suas lógicas de permissão aqui
+    buttons.addAll([
       ButtonData(text: 'Search', iconData: Icons.search, onPressed: () => print('Clicou em Busca')),
       ButtonData(text: 'Notifications', iconData: Icons.notifications, onPressed: () => print('Clicou em Notificações')),
       ButtonData(text: 'Calendar', iconData: Icons.calendar_today, onPressed: () => print('Clicou em Calendário')),
@@ -122,18 +176,9 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
       ButtonData(text: 'Add', iconData: Icons.add, onPressed: () => print('Clicou em Adicionar')),
       ButtonData(text: 'Delete', iconData: Icons.delete, onPressed: () => print('Clicou em Deletar')),
       ButtonData(text: 'Edit', iconData: Icons.edit, onPressed: () => print('Clicou em Editar')),
-    ];
+    ]);
 
-
-    // Inicializa com o primeiro tópico se o campo estiver vazio
-    if (_textEditingController.text.isEmpty) {
-      _textEditingController.text = '• ';
-      _textEditingController.selection = TextSelection.fromPosition(
-        TextPosition(offset: _textEditingController.text.length),
-      );
-    }
-
-    _textEditingController.addListener(_handleTextChange);
+    return buttons;
   }
 
   void _handleTextChange() {
@@ -151,7 +196,6 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
     }
   }
 
-
   @override
   void dispose() {
     _textEditingController.removeListener(_handleTextChange);
@@ -164,7 +208,7 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
     return TelaBase(
       body: Column(
         children: [
-          // Barra superior ocupando a largura total (permanece a mesma)
+          // Barra superior ocupando a largura total (permanece a mesma, ajustando o nome do usuário)
           Container(
             color: Colors.lightBlue,
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -173,56 +217,60 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
               children: [
                 Row(
                   children: [
-                    IconButton( // <-- Ícone de Logout adicionado aqui
-                      icon: const Icon(Icons.exit_to_app, color: Colors.black),
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back, color: Colors.black), // Ícone de voltar
+                      tooltip: 'Voltar para seleção de empresa',
                       onPressed: () {
-                        // Adicione aqui a lógica de logout
+                        // Navega de volta para a SecondaryCompanySelectionPage
+                        // Mantenha o usuário logado para que ele possa escolher outra empresa
                         Navigator.pushReplacement(
                           context,
-                          MaterialPageRoute(builder: (context) => const LoginPage()),
+                          MaterialPageRoute(
+                            builder: (context) => SecondaryCompanySelectionPage(
+                              mainCompanyId: widget.mainCompanyId,
+                              // allowedSecondaryCompanies NÃO É MAIS NECESSÁRIO AQUI, pois será buscado
+                              userRole: widget.userRole,
+                            ),
+                          ),
                         );
                       },
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                     ),
                     const SizedBox(width: 8),
-                    CircleAvatar(
+                    const CircleAvatar(
                       backgroundImage: AssetImage('assets/images/user.png'),
                       radius: 16,
                     ),
                     const SizedBox(width: 8),
-                    const Text('MRAFAEL', style: TextStyle(fontSize: 16, color: Colors.black)),
+                    // Exibir o nome de usuário dinamicamente
+                    Text(_userName, style: const TextStyle(fontSize: 16, color: Colors.black)),
                   ],
                 ),
-                // Exibindo a data atual
                 Align(
                   alignment: Alignment.centerRight,
                   child: Padding(
                     padding: const EdgeInsets.only(right: 20.0),
-                    child: Text(_currentDate, style: TextStyle(color: Colors.black)),
+                    child: Text(_currentDate, style: const TextStyle(color: Colors.black)),
                   ),
                 ),
               ],
             ),
           ),
 
-          // Usa LayoutBuilder para adaptar o layout com base na largura disponível
           Expanded(
             child: LayoutBuilder(
               builder: (BuildContext context, BoxConstraints constraints) {
                 if (constraints.maxWidth > _breakpoint) {
-                  // Layout para telas largas (Desktop/Tablet)
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Conteúdo principal (3/4)
                       Expanded(
                         flex: 3,
                         child: SingleChildScrollView(
                           child: _buildMainContent(isMobile: false),
                         ),
                       ),
-                      // Campo de texto (1/4)
                       Expanded(
                         flex: 1,
                         child: _buildTextField(),
@@ -230,7 +278,6 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
                     ],
                   );
                 } else {
-                  // Layout para telas pequenas (Mobile)
                   return SingleChildScrollView(
                     child: Column(
                       children: [
@@ -251,7 +298,6 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
     );
   }
 
-  // Método para construir o conteúdo principal (logo e botões)
   Widget _buildMainContent({required bool isMobile}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -262,28 +308,44 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
           child: Row(
             children: [
               Image.asset(
-                'assets/images/logo16.png', // Verifique este caminho!
+                'assets/images/logo16.png',
                 width: 75,
                 height: 75,
               ),
               const SizedBox(width: 10),
-              const Flexible(
+              Flexible(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Exibir os IDs da empresa selecionada
                     Text(
+                      'Empresa Principal ID: ${widget.mainCompanyId}',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    Text(
+                      'Empresa Secundária Ativa: ${widget.secondaryCompanyId}',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    Text(
+                      'Seu Cargo: ${widget.userRole ?? 'Não Definido'}', // Mostra o cargo
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    // Você pode buscar o nome completo da empresa e CNPJ aqui se quiser
+                    // usando os IDs (mainCompanyId, secondaryCompanyId) e Firestore.
+                    // Por enquanto, mantendo os dados fixos abaixo.
+                    const Text(
                       'MEGATRON TREINAMENTO E DESENVOLVIMENTO LTDA',
                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                     ),
-                    Text(
+                    const Text(
                       'CNPJ 12.395.757/0001-00',
                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                     ),
-                    Text(
+                    const Text(
                       'PRAÇA JOSÉ FRANCISCO JUCATELLI, 151 - JD. BOTÂNICO',
                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                     ),
-                    Text(
+                    const Text(
                       'RIBEIRÃO PRETO - SP',
                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                     ),
@@ -300,12 +362,11 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
     );
   }
 
-  // Método para construir o campo de texto com título e separador internos
   Widget _buildTextField() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(40.0, 30.0, 20.0, 20),
       child: Container(
-        constraints: BoxConstraints(
+        constraints: const BoxConstraints(
           minHeight: 150,
           maxHeight: 540,
         ),
@@ -317,17 +378,16 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Título "LEMBRETES" com ícone
             Padding(
               padding: const EdgeInsets.fromLTRB(12.0, 12.0, 12.0, 0),
-              child: Row( // <-- NOVO: Usamos um Row para o título e o ícone
+              child: Row(
                 children: [
-                  Icon(
-                    Icons.sticky_note_2, // Ícone de lembretes (ou use Icons.bookmark, Icons.event_note, etc.)
-                    size: 30, // Tamanho do ícone
+                  const Icon(
+                    Icons.sticky_note_2,
+                    size: 30,
                     color: Colors.black87,
                   ),
-                  const SizedBox(width: 8), // Espaçamento entre o ícone e o texto
+                  const SizedBox(width: 8),
                   const Text(
                     'LEMBRETES',
                     style: TextStyle(
@@ -340,19 +400,17 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
               ),
             ),
             const SizedBox(height: 8),
-            // Linha separadora
             Container(
               height: 1.0,
               color: Colors.black,
               margin: const EdgeInsets.symmetric(horizontal: 12.0),
             ),
-            // Campo de texto
             Expanded(
               child: TextField(
                 controller: _textEditingController,
                 maxLines: null,
                 expands: true,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   hintText: 'Digite suas anotações aqui...',
                   border: InputBorder.none,
                   contentPadding: EdgeInsets.all(12.0),
@@ -367,7 +425,6 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
     );
   }
 
-  // Método para construir os botões com responsividade e dados individuais
   Widget _buildBotoesResponsive({required bool isMobile}) {
     final int buttonsPerRow = isMobile ? 2 : 5;
 
@@ -408,7 +465,7 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
                       Flexible(
                         child: Text(
                           button.text,
-                          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 14),
+                          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 14),
                           textAlign: TextAlign.center,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,

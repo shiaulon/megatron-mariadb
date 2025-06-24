@@ -11,7 +11,16 @@ import 'package:flutter/services.dart'; // Para FilteringTextInputFormatter
 
 
 class TabelaPais extends StatefulWidget {
-  const TabelaPais({super.key});
+  final String mainCompanyId;
+  final String secondaryCompanyId;
+  final String? userRole; // Se precisar usar a permissão aqui também
+
+  const TabelaPais({
+    super.key,
+    required this.mainCompanyId,
+    required this.secondaryCompanyId,
+    this.userRole,
+  });
 
   @override
   State<TabelaPais> createState() => _TabelaPaisState();
@@ -82,9 +91,15 @@ class _TabelaPaisState extends State<TabelaPais> {
           TopAppBar(
             onBackPressed: () {
               Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const TelaSubPrincipal()),
-              );
+      context,
+      MaterialPageRoute(
+        builder: (context) => TelaSubPrincipal(
+          mainCompanyId: widget.mainCompanyId, // Repassa o ID da empresa principal
+          secondaryCompanyId: widget.secondaryCompanyId, // Repassa o ID da empresa secundária
+          userRole: widget.userRole, // Repassa o papel do usuário
+        ),
+      ),
+    );
             },
             currentDate: _currentDate,
             // userName: 'MRAFAEL', // Opcional, se quiser sobrescrever o padrão
@@ -110,7 +125,11 @@ class _TabelaPaisState extends State<TabelaPais> {
                             // Menu Lateral (flex 1)
                             Expanded(
                               flex: 1,
-                              child: AppDrawer(parentMaxWidth: constraints.maxWidth, breakpoint: _breakpoint),
+                              child: AppDrawer(parentMaxWidth: constraints.maxWidth,
+                          breakpoint: 700.0,
+                          mainCompanyId: widget.mainCompanyId, // Passa
+                          secondaryCompanyId: widget.secondaryCompanyId, // Passa
+                          userRole: widget.userRole,),
                             ),
                             // Área Central: Agora com o retângulo de informações E o título
                             Expanded(
@@ -168,7 +187,11 @@ class _TabelaPaisState extends State<TabelaPais> {
                             ),
                           ),
                         ),
-                        AppDrawer(parentMaxWidth: constraints.maxWidth, breakpoint: _breakpoint),
+                        AppDrawer(parentMaxWidth: constraints.maxWidth,
+                          breakpoint: 700.0,
+                          mainCompanyId: widget.mainCompanyId, // Passa
+                          secondaryCompanyId: widget.secondaryCompanyId, // Passa
+                          userRole: widget.userRole,),
                         _buildCentralInputArea(), // Área de entrada de dados abaixo do menu
                       ],
                     ),
@@ -309,7 +332,12 @@ class _TabelaPaisState extends State<TabelaPais> {
 
                       const SizedBox(height: 45), // Espaçamento antes dos rádios
 
-                      // Botões EXCLUIR, SALVAR, RELATÓRIO
+                      
+                    ],
+                  ),
+                ),
+              ),
+              // Botões EXCLUIR, SALVAR, RELATÓRIO
                       Center(
                         child: IntrinsicHeight(
                           // Garante que a altura das colunas filhas seja a mesma
@@ -441,10 +469,6 @@ class _TabelaPaisState extends State<TabelaPais> {
                           ),
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              ),
 
               // Estes dois containers ficarão fixos na parte inferior
               // Você pode usar `Align` ou simplesmente colocá-los no final da Column

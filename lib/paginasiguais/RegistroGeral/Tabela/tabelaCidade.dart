@@ -9,7 +9,7 @@ import 'package:flutter_application_1/reutilizaveis/tela_base.dart';
 import 'package:flutter_application_1/reutilizaveis/barraSuperior.dart';
 import 'package:flutter_application_1/reutilizaveis/menuLateral.dart';
 import 'package:flutter_application_1/reutilizaveis/customImputField.dart';
-import 'package:flutter_application_1/reutilizaveis/informacoesInferioresPagina.dart';
+//import 'package:flutter_application_1/reutilizaveis/informacoesInferioresPagina.dart';
 
 
 //Validator para UF
@@ -31,74 +31,17 @@ String? _ufValidator(String? value) {
 }
 
 
-
-
-class PercentageInputFormatter4CasasDecimais extends TextInputFormatter {
-  final int decimalDigits = 4; // Casas decimais fixas
-
-  @override
-  TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue, TextEditingValue newValue) {
-    String newTextCleaned = newValue.text.replaceAll(RegExp(r'\D'), '');
-
-    // Caso de texto vazio ou apenas zeros
-    if (newTextCleaned.isEmpty) {
-      return TextEditingValue.empty;
-    }
-
-    // Se o usuário digitou apenas zeros e não há outros dígitos, pode ser "0,0000"
-    if (int.tryParse(newTextCleaned) == 0) {
-      return const TextEditingValue(
-        text: '0,0000',
-        selection: TextSelection.collapsed(offset: 6), // Cursor no final
-      );
-    }
-
-    String formattedText;
-    int newCursorOffset;
-
-    // Garante que a string limpa tenha pelo menos o número de dígitos decimais
-    // para que a vírgula possa ser inserida corretamente da direita para a esquerda.
-    // Ex: "1" -> "0001", "12" -> "0012", "123" -> "0123", "1234" -> "1234"
-    String tempCleanedText = newTextCleaned.padLeft(decimalDigits, '0');
-
-    // A vírgula sempre será inserida 'decimalDigits' posições da direita para a esquerda.
-    // Se a string tem menos que 'decimalDigits' + 1, significa que a parte inteira é '0'
-    if (tempCleanedText.length <= decimalDigits) {
-        formattedText = '0,$tempCleanedText'; // Ex: "0,0001", "0,0012", "0,0123", "0,1234"
-    } else {
-        // Divide a string em parte inteira e parte decimal
-        int integerPartLength = tempCleanedText.length - decimalDigits;
-        String integerPart = tempCleanedText.substring(0, integerPartLength);
-        String decimalPart = tempCleanedText.substring(integerPartLength);
-
-        // Remove zeros à esquerda da parte inteira, a menos que seja apenas "0"
-        if (integerPart.length > 1 && integerPart.startsWith('0')) {
-             integerPart = integerPart.substring(1); // Ex: "01" vira "1"
-        }
-        if (integerPart.isEmpty) integerPart = '0'; // Garante que não fique vazio se virar "0"
-
-        formattedText = '$integerPart,$decimalPart';
-    }
-
-
-    // --- Ajuste da Posição do Cursor ---
-    // A lógica mais simples e robusta para este tipo de formatador
-    // é manter o cursor sempre no final.
-    // Se o usuário precisa editar no meio, a experiência pode ser prejudicada,
-    // mas tentar calcular posições intermediárias com preenchimento de zero e vírgula
-    // é extremamente complexo e propenso a bugs visuais.
-    newCursorOffset = formattedText.length;
-
-    return TextEditingValue(
-      text: formattedText,
-      selection: TextSelection.collapsed(offset: newCursorOffset),
-    );
-  }
-}
-
 class TabelaCidade extends StatefulWidget {
-  const TabelaCidade({super.key});
+  final String mainCompanyId;
+  final String secondaryCompanyId;
+  final String? userRole; // Se precisar usar a permissão aqui também
+
+  const TabelaCidade({
+    super.key,
+    required this.mainCompanyId,
+    required this.secondaryCompanyId,
+    this.userRole,
+  });
 
   @override
   State<TabelaCidade> createState() => _TabelaCidadeState();
@@ -194,8 +137,16 @@ class _TabelaCidadeState extends State<TabelaCidade> {
         children: [
           TopAppBar(
             onBackPressed: () {
-              Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const TelaSubPrincipal()),);
-            },
+Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TelaSubPrincipal(
+          mainCompanyId: widget.mainCompanyId, // Repassa o ID da empresa principal
+          secondaryCompanyId: widget.secondaryCompanyId, // Repassa o ID da empresa secundária
+          userRole: widget.userRole, // Repassa o papel do usuário
+        ),
+      ),
+    );            },
             currentDate: _currentDate,
           ),
           Expanded(
@@ -211,9 +162,11 @@ class _TabelaCidadeState extends State<TabelaCidade> {
                           children: [
                             Expanded(
                               flex: 1,
-                              child: AppDrawer(
-                                parentMaxWidth: constraints.maxWidth,
-                                breakpoint: _breakpoint,
+                              child: AppDrawer(parentMaxWidth: constraints.maxWidth,
+                          breakpoint: 700.0,
+                          mainCompanyId: widget.mainCompanyId, // Passa
+                          secondaryCompanyId: widget.secondaryCompanyId, // Passa
+                          userRole: widget.userRole,
                               ),
                             ),
                             Expanded(
@@ -264,7 +217,10 @@ class _TabelaCidadeState extends State<TabelaCidade> {
                         ),
                         AppDrawer(
                             parentMaxWidth: constraints.maxWidth,
-                            breakpoint: _breakpoint),
+                          breakpoint: 700.0,
+                          mainCompanyId: widget.mainCompanyId, // Passa
+                          secondaryCompanyId: widget.secondaryCompanyId, // Passa
+                          userRole: widget.userRole,),
                         _buildCentralInputArea(),
                       ],
                     ),
@@ -624,14 +580,14 @@ class _TabelaCidadeState extends State<TabelaCidade> {
 
   void _printFormValues() {
     print('--- Dados do Formulário Estado X Imposto ---');
-    print('Estado Origem: ${_codigoController.text}');
-    print('Estado Destino: ${_estadoController.text}');
-    print('Aliq. Interestadual: ${_cidadeController.text}');
-    print('Aliq. Interna - DIFAL: ${_abreviadoController.text}');
-    print('Desc. Diferença ICMS Revenda: ${_paisController.text}');
-    print('Desc. Diferença ICMS Outros: ${_issController.text}');
-    print('Cálculo DIFAL Dentro: ${_cartorio == true ? 'Sim' : 'Não'}');
-    print('Aliq. ICMS Substituição: ${_tabelaIBGEController.text}');
+    print('Codigo Cidade: ${_codigoController.text}');
+    print('Estado Cidade: ${_estadoController.text}');
+    print('Cidade: ${_cidadeController.text}');
+    print('Abreviado Cidade: ${_abreviadoController.text}');
+    print('Pais Cidade: ${_paisController.text}');
+    print('ISS Cidade: ${_issController.text}');
+    print('Cartorio Radio: ${_cartorio == true ? 'Sim' : 'Não'}');
+    print('Tabela IBGE Cidade: ${_tabelaIBGEController.text}');
     
     print('------------------------------------------');
   }

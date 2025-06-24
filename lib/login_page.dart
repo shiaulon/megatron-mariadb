@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Importe o Firebase Auth
-import 'reutilizaveis/tela_base.dart'; // importa o widget base
-import 'menu.dart'; // Certifique-se de que TelaPrincipal está importada
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // Importe o Firestore
+import 'package:flutter_application_1/reutilizaveis/tela_base.dart';
+import 'package:flutter_application_1/menu.dart'; // Sua TelaPrincipal
+import 'package:flutter_application_1/secondary_company_selection_page.dart'; // Importe a nova página
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -14,7 +16,7 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
-  String? _errorMessage; // Para exibir mensagens de erro ao usuário
+  String? _errorMessage;
 
   @override
   void dispose() {
@@ -23,42 +25,99 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  // Função para lidar com o login
   Future<void> _signIn() async {
     setState(() {
-      _errorMessage = null; // Limpa a mensagem de erro anterior
+      _errorMessage = null;
     });
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
+      UserCredential userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
-      // Se o login for bem-sucedido, navega para a TelaPrincipal
-      if (mounted) { // Verifica se o widget ainda está montado
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const TelaPrincipal()),
-        );
+
+      User? user = userCredential.user;
+
+      if (user != null && mounted) {
+        String userId = user.uid;
+
+        // 1. Buscar informações do usuário no Firestore
+        DocumentSnapshot userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .get();
+
+        if (userDoc.exists) {
+          String? mainCompanyId = userDoc['mainCompanyId'];
+          List<dynamic>? allowedSecondaryCompaniesRaw = userDoc['allowedSecondaryCompanies'];
+          String? userRole = userDoc['role'];
+
+          // Converter List<dynamic> para List<String> de forma segura
+          List<String> allowedSecondaryCompanies = allowedSecondaryCompaniesRaw?.map((item) => item.toString()).toList() ?? [];
+
+          if (mainCompanyId != null && mainCompanyId.isNotEmpty) {
+            if (allowedSecondaryCompanies.isNotEmpty) {
+              if (allowedSecondaryCompanies.length == 1) {
+                // Se houver apenas UMA empresa secundária permitida, navega direto para a TelaPrincipal
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => TelaPrincipal(
+                      mainCompanyId: mainCompanyId,
+                      secondaryCompanyId: allowedSecondaryCompanies.first, // Usa a única empresa
+                      userRole: userRole,
+                    ),
+                  ),
+                );
+              } else {
+                // Se houver MÚLTIPLAS empresas secundárias, navega para a tela de seleção
+                Navigator.pushReplacement(
+  context,
+  MaterialPageRoute(
+    builder: (context) => SecondaryCompanySelectionPage(
+      mainCompanyId: mainCompanyId,
+      // allowedSecondaryCompanies: allowedSecondaryCompanies, // Esta linha agora é opcional, mas pode permanecer se não causar erro
+      userRole: userRole,
+    ),
+  ),
+);
+              }
+            } else {
+              // Caso o allowedSecondaryCompanies seja nulo ou vazio
+              setState(() {
+                _errorMessage = 'Este usuário não tem empresas secundárias associadas. Contate o suporte.';
+              });
+              await FirebaseAuth.instance.signOut(); // Desloga o usuário
+            }
+          } else {
+            // Caso mainCompanyId não esteja definido no perfil do usuário
+            setState(() {
+              _errorMessage = 'Usuário não associado a nenhuma empresa principal. Contate o suporte.';
+            });
+            await FirebaseAuth.instance.signOut(); // Desloga o usuário
+          }
+        } else {
+          setState(() {
+            _errorMessage = 'Dados do perfil do usuário não encontrados. Contate o suporte.';
+          });
+          await FirebaseAuth.instance.signOut(); // Desloga o usuário
+        }
       }
     } on FirebaseAuthException catch (e) {
-      // Trata erros de autenticação do Firebase
       setState(() {
         if (e.code == 'user-not-found') {
           _errorMessage = 'Nenhum usuário encontrado para esse e-mail.';
         } else if (e.code == 'wrong-password') {
-          _errorMessage = 'Senha incorreta para esse e-mail.';
+          _errorMessage = 'Senha incorreta.';
         } else if (e.code == 'invalid-email') {
           _errorMessage = 'O formato do e-mail é inválido.';
         } else if (e.code == 'user-disabled') {
-          _errorMessage = 'Este usuário foi desativado.';
-        }
-        else {
+          _errorMessage = 'Esta conta de usuário foi desativada.';
+        } else {
           _errorMessage = 'Erro de login: ${e.message}';
         }
       });
       print('Erro Firebase Auth: ${e.code} - ${e.message}');
     } catch (e) {
-      // Trata outros erros gerais
       setState(() {
         _errorMessage = 'Ocorreu um erro inesperado. Tente novamente.';
       });
@@ -74,7 +133,6 @@ class _LoginPageState extends State<LoginPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Logo
               Padding(
                 padding: const EdgeInsets.only(bottom: 20),
                 child: Image.asset(
@@ -83,15 +141,13 @@ class _LoginPageState extends State<LoginPage> {
                   height: 330,
                 ),
               ),
-
-              // Campo Usuário (E-mail)
               SizedBox(
                 width: 300,
                 height: 35,
                 child: TextField(
-                  controller: _emailController, // Associa o controller
-                  keyboardType: TextInputType.emailAddress, // Teclado otimizado para e-mail
-                  decoration: InputDecoration(
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(
                     labelText: 'USUÁRIO (E-MAIL)',
                     border: OutlineInputBorder(),
                     filled: true,
@@ -100,13 +156,11 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
               const SizedBox(height: 10),
-
-              // Campo Senha
               SizedBox(
                 width: 300,
                 height: 35,
                 child: TextField(
-                  controller: _passwordController, // Associa o controller
+                  controller: _passwordController,
                   obscureText: _obscurePassword,
                   decoration: InputDecoration(
                     labelText: 'SENHA',
@@ -128,8 +182,6 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
               const SizedBox(height: 10),
-
-              // Mensagem de erro (se houver)
               if (_errorMessage != null)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
@@ -139,30 +191,24 @@ class _LoginPageState extends State<LoginPage> {
                     textAlign: TextAlign.center,
                   ),
                 ),
-              const SizedBox(height: 30), // Ajusta espaçamento após a mensagem de erro
-
-              // Botão Entrar
+              const SizedBox(height: 30),
               SizedBox(
                 width: 200,
                 height: 40,
                 child: OutlinedButton(
-                  onPressed: _signIn, // Chama a função _signIn
-                  child: const Text('ENTRAR', style: TextStyle(color: Colors.black)),
+                  onPressed: _signIn,
                   style: OutlinedButton.styleFrom(
                     backgroundColor: Colors.blue,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
+                  child: const Text('ENTRAR', style: TextStyle(color: Colors.black)),
                 ),
               ),
-
-              // Esqueceu senha
               TextButton(
                 onPressed: () {
-                  // Ação para "Esqueceu sua senha?"
                   print('Esqueceu sua senha? clicado');
-                  // Você pode navegar para uma tela de recuperação de senha aqui
                 },
                 child: const Text(
                   'Esqueceu sua senha?',

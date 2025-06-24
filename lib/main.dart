@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_application_1/firebase_options.dart'; // Mantenha este import
+import 'package:flutter_application_1/firestore_initializer.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaNatureza.dart';
 import 'package:flutter_application_1/submenus.dart';
 import 'login_page.dart';
@@ -14,6 +15,7 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  //await FirestoreInitializer().initializeFirestoreData();
 
   runApp(const MyApp());
 }
@@ -30,7 +32,7 @@ class MyApp extends StatelessWidget { // <--- Voltou a ser StatelessWidget
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: const NaturezaTela(), // Inicia na LoginPage
+      home: const LoginPage(), // Inicia na LoginPage
       debugShowCheckedModeBanner: false,
     );
   }

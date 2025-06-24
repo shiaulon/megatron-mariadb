@@ -1,12 +1,20 @@
 // lib/widgets/app_drawer.dart
 import 'package:flutter/material.dart';
+import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaAtividadeEmpresas.dart';
+import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaCargo.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaCidade.dart';
+import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaComoNosConheceu.dart';
+import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaCondicaoPagamento.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaControle.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaEstado.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaEstadoXImposto.dart';
+import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaIBGEXCidade.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaNatureza.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaPais.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaSituacao.dart';
+import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaTipoBemCredito.dart';
+import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaTipoHistorico.dart';
+import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tipoTelefone.dart';
 
 // NOVO WIDGET: Item de menu com efeito de hover
 class HoverMenuItem extends StatefulWidget {
@@ -155,11 +163,17 @@ class _HoverExpansionTileState extends State<HoverExpansionTile> {
 class AppDrawer extends StatelessWidget {
   final double parentMaxWidth;
   final double breakpoint; // Adicione o breakpoint como parâmetro
+  final String mainCompanyId;
+  final String secondaryCompanyId;
+  final String? userRole;
 
   const AppDrawer({
     Key? key,
     required this.parentMaxWidth,
     required this.breakpoint,
+    required this.mainCompanyId,
+    required this.secondaryCompanyId,
+    this.userRole,
   }) : super(key: key);
 
   // Widget auxiliar para construir itens de menu individuais
@@ -213,13 +227,21 @@ class AppDrawer extends StatelessWidget {
             ),
           ),
           _buildMenuItemWithSubitems(context, 'Tabelas', Icons.table_chart, [
-            _buildSubMenuItem(context, 'Controle', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const TabelaControle()),),),
-            _buildSubMenuItem(context, 'País', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const TabelaPais()),),),
-            _buildSubMenuItem(context, 'Estado', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const TabelaEstado()),),),
-            _buildSubMenuItem(context, 'Estado x Imposto', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const TabelaEstadoXImposto()),),),
-            _buildSubMenuItem(context, 'Cidade', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const TabelaCidade()),),),
-            _buildSubMenuItem(context, 'Natureza', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const NaturezaTela()),),),
-            _buildSubMenuItem(context, 'Situação', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const TabelaSituacao()),),),
+            _buildSubMenuItem(context, 'Controle', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaControle(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
+            _buildSubMenuItem(context, 'País', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaPais(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
+            _buildSubMenuItem(context, 'Estado', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaEstado(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
+            _buildSubMenuItem(context, 'Estado x Imposto', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaEstadoXImposto(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
+            _buildSubMenuItem(context, 'Cidade', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaCidade(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
+            _buildSubMenuItem(context, 'Natureza', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  NaturezaTela(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
+            _buildSubMenuItem(context, 'Situação', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaSituacao(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
+            _buildSubMenuItem(context, 'Cargo', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaCargo(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
+            _buildSubMenuItem(context, 'Tipo Telefone', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaTipoTelefone(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
+            _buildSubMenuItem(context, 'Tipo Histórico', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaTipoHistorico(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
+            _buildSubMenuItem(context, 'Tipo Bem Crédito', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaTipoBemCredito(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
+            _buildSubMenuItem(context, 'Condição Pagamento', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaCondicaoPagamento(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
+            _buildSubMenuItem(context, 'IBGE x Cidade', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaIBGEXCidade(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
+            _buildSubMenuItem(context, 'Como nos Conheceu', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaComoNosConheceu(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
+            _buildSubMenuItem(context, 'Atividade Empresa', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaAtividadeEmpresas(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
 
           ]),
           _buildMenuItemWithSubitems(context, 'Registro Geral', Icons.app_registration, [

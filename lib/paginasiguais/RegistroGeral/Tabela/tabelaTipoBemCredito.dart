@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_application_1/reutilizaveis/informacoesInferioresPagina.dart';
-import 'package:flutter_application_1/menu.dart';
+//import 'package:flutter_application_1/reutilizaveis/informacoesInferioresPagina.dart';
+//import 'package:flutter_application_1/menu.dart';
 import 'package:flutter_application_1/reutilizaveis/menuLateral.dart';
 import 'package:flutter_application_1/reutilizaveis/barraSuperior.dart';
 import 'package:flutter_application_1/reutilizaveis/customImputField.dart';
@@ -10,12 +10,12 @@ import 'package:intl/intl.dart'; // Importe para formatar a data
 import 'package:flutter/services.dart'; // Para FilteringTextInputFormatter
 
 
-class TabelaEstado extends StatefulWidget {
+class TabelaTipoBemCredito extends StatefulWidget {
   final String mainCompanyId;
   final String secondaryCompanyId;
   final String? userRole; // Se precisar usar a permissão aqui também
 
-  const TabelaEstado({
+  const TabelaTipoBemCredito({
     super.key,
     required this.mainCompanyId,
     required this.secondaryCompanyId,
@@ -23,12 +23,12 @@ class TabelaEstado extends StatefulWidget {
   });
 
   @override
-  State<TabelaEstado> createState() => _TabelaEstadoState();
+  State<TabelaTipoBemCredito> createState() => _TabelaTipoBemCreditoState();
 }
 
 
 
-class _TabelaEstadoState extends State<TabelaEstado> {
+class _TabelaTipoBemCreditoState extends State<TabelaTipoBemCredito> {
   // Define o breakpoint para alternar entre layouts
   static const double _breakpoint = 700.0; // Desktop breakpoint
 
@@ -40,15 +40,10 @@ class _TabelaEstadoState extends State<TabelaEstado> {
 
   // Controllers para os novos campos de texto na área central
   final TextEditingController _dataAtualController = TextEditingController();
-  final TextEditingController _codigoEstadoController = TextEditingController();
-  final TextEditingController _estadoController = TextEditingController();
-  final TextEditingController _paisEstadoController = TextEditingController();
-  final TextEditingController _siglaController = TextEditingController();
-  // Adicionado controller para CPF
+  final TextEditingController _codigoController = TextEditingController();
+  final TextEditingController _descricaoController = TextEditingController();
 
-  // Variáveis para os Radio Buttons
-  String? _integracaoSelection; // CRM, WEB
-  String? _nrgRgErpSelection; // Normal, Par, Impar
+
 
   @override
   void initState() {
@@ -56,10 +51,8 @@ class _TabelaEstadoState extends State<TabelaEstado> {
     _currentDate = DateFormat('dd/MM/yyyy').format(DateTime.now());
 
     // Adiciona listener para o campo Empresa para atualizar o contador
-    _codigoEstadoController.addListener(_updateEmpresaCounter);
-    _siglaController.addListener(_updateEmpresaCounter);
-    _paisEstadoController.addListener(_updateEmpresaCounter);
-    _estadoController.addListener(_updateEmpresaCounter);
+    _codigoController.addListener(_updateEmpresaCounter);
+    _descricaoController.addListener(_updateEmpresaCounter);
   }
 
   void _updateEmpresaCounter() {
@@ -74,11 +67,8 @@ class _TabelaEstadoState extends State<TabelaEstado> {
     // Descarte os novos controllers de campo de texto
     _dataAtualController.dispose();
     //_empresaController.removeListener(_updateEmpresaCounter); // Remover listener
-    _codigoEstadoController.dispose();
-    _siglaController.dispose();
-    _paisEstadoController.dispose();
-    _codigoEstadoController.dispose();
-
+    _codigoController.dispose();
+    _descricaoController.dispose();
     super.dispose();
   }
 
@@ -140,14 +130,14 @@ class _TabelaEstadoState extends State<TabelaEstado> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 // Alinha os filhos à esquerda (Text e Padding)
                                 children: [
-                                  Padding(
+                                  const Padding(
                                     // Título "Controle"
-                                    padding: const EdgeInsets.only(
+                                    padding:  EdgeInsets.only(
                                         top: 20.0, bottom: 0.0), // Padding vertical
                                     child: Center(
                                       // <-- Centraliza o texto APENAS dentro deste Expanded
                                       child: Text(
-                                        'Estado', // Título alterado para "Controle"
+                                        'Tipo bem Crédito', // Título alterado para "Controle"
                                         style: TextStyle(
                                           fontSize: 28,
                                           fontWeight: FontWeight.bold,
@@ -173,12 +163,12 @@ class _TabelaEstadoState extends State<TabelaEstado> {
                     child: Column(
                       children: [
                         // Título "Controle" centralizado para mobile
-                        Padding(
+                        const Padding(
                           padding:
-                              const EdgeInsets.only(top: 15.0, bottom: 8.0),
+                               EdgeInsets.only(top: 15.0, bottom: 8.0),
                           child: Center(
                             child: Text(
-                              'Estado', // Título alterado para "Controle"
+                              'Tipo Bem Crédito', // Título alterado para "Controle"
                               style: TextStyle(
                                 fontSize: 24,
                                 fontWeight: FontWeight.bold,
@@ -222,6 +212,7 @@ class _TabelaEstadoState extends State<TabelaEstado> {
           child: Column(
             // Use Column para empilhar os elementos e permitir o posicionamento no final
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               Expanded(
                 // Este Expanded fará com que a parte superior dos campos de entrada ocupe o espaço disponível
@@ -229,24 +220,26 @@ class _TabelaEstadoState extends State<TabelaEstado> {
                   // Para permitir rolagem se os campos forem muitos
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+
                     children: [
-                      SizedBox(height: 40,),
+                      const SizedBox(height: 40,),
                       // código----------------------------------------------------------------------
                       Padding(
                         padding: const EdgeInsets.only(left: 25, right: 25),
                         child: Row(
                           children: [
-                            SizedBox(width: 150,),
+                            const SizedBox(width: 150,),
                             Expanded(
                               child: CustomInputField(
-                                controller: _codigoEstadoController,
+                                controller: _codigoController,
                                 label: 'Código',
                                 inputFormatters: [
                                   FilteringTextInputFormatter.digitsOnly, // Aceita apenas dígitos
                                 ],
                                 maxLength: 2,
                                 keyboardType: TextInputType.number,
-                                suffixText: '${_codigoEstadoController.text.length}/2',
+                                suffixText: '${_codigoController.text.length}/2',
                                 validator: (value) {
                                   if (value == null || value.isEmpty) {
                                     return 'Campo obrigatório';
@@ -255,97 +248,45 @@ class _TabelaEstadoState extends State<TabelaEstado> {
                                 },
                               ),
                             ),
-                            SizedBox(width: 150,),
+                            const SizedBox(width: 150,),
                           ],
                         ),
                       ),
-                      SizedBox(height: 35),
+                      const SizedBox(height: 35),
                       //resumo---------------------------------------------------------------------------------------------
                       Padding(
                         padding: const EdgeInsets.only(left: 25, right: 25),
                         child: Row(
                           children: [
-                            SizedBox(width: 150,),
+                            const SizedBox(width: 150,),
                             Expanded(
                               child: CustomInputField(
-                                controller: _siglaController,
-                                label: 'Sigla',
-                                inputFormatters: [],
+                                controller: _descricaoController,
+                                label: 'Descrição',
                                 
-                                maxLength: 2,
-                                suffixText: '${_siglaController.text.length}/2',
+                                
+                                maxLength: 30,
+                                suffixText: '${_descricaoController.text.length}/30',
                                 validator: (value) {
                                   if (value == null || value.isEmpty) {
                                     return 'Campo obrigatório';
                                   }
                                   // **VALIDAÇÃO EXTRA AQUI:** Deve ter exatamente 2 caracteres
-                                  if (value.length != 2) {
-                                    return 'A sigla deve ter exatamente 2 caracteres/dígitos.';
-                                  }
+                                  
                                   return null;
                                 },
                                 
                               ),
                             ),
-                            SizedBox(width: 150,),
+                            const SizedBox(width: 150,),
                           ],
                         ),
                       ),
-                      SizedBox(height: 35,),
-                      //pais----------------------------------------------------------------------------------------------------
-                      Padding(
-                        padding: const EdgeInsets.only(left: 25, right: 25),
-                        child: Row(
-                          children: [
-                            SizedBox(width: 150,),
-                            Expanded(
-                              child: CustomInputField(
-                                controller: _paisEstadoController,
-                                label: 'País',
-                                inputFormatters: [],
-                                maxLength: 2,
-                                suffixText: '${_paisEstadoController.text.length}/2',
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Campo obrigatório';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            ),
-                            SizedBox(width: 150,),
-                          ],
-                        ),
-                      ),
-                      SizedBox(height: 35,),
-                      // codigo pais ---------------------------------------------------------------------------------------------
-                      Padding(
-                        padding: const EdgeInsets.only(left: 25, right: 25),
-                        child: Row(
-                          children: [
-                            SizedBox(width: 150,),
-                            Expanded(
-                              child: CustomInputField(
-                                controller: _estadoController,
-                                label: 'Estado',
-                                
-                                maxLength: 40,
-                                
-                                suffixText:
-                                    '${_estadoController.text.length}/40',
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Campo obrigatório';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            ),
-                            SizedBox(width: 150,),
-                          ],
-                        ),
-                      ),
+                      
 
+                    
+
+                      
                       const SizedBox(height: 45), // Espaçamento antes dos rádios
 
                       
@@ -370,8 +311,8 @@ class _TabelaEstadoState extends State<TabelaEstado> {
                                       // Todos os campos são válidos, prossiga com o salvamento
                                       print('--- Dados Salvos ---');
                                       print('Data Atual: ${_dataAtualController.text}');
-                                      print('Integração: ${_integracaoSelection ?? 'Nenhum selecionado'}');
-                                      print('Nrg RG ERP: ${_nrgRgErpSelection ?? 'Nenhum selecionado'}');
+                                      print('codigo Cargo: ${_codigoController ?? 'Nenhum selecionado'}');
+                                      print('Descrição cargo: ${_descricaoController ?? 'Nenhum selecionado'}');
                                     } else {
                                       // Exibe uma mensagem ou snackbar indicando erros de validação
                                       ScaffoldMessenger.of(context).showSnackBar(
@@ -411,8 +352,8 @@ class _TabelaEstadoState extends State<TabelaEstado> {
                                       // Todos os campos são válidos, prossiga com o salvamento
                                       print('--- Dados Salvos ---');
                                       print('Data Atual: ${_dataAtualController.text}');
-                                      print('Integração: ${_integracaoSelection ?? 'Nenhum selecionado'}');
-                                      print('Nrg RG ERP: ${_nrgRgErpSelection ?? 'Nenhum selecionado'}');
+                                      print('codigo Cargo: ${_codigoController ?? 'Nenhum selecionado'}');
+                                      print('Descrição cargo: ${_descricaoController ?? 'Nenhum selecionado'}');
                                     } else {
                                       // Exibe uma mensagem ou snackbar indicando erros de validação
                                       ScaffoldMessenger.of(context).showSnackBar(

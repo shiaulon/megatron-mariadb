@@ -274,7 +274,16 @@ String? _ufValidator(String? value) {
 // --- FIM DOS NOVOS FORMATTERS E VALIDATORS ---
 
 class TabelaControle extends StatefulWidget {
-  const TabelaControle({super.key});
+  final String mainCompanyId;
+  final String secondaryCompanyId;
+  final String? userRole; // Se precisar usar a permissão aqui também
+
+  const TabelaControle({
+    super.key,
+    required this.mainCompanyId,
+    required this.secondaryCompanyId,
+    this.userRole,
+  });
 
   @override
   State<TabelaControle> createState() => _TabelaControleState();
@@ -395,9 +404,15 @@ class _TabelaControleState extends State<TabelaControle> {
           TopAppBar(
             onBackPressed: () {
               Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const TelaSubPrincipal()),
-              );
+      context,
+      MaterialPageRoute(
+        builder: (context) => TelaSubPrincipal(
+          mainCompanyId: widget.mainCompanyId, // Repassa o ID da empresa principal
+          secondaryCompanyId: widget.secondaryCompanyId, // Repassa o ID da empresa secundária
+          userRole: widget.userRole, // Repassa o papel do usuário
+        ),
+      ),
+    );
             },
             currentDate: _currentDate,
             // userName: 'MRAFAEL', // Opcional, se quiser sobrescrever o padrão
@@ -420,7 +435,13 @@ class _TabelaControleState extends State<TabelaControle> {
                             // Menu Lateral (flex 1)
                             Expanded(
                               flex: 1,
-                              child: AppDrawer(parentMaxWidth: constraints.maxWidth, breakpoint: _breakpoint),
+                              child: AppDrawer(
+                          parentMaxWidth: constraints.maxWidth,
+                          breakpoint: 700.0,
+                          mainCompanyId: widget.mainCompanyId, // Passa
+                          secondaryCompanyId: widget.secondaryCompanyId, // Passa
+                          userRole: widget.userRole, // Passa
+                        ),
                             ),
                             // Área Central: Agora com o retângulo de informações E o título
                             Expanded( // <-- ONDE A MUDANÇA OCORRE: Este Expanded é o pai do título e do container azul
@@ -471,7 +492,11 @@ class _TabelaControleState extends State<TabelaControle> {
                             ),
                           ),
                         ),
-                        AppDrawer(parentMaxWidth: constraints.maxWidth, breakpoint: _breakpoint),
+                        AppDrawer(parentMaxWidth: constraints.maxWidth,
+                          breakpoint: 700.0,
+                          mainCompanyId: widget.mainCompanyId, // Passa
+                          secondaryCompanyId: widget.secondaryCompanyId, // Passa
+                          userRole: widget.userRole,),
                         _buildCentralInputArea(), // Área de entrada de dados abaixo do menu
                       ],
                     ),

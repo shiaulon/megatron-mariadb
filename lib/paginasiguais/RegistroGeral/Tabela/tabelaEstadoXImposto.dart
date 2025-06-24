@@ -235,7 +235,16 @@ class PercentageInputFormatter4CasasDecimais extends TextInputFormatter {
 }
 
 class TabelaEstadoXImposto extends StatefulWidget {
-  const TabelaEstadoXImposto({super.key});
+  final String mainCompanyId;
+  final String secondaryCompanyId;
+  final String? userRole; // Se precisar usar a permissão aqui também
+
+  const TabelaEstadoXImposto({
+    super.key,
+    required this.mainCompanyId,
+    required this.secondaryCompanyId,
+    this.userRole,
+  });
 
   @override
   State<TabelaEstadoXImposto> createState() => _TabelaEstadoXImpostoState();
@@ -321,8 +330,16 @@ class _TabelaEstadoXImpostoState extends State<TabelaEstadoXImposto> {
         children: [
           TopAppBar(
             onBackPressed: () {
-              Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const TelaSubPrincipal()),);
-            },
+Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TelaSubPrincipal(
+          mainCompanyId: widget.mainCompanyId, // Repassa o ID da empresa principal
+          secondaryCompanyId: widget.secondaryCompanyId, // Repassa o ID da empresa secundária
+          userRole: widget.userRole, // Repassa o papel do usuário
+        ),
+      ),
+    );            },
             currentDate: _currentDate,
           ),
           Expanded(
@@ -340,7 +357,10 @@ class _TabelaEstadoXImpostoState extends State<TabelaEstadoXImposto> {
                               flex: 1,
                               child: AppDrawer(
                                 parentMaxWidth: constraints.maxWidth,
-                                breakpoint: _breakpoint,
+                          breakpoint: 700.0,
+                          mainCompanyId: widget.mainCompanyId, // Passa
+                          secondaryCompanyId: widget.secondaryCompanyId, // Passa
+                          userRole: widget.userRole,
                               ),
                             ),
                             Expanded(
@@ -391,7 +411,10 @@ class _TabelaEstadoXImpostoState extends State<TabelaEstadoXImposto> {
                         ),
                         AppDrawer(
                             parentMaxWidth: constraints.maxWidth,
-                            breakpoint: _breakpoint),
+                          breakpoint: 700.0,
+                          mainCompanyId: widget.mainCompanyId, // Passa
+                          secondaryCompanyId: widget.secondaryCompanyId, // Passa
+                          userRole: widget.userRole,),
                         _buildCentralInputArea(),
                       ],
                     ),

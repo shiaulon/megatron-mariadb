@@ -10,7 +10,16 @@ import 'package:flutter/services.dart'; // Para FilteringTextInputFormatter
 import 'reutilizaveis/tela_base.dart'; // importa o widget base
 
 class TelaSubPrincipal extends StatefulWidget {
-  const TelaSubPrincipal({super.key});
+  final String mainCompanyId;
+  final String secondaryCompanyId;
+  final String? userRole;
+
+  const TelaSubPrincipal({
+    super.key,
+    required this.mainCompanyId,
+    required this.secondaryCompanyId,
+    this.userRole,
+  });
 
   @override
   State<TelaSubPrincipal> createState() => _TelaSubPrincipalState();
@@ -229,8 +238,8 @@ class _TelaSubPrincipalState extends State<TelaSubPrincipal> {
 
   // Lista de anotações com checkboxes
   final List<ChecklistItem> _annotations = [
-    ChecklistItem(text: 'Exemplo de anotação 1', isChecked: false),
-    ChecklistItem(text: 'Exemplo de anotação 2', isChecked: true),
+    
+    //ChecklistItem(text: 'Exemplo de anotação 2', isChecked: false),
   ];
 
   late String _currentDate;
@@ -372,9 +381,15 @@ class _TelaSubPrincipalState extends State<TelaSubPrincipal> {
                       icon: const Icon(Icons.exit_to_app, color: Colors.black),
                       onPressed: () {
                         Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(builder: (context) => const TelaPrincipal()),
-                        );
+                context,
+                MaterialPageRoute(
+                  builder: (context) => TelaPrincipal(
+                    mainCompanyId: widget.mainCompanyId,
+                    secondaryCompanyId: widget.secondaryCompanyId,
+                    userRole: widget.userRole,
+                  ),
+                ),
+              );
                       },
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
@@ -412,7 +427,11 @@ class _TelaSubPrincipalState extends State<TelaSubPrincipal> {
                       // Menu Lateral (agora flex 1) - ocupará 1/5 do total de 5 partes
                       Expanded(
                               flex: 1,
-                              child: AppDrawer(parentMaxWidth: constraints.maxWidth, breakpoint: _breakpoint),
+                              child: AppDrawer(parentMaxWidth: constraints.maxWidth,
+                          breakpoint: 700.0,
+                          mainCompanyId: widget.mainCompanyId, // Passa
+                          secondaryCompanyId: widget.secondaryCompanyId, // Passa
+                          userRole: widget.userRole,),
                             ),
                       // Área Central (agora flex 3) - ocupará 3/5 do total
                       Expanded(
@@ -431,7 +450,11 @@ class _TelaSubPrincipalState extends State<TelaSubPrincipal> {
                   return SingleChildScrollView(
                     child: Column(
                       children: [
-                        AppDrawer(parentMaxWidth: constraints.maxWidth, breakpoint: _breakpoint),
+                        AppDrawer(parentMaxWidth: constraints.maxWidth,
+                          breakpoint: 700.0,
+                          mainCompanyId: widget.mainCompanyId, // Passa
+                          secondaryCompanyId: widget.secondaryCompanyId, // Passa
+                          userRole: widget.userRole,),
                         const SizedBox(height: 20),
                         _buildAnnotationSection(), // Seção de anotações abaixo da área de informações
                       ],

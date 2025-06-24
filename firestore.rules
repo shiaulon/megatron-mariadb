@@ -1,0 +1,55 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Função auxiliar para verificar o acesso à empresa secundária
+    function canAccessCompanyData(mainCompanyId, secondaryCompanyId) {
+      // Busca o documento do usuário logado
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
+
+      return request.auth != null &&
+             userDoc.exists &&
+             userDoc.data.mainCompanyId == mainCompanyId &&
+             userDoc.data.allowedSecondaryCompanies.hasAny([secondaryCompanyId]);
+    }
+
+    // Regras para a coleção de usuários
+    match /users/{userId} {
+      allow read, create, update: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Regras para a coleção de empresas principais
+    match /companies/{mainCompanyId} {
+      allow read: if request.auth != null; // Leitura do documento principal da empresa
+    }
+
+    // Regras para os documentos de empresas secundárias
+    match /companies/{mainCompanyId}/secondaryCompanies/{secondaryCompanyId} {
+      // Permite ler o documento da empresa secundária em si
+      // (a validação para os dados do ERP é feita na função canAccessCompanyData)
+      allow read: if request.auth != null;
+    }
+
+    // ====================================================================
+    // Regras para as coleções de DADOS do ERP dentro de 'data'
+    // ====================================================================
+
+    // Regra para a coleção 'naturezas/items'
+    match /companies/{mainCompanyId}/secondaryCompanies/{secondaryCompanyId}/data/naturezas/items/{naturezaCode} {
+      allow read, write: if canAccessCompanyData(mainCompanyId, secondaryCompanyId);
+    }
+
+    // Exemplo: Regra para a coleção 'produtos'
+    match /companies/{mainCompanyId}/secondaryCompanies/{secondaryCompanyId}/data/produtos/{produtoId} {
+      allow read, write: if canAccessCompanyData(mainCompanyId, secondaryCompanyId);
+    }
+
+    // Exemplo: Regra para a coleção 'clientes'
+    match /companies/{mainCompanyId}/secondaryCompanies/{secondaryCompanyId}/data/clientes/{clienteId} {
+      allow read, write: if canAccessCompanyData(mainCompanyId, secondaryCompanyId);
+    }
+
+    // Adicione aqui outros blocos 'match' para suas outras coleções de dados (faturas, funcionários, etc.)
+    // Sempre chamando a função canAccessCompanyData()
+  }
+}

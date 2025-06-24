@@ -10,12 +10,12 @@ import 'package:intl/intl.dart'; // Importe para formatar a data
 import 'package:flutter/services.dart'; // Para FilteringTextInputFormatter
 
 
-class TabelaEstado extends StatefulWidget {
+class TabelaTipoTelefone extends StatefulWidget {
   final String mainCompanyId;
   final String secondaryCompanyId;
   final String? userRole; // Se precisar usar a permissão aqui também
 
-  const TabelaEstado({
+  const TabelaTipoTelefone({
     super.key,
     required this.mainCompanyId,
     required this.secondaryCompanyId,
@@ -23,12 +23,12 @@ class TabelaEstado extends StatefulWidget {
   });
 
   @override
-  State<TabelaEstado> createState() => _TabelaEstadoState();
+  State<TabelaTipoTelefone> createState() => _TabelaTipoTelefoneState();
 }
 
 
 
-class _TabelaEstadoState extends State<TabelaEstado> {
+class _TabelaTipoTelefoneState extends State<TabelaTipoTelefone> {
   // Define o breakpoint para alternar entre layouts
   static const double _breakpoint = 700.0; // Desktop breakpoint
 
@@ -40,15 +40,12 @@ class _TabelaEstadoState extends State<TabelaEstado> {
 
   // Controllers para os novos campos de texto na área central
   final TextEditingController _dataAtualController = TextEditingController();
-  final TextEditingController _codigoEstadoController = TextEditingController();
-  final TextEditingController _estadoController = TextEditingController();
-  final TextEditingController _paisEstadoController = TextEditingController();
-  final TextEditingController _siglaController = TextEditingController();
-  // Adicionado controller para CPF
+  final TextEditingController _codigoController = TextEditingController();
+  final TextEditingController _descricaoController = TextEditingController();
+  final TextEditingController _resumoController = TextEditingController();
 
-  // Variáveis para os Radio Buttons
-  String? _integracaoSelection; // CRM, WEB
-  String? _nrgRgErpSelection; // Normal, Par, Impar
+    bool? _whatsApp = false; // Valor inicial para "Não"
+
 
   @override
   void initState() {
@@ -56,10 +53,9 @@ class _TabelaEstadoState extends State<TabelaEstado> {
     _currentDate = DateFormat('dd/MM/yyyy').format(DateTime.now());
 
     // Adiciona listener para o campo Empresa para atualizar o contador
-    _codigoEstadoController.addListener(_updateEmpresaCounter);
-    _siglaController.addListener(_updateEmpresaCounter);
-    _paisEstadoController.addListener(_updateEmpresaCounter);
-    _estadoController.addListener(_updateEmpresaCounter);
+    _codigoController.addListener(_updateEmpresaCounter);
+    _descricaoController.addListener(_updateEmpresaCounter);
+    _resumoController.addListener(_updateEmpresaCounter);
   }
 
   void _updateEmpresaCounter() {
@@ -74,11 +70,9 @@ class _TabelaEstadoState extends State<TabelaEstado> {
     // Descarte os novos controllers de campo de texto
     _dataAtualController.dispose();
     //_empresaController.removeListener(_updateEmpresaCounter); // Remover listener
-    _codigoEstadoController.dispose();
-    _siglaController.dispose();
-    _paisEstadoController.dispose();
-    _codigoEstadoController.dispose();
-
+    _codigoController.dispose();
+    _descricaoController.dispose();
+    _resumoController.dispose();
     super.dispose();
   }
 
@@ -147,7 +141,7 @@ class _TabelaEstadoState extends State<TabelaEstado> {
                                     child: Center(
                                       // <-- Centraliza o texto APENAS dentro deste Expanded
                                       child: Text(
-                                        'Estado', // Título alterado para "Controle"
+                                        'Tipo Telefone', // Título alterado para "Controle"
                                         style: TextStyle(
                                           fontSize: 28,
                                           fontWeight: FontWeight.bold,
@@ -178,7 +172,7 @@ class _TabelaEstadoState extends State<TabelaEstado> {
                               const EdgeInsets.only(top: 15.0, bottom: 8.0),
                           child: Center(
                             child: Text(
-                              'Estado', // Título alterado para "Controle"
+                              'Tipo Telefone', // Título alterado para "Controle"
                               style: TextStyle(
                                 fontSize: 24,
                                 fontWeight: FontWeight.bold,
@@ -222,6 +216,7 @@ class _TabelaEstadoState extends State<TabelaEstado> {
           child: Column(
             // Use Column para empilhar os elementos e permitir o posicionamento no final
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               Expanded(
                 // Este Expanded fará com que a parte superior dos campos de entrada ocupe o espaço disponível
@@ -229,6 +224,8 @@ class _TabelaEstadoState extends State<TabelaEstado> {
                   // Para permitir rolagem se os campos forem muitos
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+
                     children: [
                       SizedBox(height: 40,),
                       // código----------------------------------------------------------------------
@@ -239,14 +236,14 @@ class _TabelaEstadoState extends State<TabelaEstado> {
                             SizedBox(width: 150,),
                             Expanded(
                               child: CustomInputField(
-                                controller: _codigoEstadoController,
+                                controller: _codigoController,
                                 label: 'Código',
                                 inputFormatters: [
                                   FilteringTextInputFormatter.digitsOnly, // Aceita apenas dígitos
                                 ],
                                 maxLength: 2,
                                 keyboardType: TextInputType.number,
-                                suffixText: '${_codigoEstadoController.text.length}/2',
+                                suffixText: '${_codigoController.text.length}/2',
                                 validator: (value) {
                                   if (value == null || value.isEmpty) {
                                     return 'Campo obrigatório';
@@ -268,20 +265,18 @@ class _TabelaEstadoState extends State<TabelaEstado> {
                             SizedBox(width: 150,),
                             Expanded(
                               child: CustomInputField(
-                                controller: _siglaController,
-                                label: 'Sigla',
+                                controller: _descricaoController,
+                                label: 'Descrição',
                                 inputFormatters: [],
                                 
-                                maxLength: 2,
-                                suffixText: '${_siglaController.text.length}/2',
+                                maxLength: 30,
+                                suffixText: '${_descricaoController.text.length}/30',
                                 validator: (value) {
                                   if (value == null || value.isEmpty) {
                                     return 'Campo obrigatório';
                                   }
                                   // **VALIDAÇÃO EXTRA AQUI:** Deve ter exatamente 2 caracteres
-                                  if (value.length != 2) {
-                                    return 'A sigla deve ter exatamente 2 caracteres/dígitos.';
-                                  }
+                                  
                                   return null;
                                 },
                                 
@@ -300,17 +295,12 @@ class _TabelaEstadoState extends State<TabelaEstado> {
                             SizedBox(width: 150,),
                             Expanded(
                               child: CustomInputField(
-                                controller: _paisEstadoController,
-                                label: 'País',
+                                controller: _resumoController,
+                                label: 'Resumo',
                                 inputFormatters: [],
-                                maxLength: 2,
-                                suffixText: '${_paisEstadoController.text.length}/2',
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Campo obrigatório';
-                                  }
-                                  return null;
-                                },
+                                maxLength: 15,
+                                suffixText: '${_resumoController.text.length}/15',
+                                
                               ),
                             ),
                             SizedBox(width: 150,),
@@ -318,34 +308,86 @@ class _TabelaEstadoState extends State<TabelaEstado> {
                         ),
                       ),
                       SizedBox(height: 35,),
-                      // codigo pais ---------------------------------------------------------------------------------------------
-                      Padding(
-                        padding: const EdgeInsets.only(left: 25, right: 25),
-                        child: Row(
-                          children: [
-                            SizedBox(width: 150,),
-                            Expanded(
-                              child: CustomInputField(
-                                controller: _estadoController,
-                                label: 'Estado',
-                                
-                                maxLength: 40,
-                                
-                                suffixText:
-                                    '${_estadoController.text.length}/40',
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Campo obrigatório';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            ),
-                            SizedBox(width: 150,),
-                          ],
-                        ),
-                      ),
 
+                      Row(
+                                      children: [
+                                        SizedBox(width: 380,),
+                                        Expanded(
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                                            child: Container(
+                                              decoration: BoxDecoration(
+                                                color: const Color.fromARGB(255, 153, 205, 248), // Cor de fundo do container de integração
+                                                borderRadius: BorderRadius.circular(5),
+                                                border: Border.all(color: Colors.blue, width: 2.0),
+                                              ),
+                                              child: Padding(
+                                                padding: const EdgeInsets.all(6.0), // Padding interno para o conteúdo
+                                                child: Row( // <-- Voltando para Row para manter o texto 'Integração' ao lado
+                                                  crossAxisAlignment: CrossAxisAlignment.center, // Centraliza verticalmente o conteúdo da Row
+                                                  children: [
+                                                    Column(
+                                                      children: [
+                                                        const Text('WhatsApp :', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
+                                                      ],
+                                                    ),
+                                                    SizedBox(width: 10,),
+                                                    // Removido SizedBox(width: 16) para compactar mais, você pode ajustar
+                                                    Expanded( // <-- O Expanded é importante para dar espaço aos CheckboxListTile
+                                                      child: Column( // Column para empilhar os CheckboxListTile
+                                                        crossAxisAlignment: CrossAxisAlignment.start, // Alinha os CheckboxListTile à esquerda
+                                                        mainAxisAlignment: MainAxisAlignment.center, // Centraliza os checkboxes na coluna
+                                                        children: [
+                                                          Row(
+                                                  children: [
+                                                    const Text('Sim', style: TextStyle(color: Colors.black)),                                                   
+                                                    Checkbox(
+                                                      value: _whatsApp == true,
+                                                      onChanged: (bool? value) {
+                                                        setState(() {
+                                                          _whatsApp = value;
+                                                        });
+                                                      },
+                                                      activeColor: Colors.blue,
+                                                    ),
+                                                  ],
+                                                ),
+                                                Row(
+                                                  children: [
+                                                    const Text('Não', style: TextStyle(color: Colors.black)),
+                                                    Checkbox(
+                                                      value: _whatsApp == false, // Condição para "Não"
+                                                      onChanged: (bool? value) {
+                                                        setState(() {
+                                                          _whatsApp = !(value ?? false);
+                                                        });
+                                                      },
+                                                      activeColor: Colors.blue,
+                                                    ),
+                                                    
+                                                  ],
+                                                ),]
+                                                      ),
+                                                    ),
+                                                    // Texto de integrações selecionadas movido para a direita, ou pode ser removido se não for essencial aqui
+                                                    // Padding(
+                                                    //   padding: const EdgeInsets.only(left: 8.0),
+                                                    //   child: Text(
+                                                    //     'Sel: ${_integracaoSelections.join(', ')}',
+                                                    //     style: const TextStyle(color: Colors.white, fontSize: 12),
+                                                    //   ),
+                                                    // ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 380),
+                                      ],
+                                    ),
+
+                      
                       const SizedBox(height: 45), // Espaçamento antes dos rádios
 
                       
@@ -370,8 +412,9 @@ class _TabelaEstadoState extends State<TabelaEstado> {
                                       // Todos os campos são válidos, prossiga com o salvamento
                                       print('--- Dados Salvos ---');
                                       print('Data Atual: ${_dataAtualController.text}');
-                                      print('Integração: ${_integracaoSelection ?? 'Nenhum selecionado'}');
-                                      print('Nrg RG ERP: ${_nrgRgErpSelection ?? 'Nenhum selecionado'}');
+                                      print('codigo Cargo: ${_codigoController ?? 'Nenhum selecionado'}');
+                                      print('Descrição cargo: ${_descricaoController ?? 'Nenhum selecionado'}');
+                                      print('Resumo cargo: ${_resumoController ?? 'Nenhum selecionado'}');
                                     } else {
                                       // Exibe uma mensagem ou snackbar indicando erros de validação
                                       ScaffoldMessenger.of(context).showSnackBar(
@@ -411,8 +454,9 @@ class _TabelaEstadoState extends State<TabelaEstado> {
                                       // Todos os campos são válidos, prossiga com o salvamento
                                       print('--- Dados Salvos ---');
                                       print('Data Atual: ${_dataAtualController.text}');
-                                      print('Integração: ${_integracaoSelection ?? 'Nenhum selecionado'}');
-                                      print('Nrg RG ERP: ${_nrgRgErpSelection ?? 'Nenhum selecionado'}');
+                                      print('codigo Cargo: ${_codigoController ?? 'Nenhum selecionado'}');
+                                      print('Descrição cargo: ${_descricaoController ?? 'Nenhum selecionado'}');
+                                      print('Resumo cargo: ${_resumoController ?? 'Nenhum selecionado'}');
                                     } else {
                                       // Exibe uma mensagem ou snackbar indicando erros de validação
                                       ScaffoldMessenger.of(context).showSnackBar(

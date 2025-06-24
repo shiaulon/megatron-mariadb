@@ -12,7 +12,16 @@ import 'package:flutter_application_1/reutilizaveis/informacoesInferioresPagina.
 
 
 class TabelaSituacao extends StatefulWidget {
-  const TabelaSituacao({super.key});
+  final String mainCompanyId;
+  final String secondaryCompanyId;
+  final String? userRole; // Se precisar usar a permissão aqui também
+
+  const TabelaSituacao({
+    super.key,
+    required this.mainCompanyId,
+    required this.secondaryCompanyId,
+    this.userRole,
+  });
 
   @override
   State<TabelaSituacao> createState() => _TabelaSituacaoState();
@@ -27,12 +36,8 @@ class _TabelaSituacaoState extends State<TabelaSituacao> {
 
   // Controllers para os campos da tela "Estado X Imposto"
   final TextEditingController _codigoController = TextEditingController();
-  final TextEditingController _cidadeController = TextEditingController();
-  final TextEditingController _abreviadoController = TextEditingController();
-  final TextEditingController _estadoController = TextEditingController();
-  final TextEditingController _paisController = TextEditingController();
-  final TextEditingController _issController = TextEditingController();
-  final TextEditingController _tabelaIBGEController = TextEditingController();
+  final TextEditingController _descricaoController= TextEditingController();
+  
 
   // Variável para controlar se o campo 'País' é somente leitura
   bool _paisReadOnly = true; // Inicia como true (desabilitado)
@@ -46,21 +51,17 @@ class _TabelaSituacaoState extends State<TabelaSituacao> {
     _currentDate = DateFormat('dd/MM/yyyy').format(DateTime.now());
 
     _codigoController.addListener(_updateFieldCounters);
-    _cidadeController.addListener(_updateFieldCounters);
-    _abreviadoController.addListener(_updateFieldCounters);
-    _estadoController.addListener(_onEstadoChanged); // Adiciona o listener aqui
-    _paisController.addListener(_updateFieldCounters);
-    _issController.addListener(_updateFieldCounters);
-    _tabelaIBGEController.addListener(_updateFieldCounters);
+    _descricaoController.addListener(_updateFieldCounters);
+    
 
-    // O campo País deve começar vazio, mas desativado (cinza)
-    _paisController.text = '';
-    _paisReadOnly = true; // Já está assim, mas explicitando.
+
+    // Define 'Normal' como a opção selecionada por padrão
+    _selectedBloqueioOption = 'Normal';
   }
 
   void _onEstadoChanged() {
     setState(() {
-      final String estado = _estadoController.text.toUpperCase();
+
 
     });
     _updateFieldCounters(); // Para atualizar o suffixText se necessário
@@ -75,13 +76,8 @@ class _TabelaSituacaoState extends State<TabelaSituacao> {
   @override
   void dispose() {
     _codigoController.dispose();
-    _cidadeController.dispose();
-    _abreviadoController.dispose();
-    _estadoController.removeListener(_onEstadoChanged); // Remove o listener
-    _estadoController.dispose();
-    _issController.dispose();
-    _paisController.dispose();
-    _tabelaIBGEController.dispose();
+    _descricaoController.dispose();
+    
 
     super.dispose();
   }
@@ -93,7 +89,16 @@ class _TabelaSituacaoState extends State<TabelaSituacao> {
         children: [
           TopAppBar(
             onBackPressed: () {
-              Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const TelaSubPrincipal()),);
+              Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TelaSubPrincipal(
+          mainCompanyId: widget.mainCompanyId, // Repassa o ID da empresa principal
+          secondaryCompanyId: widget.secondaryCompanyId, // Repassa o ID da empresa secundária
+          userRole: widget.userRole, // Repassa o papel do usuário
+        ),
+      ),
+    );
             },
             currentDate: _currentDate,
           ),
@@ -112,7 +117,10 @@ class _TabelaSituacaoState extends State<TabelaSituacao> {
                               flex: 1,
                               child: AppDrawer(
                                 parentMaxWidth: constraints.maxWidth,
-                                breakpoint: _breakpoint,
+                          breakpoint: 700.0,
+                          mainCompanyId: widget.mainCompanyId, // Passa
+                          secondaryCompanyId: widget.secondaryCompanyId, // Passa
+                          userRole: widget.userRole,
                               ),
                             ),
                             Expanded(
@@ -162,8 +170,11 @@ class _TabelaSituacaoState extends State<TabelaSituacao> {
                           ),
                         ),
                         AppDrawer(
-                            parentMaxWidth: constraints.maxWidth,
-                            breakpoint: _breakpoint),
+                           parentMaxWidth: constraints.maxWidth,
+                          breakpoint: 700.0,
+                          mainCompanyId: widget.mainCompanyId, // Passa
+                          secondaryCompanyId: widget.secondaryCompanyId, // Passa
+                          userRole: widget.userRole,),
                         _buildCentralInputArea(),
                       ],
                     ),
@@ -243,7 +254,7 @@ class _TabelaSituacaoState extends State<TabelaSituacao> {
                                         child: Padding(
                                           padding: const EdgeInsets.only(right: 20, left: 20),
                                           child: CustomInputField(
-                                            controller: _cidadeController,
+                                            controller: _descricaoController,
                                             label: 'Descrição',
                                             maxLength: 30,
                                             validator: (value) {
@@ -251,7 +262,7 @@ class _TabelaSituacaoState extends State<TabelaSituacao> {
                                                 return 'Campo obrigatório';
                                               }},
                                             keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                            suffixText: '${_cidadeController.text.length}/30',
+                                            suffixText: '${_descricaoController.text.length}/30',
                                             // fillColor: Colors.white, // Não precisa especificar, CustomInputField já tem padrão branco
                                           ),
                                         ),
@@ -286,8 +297,7 @@ class _TabelaSituacaoState extends State<TabelaSituacao> {
                                                   ),
                                                   Expanded(
                                                     child: Row( // Alterado para Column para empilhar os RadioListTile
-                                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                                      mainAxisAlignment: MainAxisAlignment.spaceBetween, // Alinha os RadioListTile à esquerda
+                                                      crossAxisAlignment: CrossAxisAlignment.start, // Alinha os RadioListTile à esquerda
                                                       children: [
                                                         Expanded(
                                                           child: RadioListTile<String>(
@@ -437,14 +447,11 @@ class _TabelaSituacaoState extends State<TabelaSituacao> {
 
   void _printFormValues() {
     print('--- Dados do Formulário Estado X Imposto ---');
-    print('Estado Origem: ${_codigoController.text}');
-    print('Estado Destino: ${_estadoController.text}');
-    print('Aliq. Interestadual: ${_cidadeController.text}');
-    print('Aliq. Interna - DIFAL: ${_abreviadoController.text}');
-    print('Desc. Diferença ICMS Revenda: ${_paisController.text}');
-    print('Desc. Diferença ICMS Outros: ${_issController.text}');
+    print('Codigo Situação: ${_codigoController.text}');
+    print('Descrição Situação: ${_descricaoController.text}');
+
     print('Bloqueio: ${_selectedBloqueioOption ?? 'Nenhum selecionado'}'); // Usar a nova variável
-    print('Aliq. ICMS Substituição: ${_tabelaIBGEController.text}');
+
 
     print('------------------------------------------');
   }
