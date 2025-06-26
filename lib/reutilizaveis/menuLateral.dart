@@ -1,14 +1,18 @@
 // lib/widgets/app_drawer.dart
 import 'package:flutter/material.dart';
+import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/naturezaRendimento.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaAtividadeEmpresas.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaCargo.dart';
+import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaCest.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaCidade.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaComoNosConheceu.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaCondicaoPagamento.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaControle.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaEstado.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaEstadoXImposto.dart';
+import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaFazenda.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaIBGEXCidade.dart';
+import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaManutTabGovernoNcmImposto.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaNatureza.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaPais.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaSituacao.dart';
@@ -242,6 +246,10 @@ class AppDrawer extends StatelessWidget {
             _buildSubMenuItem(context, 'IBGE x Cidade', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaIBGEXCidade(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
             _buildSubMenuItem(context, 'Como nos Conheceu', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaComoNosConheceu(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
             _buildSubMenuItem(context, 'Atividade Empresa', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaAtividadeEmpresas(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
+            _buildSubMenuItem(context, 'Tabela CEST', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaCest(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
+            _buildSubMenuItem(context, 'Manut Tab Governo NCM Imposto', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaManutTabGovNcmImposto(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
+            _buildSubMenuItem(context, 'Fazenda', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaFazenda(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
+            _buildSubMenuItem(context, 'Natureza Rendimento', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaNaturezaRendimento(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
 
           ]),
           _buildMenuItemWithSubitems(context, 'Registro Geral', Icons.app_registration, [

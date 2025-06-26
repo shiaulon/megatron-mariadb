@@ -264,6 +264,9 @@ class CustomInputField extends StatelessWidget {
   final Color? fillColor; // <--- Adicione esta linha
   final FocusNode? focusNode;
   final VoidCallback? onTap;
+  final int? maxLines;
+  final int?minLines;
+  final void Function(String)? onChanged;
 
   const CustomInputField({
     Key? key,
@@ -282,6 +285,9 @@ class CustomInputField extends StatelessWidget {
     this.isDense = true, // Valor padrão como true, como no seu código
     this.fillColor,
     this.focusNode, // <--- Adicione aqui
+    this.maxLines = 1,
+    this.minLines,
+    this.onChanged,
     
   }) : super(key: key);
 
@@ -328,9 +334,13 @@ class CustomInputField extends StatelessWidget {
         validator: validator,
         maxLength: maxLength,
         textCapitalization: textCapitalization,
+        maxLines: maxLines,
+        minLines: minLines,
         autovalidateMode: AutovalidateMode.onUserInteraction,
+        onChanged: onChanged,
         decoration: InputDecoration(
           isDense: isDense,
+          alignLabelWithHint: true,
           labelText: label,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8.0),
