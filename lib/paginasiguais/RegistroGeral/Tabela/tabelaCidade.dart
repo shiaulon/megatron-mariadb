@@ -1,21 +1,22 @@
-// lib/tabela_estado_imposto.dart
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Para FilteringTextInputFormatter
+import 'package:flutter/services.dart';
 import 'package:flutter_application_1/submenus.dart';
-import 'package:intl/intl.dart'; // Para formatar a data
+import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
-// Importar os componentes reutilizáveis
 import 'package:flutter_application_1/reutilizaveis/tela_base.dart';
 import 'package:flutter_application_1/reutilizaveis/barraSuperior.dart';
 import 'package:flutter_application_1/reutilizaveis/menuLateral.dart';
 import 'package:flutter_application_1/reutilizaveis/customImputField.dart';
-//import 'package:flutter_application_1/reutilizaveis/informacoesInferioresPagina.dart';
 
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
-//Validator para UF
 String? _ufValidator(String? value) {
   if (value == null || value.isEmpty) {
-    return 'O campo é obrigatório.';
+    return 'Obrigatório.';
   }
   final List<String> validUFs = [
     'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS',
@@ -23,18 +24,15 @@ String? _ufValidator(String? value) {
     'SP', 'SE', 'TO', 'EX'
   ];
   if (!validUFs.contains(value.toUpperCase())) {
-    return 'UF inválida. Use um formato como SP, RJ, etc.';
+    return 'UF inválida.';
   }
-  
   return null;
-
 }
-
 
 class TabelaCidade extends StatefulWidget {
   final String mainCompanyId;
   final String secondaryCompanyId;
-  final String? userRole; // Se precisar usar a permissão aqui também
+  final String? userRole;
 
   const TabelaCidade({
     super.key,
@@ -48,13 +46,10 @@ class TabelaCidade extends StatefulWidget {
 }
 
 class _TabelaCidadeState extends State<TabelaCidade> {
-  static const double _breakpoint = 700.0; // Desktop breakpoint
-
+  static const double _breakpoint = 700.0;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-
   late String _currentDate;
 
-  // Controllers para os campos da tela "Estado X Imposto"
   final TextEditingController _codigoController = TextEditingController();
   final TextEditingController _cidadeController = TextEditingController();
   final TextEditingController _abreviadoController = TextEditingController();
@@ -63,28 +58,97 @@ class _TabelaCidadeState extends State<TabelaCidade> {
   final TextEditingController _issController = TextEditingController();
   final TextEditingController _tabelaIBGEController = TextEditingController();
   
-  // Variável para controlar se o campo 'País' é somente leitura
-  bool _paisReadOnly = true; // Inicia como true (desabilitado)
+  bool _paisReadOnly = true;
+  bool? _cartorio = false;
+  bool _isLoading = false;
 
-  // Variáveis para os Radio Buttons (Sim/Não para Cálculo DIFAL Dentro)
-  bool? _cartorio = false; // Valor inicial para "Não"
+  List<Map<String, dynamic>> _allCidades = [];
+
+  void _updateCounters() {
+    setState(() {});
+  }
 
   @override
   void initState() {
     super.initState();
     _currentDate = DateFormat('dd/MM/yyyy').format(DateTime.now());
-
-    _codigoController.addListener(_updateFieldCounters);
-    _cidadeController.addListener(_updateFieldCounters);
-    _abreviadoController.addListener(_updateFieldCounters);
-    _estadoController.addListener(_onEstadoChanged); // Adiciona o listener aqui
-    _paisController.addListener(_updateFieldCounters);
-    _issController.addListener(_updateFieldCounters);
-    _tabelaIBGEController.addListener(_updateFieldCounters);
+    _fetchAllCidades();
+    _estadoController.addListener(_onEstadoChanged);
     
-    // O campo País deve começar vazio, mas desativado (cinza)
-    _paisController.text = ''; 
-    _paisReadOnly = true; // Já está assim, mas explicitando.
+    // Listeners para limpar campos dependentes
+    _codigoController.addListener(_updateCounters);
+    _cidadeController.addListener(_updateCounters);
+    _abreviadoController.addListener(_updateCounters);
+    _estadoController.addListener(_updateCounters);
+    _paisController.addListener(_updateCounters);
+    _issController.addListener(_updateCounters);
+    _tabelaIBGEController.addListener(_updateCounters);
+  }
+
+  CollectionReference get _collectionRef => FirebaseFirestore.instance
+      .collection('companies')
+      .doc(widget.mainCompanyId)
+      .collection('secondaryCompanies')
+      .doc(widget.secondaryCompanyId)
+      .collection('data')
+      .doc('cidades')
+      .collection('items');
+
+  Future<void> _fetchAllCidades() async {
+    setState(() => _isLoading = true);
+    try {
+      final querySnapshot = await _collectionRef.get();
+      _allCidades = querySnapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        data['id'] = doc.id; // Adiciona o ID do documento aos dados
+        return data;
+      }).toList();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao carregar cidades: $e')),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  
+
+  void _populateAllFields(Map<String, dynamic> data) {
+    setState(() {
+      _codigoController.text = data['id'] ?? '';
+      _cidadeController.text = data['cidade'] ?? '';
+      _abreviadoController.text = data['abreviado'] ?? '';
+      _estadoController.text = data['estado'] ?? '';
+      _paisController.text = data['pais'] ?? '';
+      _issController.text = data['iss'] ?? '';
+      _tabelaIBGEController.text = data['tabelaIBGE'] ?? '';
+      _cartorio = data['cartorio'] ?? false;
+      _onEstadoChanged(); // Atualiza o estado do campo País
+    });
+  }
+
+  void _clearDependentFields() {
+    _abreviadoController.clear();
+    _estadoController.clear();
+    _paisController.clear();
+    _issController.clear();
+    _tabelaIBGEController.clear();
+    setState(() {
+      _cartorio = false;
+      _paisReadOnly = true;
+    });
+  }
+
+  void _clearSearchFields() {
+    _codigoController.clear();
+    _cidadeController.clear();
+  }
+
+  void _handleClearCheck() {
+    if (_codigoController.text.isEmpty && _cidadeController.text.isEmpty) {
+      _clearDependentFields();
+    }
   }
 
   void _onEstadoChanged() {
@@ -97,138 +161,253 @@ class _TabelaCidadeState extends State<TabelaCidade> {
       ];
 
       if (estado == 'EX') {
-        _paisController.text = ''; // Limpa o campo para o usuário digitar
-        _paisReadOnly = false; // Ativa o campo (ficará branco)
+        _paisController.text = '';
+        _paisReadOnly = false;
       } else if (ufsBrasileiras.contains(estado)) {
         _paisController.text = 'Brasil';
-        _paisReadOnly = true; // Mantém o campo ineditável (ficará cinza)
+        _paisReadOnly = true;
       } else {
-        _paisController.text = ''; // Limpa se for algo diferente de EX ou UF
-        _paisReadOnly = true; // Desativa (ficará cinza)
+        _paisController.text = '';
+        _paisReadOnly = true;
       }
     });
-    _updateFieldCounters(); // Para atualizar o suffixText se necessário
   }
 
-  void _updateFieldCounters() {
-    setState(() {
-      // Força a reconstrução para atualizar o suffixText dos CustomInputField
-    });
+  Future<void> _saveData() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    
+    final docId = _codigoController.text.trim();
+    if (docId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('O campo "Código" é obrigatório para salvar.')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    final dataToSave = {
+      'cidade': _cidadeController.text.trim(),
+      'abreviado': _abreviadoController.text.trim(),
+      'estado': _estadoController.text.trim().toUpperCase(),
+      'pais': _paisController.text.trim(),
+      'iss': _issController.text.trim(),
+      'tabelaIBGE': _tabelaIBGEController.text.trim(),
+      'cartorio': _cartorio,
+      'ultima_atualizacao': FieldValue.serverTimestamp(),
+      'atualizado_por': FirebaseAuth.instance.currentUser?.email ?? 'desconhecido',
+    };
+
+    try {
+      await _collectionRef.doc(docId).set(dataToSave);
+      await _fetchAllCidades();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cidade salva com sucesso!')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao salvar cidade: $e')),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _deleteData() async {
+    final docId = _codigoController.text.trim();
+    if (docId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Preencha o Código para excluir.')),
+      );
+      return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confirmar Exclusão'),
+        content: Text('Deseja excluir a cidade com código $docId?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancelar')),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Excluir'), style: TextButton.styleFrom(foregroundColor: Colors.red)),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _isLoading = true);
+    try {
+      await _collectionRef.doc(docId).delete();
+      _clearSearchFields();
+      await _fetchAllCidades();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cidade excluída com sucesso!')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao excluir: $e')),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _generateReport() async {
+    setState(() => _isLoading = true);
+    try {
+      if (_allCidades.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nenhuma cidade para gerar relatório.')));
+        return;
+      }
+
+      final pdf = pw.Document();
+      final headers = ['Código', 'Cidade', 'Abreviado', 'Estado', 'País', 'ISS', 'IBGE', 'Cartório'];
+
+      final data = _allCidades.map((cidade) => [
+        cidade['id'],
+        cidade['cidade'],
+        cidade['abreviado'],
+        cidade['estado'],
+        cidade['pais'],
+        cidade['iss'],
+        cidade['tabelaIBGE'],
+        (cidade['cartorio'] ?? false) ? 'Sim' : 'Não',
+      ]).toList();
+
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4.landscape,
+          header: (context) => pw.Header(
+            level: 0,
+            child: pw.Text('Relatório de Cidades - ${widget.secondaryCompanyId}', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
+          ),
+          build: (context) => [
+            pw.Table.fromTextArray(
+              headers: headers,
+              data: data,
+              border: pw.TableBorder.all(),
+              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+              cellStyle: const pw.TextStyle(fontSize: 8),
+            )
+          ],
+        ),
+      );
+
+      await Printing.layoutPdf(onLayout: (format) async => pdf.save());
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao gerar PDF: $e')));
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 
   @override
   void dispose() {
+    _codigoController.removeListener(_handleClearCheck);
+    _cidadeController.removeListener(_handleClearCheck);
+    _estadoController.removeListener(_onEstadoChanged);
     _codigoController.dispose();
     _cidadeController.dispose();
     _abreviadoController.dispose();
-    _estadoController.removeListener(_onEstadoChanged); // Remove o listener
     _estadoController.dispose();
-    _issController.dispose();
     _paisController.dispose();
+    _issController.dispose();
     _tabelaIBGEController.dispose();
-    
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return TelaBase(
-      body: Column(
+      body: Stack(
         children: [
-          TopAppBar(
-            onBackPressed: () {
-Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => TelaSubPrincipal(
-          mainCompanyId: widget.mainCompanyId, // Repassa o ID da empresa principal
-          secondaryCompanyId: widget.secondaryCompanyId, // Repassa o ID da empresa secundária
-          userRole: widget.userRole, // Repassa o papel do usuário
-        ),
-      ),
-    );            },
-            currentDate: _currentDate,
-          ),
-          Expanded(
-            child: LayoutBuilder(
-              builder: (BuildContext context, BoxConstraints constraints) {
-                if (constraints.maxWidth > _breakpoint) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              flex: 1,
-                              child: AppDrawer(parentMaxWidth: constraints.maxWidth,
-                          breakpoint: 700.0,
-                          mainCompanyId: widget.mainCompanyId, // Passa
-                          secondaryCompanyId: widget.secondaryCompanyId, // Passa
-                          userRole: widget.userRole,
-                              ),
-                            ),
-                            Expanded(
-                              flex: 3,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Padding(
-                                    padding: EdgeInsets.only(top: 20.0, bottom: 0.0),
-                                    child: Center(
-                                      child: Text(
-                                        'Cidade',
-                                        style: TextStyle(
-                                          fontSize: 28,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.black87,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child: _buildCentralInputArea(),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
+          Column(
+            children: [
+              TopAppBar(
+                onBackPressed: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => TelaSubPrincipal(
+                        mainCompanyId: widget.mainCompanyId,
+                        secondaryCompanyId: widget.secondaryCompanyId,
+                        userRole: widget.userRole,
                       ),
-                    ],
-                  );
-                } else {
-                  return SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        const Padding(
-                          padding: EdgeInsets.only(top: 15.0, bottom: 8.0),
-                          child: Center(
-                            child: Text(
-                              'Cidade',
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
-                            ),
-                          ),
-                        ),
-                        AppDrawer(
-                            parentMaxWidth: constraints.maxWidth,
-                          breakpoint: 700.0,
-                          mainCompanyId: widget.mainCompanyId, // Passa
-                          secondaryCompanyId: widget.secondaryCompanyId, // Passa
-                          userRole: widget.userRole,),
-                        _buildCentralInputArea(),
-                      ],
                     ),
                   );
-                }
-              },
-            ),
+                },
+                currentDate: _currentDate,
+              ),
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    if (constraints.maxWidth > _breakpoint) {
+                      return _buildDesktopLayout(constraints);
+                    } else {
+                      return _buildMobileLayout();
+                    }
+                  },
+                ),
+              ),
+            ],
           ),
+          if (_isLoading)
+            Container(
+              color: Colors.black.withOpacity(0.5),
+              child: const Center(child: CircularProgressIndicator()),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDesktopLayout(BoxConstraints constraints) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          flex: 1,
+          child: AppDrawer(
+            parentMaxWidth: constraints.maxWidth,
+            breakpoint: _breakpoint,
+            mainCompanyId: widget.mainCompanyId,
+            secondaryCompanyId: widget.secondaryCompanyId,
+            userRole: widget.userRole,
+          ),
+        ),
+        Expanded(
+          flex: 3,
+          child: Column(
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(top: 20.0, bottom: 10.0),
+                child: Text('Cidade', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+              ),
+              Expanded(child: _buildCentralInputArea()),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMobileLayout() {
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 15.0, bottom: 8.0),
+            child: Text('Cidade', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          ),
+          AppDrawer(
+            parentMaxWidth: 0,
+            breakpoint: _breakpoint,
+            mainCompanyId: widget.mainCompanyId,
+            secondaryCompanyId: widget.secondaryCompanyId,
+            userRole: widget.userRole,
+          ),
+          _buildCentralInputArea(),
         ],
       ),
     );
@@ -240,355 +419,225 @@ Navigator.pushReplacement(
       child: Padding(
         padding: const EdgeInsets.all(25),
         child: Container(
-          padding: const EdgeInsets.all(0.0), // Remove o padding externo
           decoration: BoxDecoration(
             color: Colors.blue[100],
-            border: Border.all(color: Colors.black, width: 1.0),
-            borderRadius: BorderRadius.circular(10.0),
+            border: Border.all(color: Colors.black),
+            borderRadius: BorderRadius.circular(10),
           ),
-          // UM ÚNICO SingleChildScrollView para toda a área de conteúdo que rola
-          child: Column( // A coluna que contém todo o conteúdo rolante e fixo
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Column(
             children: [
-              Expanded( // Este Expanded empurra o conteúdo fixo para baixo
+              Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.only(top: 15, bottom: 0), // Padding interno para o conteúdo rolante
-                  child: Column( // Coluna para organizar todos os elementos que devem rolar
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  padding: const EdgeInsets.all(30),
+                  child: Column(
                     children: [
-
-                      
-                      SizedBox(height: 5,),
-                      // Linha que conterá as duas colunas ICMS e ST
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8,left: 8),
-                        child: IntrinsicHeight( // Permite que as colunas dentro do Row tenham a mesma altura
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start, // Alinha o topo das colunas
-                            children: [
-                              // Coluna ICMS
-                              Expanded(
-                                flex: 1,
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    
-                                    const SizedBox(height: 50),
-                                
-                                    Padding(
-                                      padding: const EdgeInsets.only(right: 20, left: 20),
-                                      child: CustomInputField(
-                                        controller: _codigoController,
-                                        label: 'Código',
-                                        maxLength: 5,
-                                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],                                       
-                                        keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                              return 'Campo obrigatório';
-                            }},
-                                       suffixText: '${_codigoController.text.length}/5',
-                                       // fillColor: Colors.white, // Não precisa especificar, CustomInputField já tem padrão branco
-                                      ),
-                                    ),
-                                    const SizedBox(height: 3),
-                                
-                                    Padding(
-                                      padding: const EdgeInsets.only(right: 20, left: 20),
-                                      child: CustomInputField(
-                                        controller: _cidadeController,
-                                        label: 'Cidade',
-                                        maxLength: 35,
-                                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                              return 'Campo obrigatório';
-                            }},
-                                        keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                       suffixText: '${_cidadeController.text.length}/35',
-                                       // fillColor: Colors.white, // Não precisa especificar, CustomInputField já tem padrão branco
-                                      ),
-                                    ),
-                                    const SizedBox(height: 3),
-                                
-                                    Padding(
-                                      padding: const EdgeInsets.only(right: 20, left: 20),
-                                      child: CustomInputField(
-                                        controller: _abreviadoController,
-                                        label: 'Abreviado',
-                                        maxLength: 15,
-                                        keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                       suffixText: '${_abreviadoController.text.length}/15',
-                                       // fillColor: Colors.white, // Não precisa especificar, CustomInputField já tem padrão branco
-                                      ),
-                                    ),
-                                    const SizedBox(height: 3),
-                                
-                                    Padding(
-                                      padding: const EdgeInsets.only(right: 20, left: 20),
-                                      child: CustomInputField(
-                                        controller: _estadoController,
-                                        label: 'Estado',
-                                        maxLength: 2,
-                                        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z]'))], // Permite apenas letras para UF
-                                        textCapitalization: TextCapitalization.characters, // Garante que seja maiúsculo
-                                        suffixText: '${_estadoController.text.length}/2',
-                                        validator: _ufValidator,
-                                        // fillColor: Colors.white, // Não precisa especificar, CustomInputField já tem padrão branco
-                                      ),
-                                    ),
-                                
-                                    
-                                    const SizedBox(height: 10),
-
-
-                                    
-                                
-                                  ],
+                      //_buildCamposDeBusca(),
+                      const SizedBox(height: 20),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.all(12.0),
+                                  child: _buildAutocompleteField(_codigoController, "Código", "id", isRequired: true,isNumeric: true, maxLength: 5),
                                 ),
-                              ),
-                          
-                              // Divisor Vertical
-                              const VerticalDivider(width: 60, thickness: 2, color: Colors.blue),
-                          
-                              // Coluna ST - Substituição Tributária ICMS
-                              Expanded(
-                                flex: 1,
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    
-                                    const SizedBox(height: 50),
+                                //const SizedBox(height: 10),
+                                Padding(
+                                  padding: const EdgeInsets.all(12.0),
+                                  child: _buildAutocompleteField(_cidadeController, "Cidade", "cidade", isRequired: true, maxLength: 35),
+                                ),
+                               // const SizedBox(height: 10),
                                 
-                                    Padding(
-                                      padding: const EdgeInsets.only(right: 20,  left: 20),
-                                      child: CustomInputField(
-                                        controller: _paisController,
-                                        label: 'País',
-                                        maxLength: 3, // Aumentado para "Brasil" ou outros nomes
-                                        keyboardType: TextInputType.text, // Mudado para texto
-                                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-
-                                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                              return 'Campo obrigatório';
-                            }},
-                                        readOnly: _paisReadOnly, // Aplica a propriedade readOnly
-                                        // AQUI ESTÁ A LÓGICA CONDICIONAL: Branco se habilitado, Cinza se desabilitado
-                                        fillColor: _paisReadOnly ? const Color.fromARGB(255, 168, 155, 155) : Colors.white, 
-                                        suffixText: '${_paisController.text.length}/3',
-                                      ),
-                                    ),
-                                    const SizedBox(height: 3),
+                                Padding(
+                                  padding: const EdgeInsets.all(12.0),
+                                  child: _buildInputField(_abreviadoController, "Abreviado", 15),
+                                ),
+                                //const SizedBox(height: 10),
+                                Padding(
+                                  padding: const EdgeInsets.all(12.0),
+                                  child: _buildInputField(_estadoController, "Estado", 2, validator: _ufValidator, textCapitalization: TextCapitalization.characters),
+                                ),
                                 
-                                    Padding(
-                                      padding: const EdgeInsets.only(right: 20,  left: 20),
-                                      child: CustomInputField(
-                                        controller: _issController,
-                                        label: 'ISS',
-                                        maxLength: 4,
-                                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                                       
-                                        keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                        suffixText: '${_issController.text.length}/4',
-                                        // fillColor: Colors.white, // Não precisa especificar, CustomInputField já tem padrão branco
-                                      ),
-                                    ),
-                                    const SizedBox(height: 3),
-                                
-                                    Padding(
-                                      padding: const EdgeInsets.only(right: 20,  left: 20),
-                                      child: CustomInputField(
-                                        controller: _tabelaIBGEController,
-                                        label: 'Tabela IBGE',
-                                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                                        maxLength: 7,
-                                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                              return 'Campo obrigatório';
-                            }
-                            // **VALIDAÇÃO EXTRA AQUI:** Deve ter exatamente 2 caracteres
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 60),
+                          Expanded(
+                            child: Column(
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.all(12.0),
+                                  child: _buildInputField(_paisController, "País", 15, readOnly: _paisReadOnly,isRequired: true),
+                                ),
+                                //const SizedBox(height: 10),
+                                Padding(
+                                  padding: const EdgeInsets.all(12.0),
+                                  child: _buildInputField(_issController, "ISS", 4, isNumeric: true),
+                                ),
+                                //const SizedBox(height: 10),
+                                Padding(
+                                  padding: const EdgeInsets.all(12.0),
+                                  child: _buildInputField(_tabelaIBGEController, "Tabela IBGE", 7, isNumeric: true, isRequired: true, validator: (value){
+                                    if (value == null || value.isEmpty) {
+                                    return 'O código IBGE deve ser preenchido.';
+                                  }
                                   if (value.length != 7) {
-                                    return 'A sigla deve ter exatamente 7 caracteres/dígitos.';
+                                    return 'O código IBGE deve ter 7 dígitos.'; // Mensagem de erro mais clara
                                   }
                                   return null;
-                            },
-                            
-                                        keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                        suffixText: '${_tabelaIBGEController.text.length}/7',
-                                        // fillColor: Colors.white, // Não precisa especificar, CustomInputField já tem padrão branco
-                                      ),
-                                    ),
-                                    const SizedBox(height: 3),
-                                
-                                    const SizedBox(height: 10),
-
-
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Padding(
-                                            padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                                            child: Container(
-                                              decoration: BoxDecoration(
-                                                color: const Color.fromARGB(255, 153, 205, 248), // Cor de fundo do container de integração
-                                                borderRadius: BorderRadius.circular(5),
-                                                border: Border.all(color: Colors.blue, width: 2.0),
-                                              ),
-                                              child: Padding(
-                                                padding: const EdgeInsets.all(6.0), // Padding interno para o conteúdo
-                                                child: Row( // <-- Voltando para Row para manter o texto 'Integração' ao lado
-                                                  crossAxisAlignment: CrossAxisAlignment.center, // Centraliza verticalmente o conteúdo da Row
-                                                  children: [
-                                                    Column(
-                                                      children: [
-                                                        const Text('Cartório :', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
-                                                      ],
-                                                    ),
-                                                    // Removido SizedBox(width: 16) para compactar mais, você pode ajustar
-                                                    Expanded( // <-- O Expanded é importante para dar espaço aos CheckboxListTile
-                                                      child: Column( // Column para empilhar os CheckboxListTile
-                                                        crossAxisAlignment: CrossAxisAlignment.start, // Alinha os CheckboxListTile à esquerda
-                                                        mainAxisAlignment: MainAxisAlignment.center, // Centraliza os checkboxes na coluna
-                                                        children: [
-                                                          Row(
-                                                  children: [
-                                                    Checkbox(
-                                                      value: _cartorio == true,
-                                                      onChanged: (bool? value) {
-                                                        setState(() {
-                                                          _cartorio = value;
-                                                        });
-                                                      },
-                                                      activeColor: Colors.blue,
-                                                    ),
-                                                    const Text('Sim', style: TextStyle(color: Colors.black)),
-                                                  ],
-                                                ),
-                                                Row(
-                                                  children: [
-                                                    Checkbox(
-                                                      value: _cartorio == false, // Condição para "Não"
-                                                      onChanged: (bool? value) {
-                                                        setState(() {
-                                                          _cartorio = !(value ?? false);
-                                                        });
-                                                      },
-                                                      activeColor: Colors.blue,
-                                                    ),
-                                                    const Text('Não', style: TextStyle(color: Colors.black)),
-                                                  ],
-                                                ),]
-                                                      ),
-                                                    ),
-                                                    // Texto de integrações selecionadas movido para a direita, ou pode ser removido se não for essencial aqui
-                                                    // Padding(
-                                                    //   padding: const EdgeInsets.only(left: 8.0),
-                                                    //   child: Text(
-                                                    //     'Sel: ${_integracaoSelections.join(', ')}',
-                                                    //     style: const TextStyle(color: Colors.white, fontSize: 12),
-                                                    //   ),
-                                                    // ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 250),
-                                      ],
-                                    ),
-                                      
-                                    
+                                  }),
+                                ),
+                                //const SizedBox(height: 10),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    SizedBox(width: 60,),
+                                    Expanded(child: _buildCheckboxRow()),
+                                    SizedBox(width: 60,),
                                   ],
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
+                              ],
+                            ),
+                          )
+                        ],
                       ),
-                      SizedBox(height: 40,),
-                      // Botões de Ação - nao mais FIXOS na parte inferior da área central
-                      
-                      
                     ],
                   ),
                 ),
               ),
-
-              // Botões de Ação - FIXOS na parte inferior da área central
-              
-
-              // Informações Inferiores - FIXAS na parte inferior da área central
-              const SizedBox(height: 0),
-              Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 25.0, vertical: 10.0),
-                  child: Center(
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        _buildActionButton('EXCLUIR', Colors.red),
-                        const SizedBox(width: 30),
-                        _buildActionButton('SALVAR', Colors.green),
-                        const SizedBox(width: 30),
-                        _buildActionButton('RELATÓRIO', Colors.yellow),
-                        
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 40),
-              ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
-              /// SE QUISER COLOCAR A BARRA INFERIOR FIXA, COLOCA AQUI
-              //////////////////////////////////////////////////////////////////////////////////////////////////////////////
-              //BottomInfoContainers(tablePath: 'Tabela > Estado X Imposto'),
+              _buildActionButtons(),
+              SizedBox(height: 20,)
             ],
           ),
         ),
       ),
     );
   }
-
-  // Novo método auxiliar para construir CustomInputField com o círculo 'H'
+  
   
 
-  // Função auxiliar para construir botões de ação
-  Widget _buildActionButton(String text, Color color) {
-    return ElevatedButton(
-      onPressed: () {
-        if (_formKey.currentState?.validate() ?? false) {
-          print('Botão $text pressionado. Formulário válido.');
-          _printFormValues();
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Por favor, corrija os erros nos campos antes de prosseguir.')),
-          );
+  Widget _buildAutocompleteField(TextEditingController controller, String label, String fieldKey, {bool isRequired = false,bool isNumeric = false, int? maxLength}) {
+    return Autocomplete<Map<String, dynamic>>(
+      displayStringForOption: (option) => option[fieldKey] as String,
+      optionsBuilder: (textEditingValue) {
+        if (textEditingValue.text.isEmpty) {
+          return const Iterable.empty();
         }
+        return _allCidades.where((option) {
+          final fieldValue = option[fieldKey]?.toString().toLowerCase() ?? '';
+          return fieldValue.contains(textEditingValue.text.toLowerCase());
+        });
       },
+      onSelected: (selection) {
+        _populateAllFields(selection);
+        FocusScope.of(context).unfocus();
+      },
+      fieldViewBuilder: (context, fieldController, focusNode, onFieldSubmitted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (controller.text != fieldController.text) {
+            fieldController.text = controller.text;
+          }
+        });
+        return CustomInputField(
+          
+          controller: fieldController,
+          focusNode: focusNode,
+          label: label,
+          maxLength: maxLength,
+          validator: isRequired ? (v) => v!.isEmpty ? 'Obrigatório' : null : null,
+          inputFormatters: isNumeric ? [FilteringTextInputFormatter.digitsOnly] : [FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z]')),],
+            keyboardType: isNumeric ? TextInputType.number : TextInputType.text,
+            suffixText: '${controller.text.length}/$maxLength',
+          onChanged: (value) {
+            controller.text = value;
+            final exactMatches = _allCidades.where((item) =>
+              (item[fieldKey] as String?)?.toLowerCase() == value.toLowerCase()).toList();
+            if (exactMatches.length == 1) {
+              _populateAllFields(exactMatches.first);
+            }
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildInputField(TextEditingController controller, String label, int maxLength, {String? Function(String?)? validator, bool isNumeric = false, bool isRequired = false, bool readOnly = false, TextCapitalization textCapitalization = TextCapitalization.none}) {
+    return CustomInputField(
+      controller: controller,
+      label: label,
+      maxLength: maxLength,
+      validator: validator ?? (isRequired ? (v) => v!.isEmpty ? 'Obrigatório' : null : null),
+      
+            keyboardType: isNumeric ? TextInputType.number : TextInputType.text,
+            suffixText: '${controller.text.length}/$maxLength',
+      inputFormatters: isNumeric ? [FilteringTextInputFormatter.digitsOnly] : [],
+      readOnly: readOnly,
+      fillColor: readOnly ? Colors.grey[300] : Colors.white,
+      textCapitalization: textCapitalization,
+    );
+  }
+
+ Widget _buildCheckboxRow() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20.0),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color.fromARGB(255, 153, 205, 248),
+          borderRadius: BorderRadius.circular(5),
+          border: Border.all(color: Colors.blue, width: 2.0),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Column(
+              children: [
+                Text('Cartório :', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              ],
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [ Checkbox(value: _cartorio, onChanged: (v) => setState(() => _cartorio = true)), const Text('Sim') ]),
+                Row(children: [ Checkbox(value: !_cartorio!, onChanged: (v) => setState(() => _cartorio = false)), const Text('Não') ]),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionButtons() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10.0),
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        spacing: 20,
+        runSpacing: 15,
+        children: [
+          _buildActionButton('EXCLUIR', Colors.red, _deleteData),
+          _buildActionButton('SALVAR', Colors.green, _saveData),
+          _buildActionButton('RELATÓRIO', Colors.yellow, _generateReport),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton(String text, Color color, VoidCallback onPressed) {
+    return ElevatedButton(
+      onPressed: _isLoading ? null : onPressed,
       style: ElevatedButton.styleFrom(
         fixedSize: const Size(200, 50),
         side: const BorderSide(width: 1.0, color: Colors.black),
         backgroundColor: color,
         foregroundColor: Colors.black,
-        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20.0),
         ),
       ),
       child: Text(text, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
     );
-  }
-
-  void _printFormValues() {
-    print('--- Dados do Formulário Estado X Imposto ---');
-    print('Codigo Cidade: ${_codigoController.text}');
-    print('Estado Cidade: ${_estadoController.text}');
-    print('Cidade: ${_cidadeController.text}');
-    print('Abreviado Cidade: ${_abreviadoController.text}');
-    print('Pais Cidade: ${_paisController.text}');
-    print('ISS Cidade: ${_issController.text}');
-    print('Cartorio Radio: ${_cartorio == true ? 'Sim' : 'Não'}');
-    print('Tabela IBGE Cidade: ${_tabelaIBGEController.text}');
-    
-    print('------------------------------------------');
   }
 }

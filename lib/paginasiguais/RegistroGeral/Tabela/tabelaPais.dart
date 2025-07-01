@@ -65,15 +65,23 @@ class _TabelaPaisState extends State<TabelaPais> {
     _codigoController.addListener(_onCodigoChanged);
   }
   
-  // Referência para a coleção de 'paises' no Firestore
-  CollectionReference get _paisesCollectionRef => FirebaseFirestore.instance
+  // Referência para a coleção de 'paises' no Firestore se elas forem individuais para cada empresa. ou seja independente de ser filial a ou b tem um banco individual
+  /*CollectionReference get _paisesCollectionRef => FirebaseFirestore.instance
       .collection('companies')
       .doc(widget.mainCompanyId)
       .collection('secondaryCompanies')
       .doc(widget.secondaryCompanyId)
       .collection('data')
       .doc('paises')
-      .collection('items');
+      .collection('items');*/
+////////////////////////////////////////////////////////////////////////////////////////
+///referencia para coleção paises se for compartilhada entre empresas principais. os docs de filiais sao iguais:
+      CollectionReference get _paisesCollectionRef => FirebaseFirestore.instance
+      .collection('companies')
+      .doc(widget.mainCompanyId) // Acessa diretamente a empresa principal
+      .collection('shared_data') // NOVA SUBCOLEÇÃO PARA DADOS COMPARTILHADOS
+      .doc('paises') // Documento que contém os países
+      .collection('items'); 
 
   /// Busca todos os países no Firestore para popular a lista de autocomplete.
   Future<void> _fetchAllPaises() async {
@@ -116,9 +124,9 @@ class _TabelaPaisState extends State<TabelaPais> {
       }
     }
     
-    // Só busca se o código tiver o tamanho completo (2 dígitos)
-    if (codigo.length < 2) {
-      _clearFormFields(clearCodigo: false); // Limpa outros campos se o código for incompleto
+    // CORREÇÃO: Busca por qualquer código digitado, desde que não seja vazio.
+    if (codigo.isEmpty) {
+      _clearFormFields(clearCodigo: false); // Limpa outros campos se o código for apagado
       return;
     }
 
@@ -579,7 +587,7 @@ class _TabelaPaisState extends State<TabelaPais> {
                                           return 'Campo obrigatório';
                                         }
                                         
-                                                      return null;
+                                                            return null;
                                       },
                                       // Atualiza o controller principal sempre que o usuário digita
                                       onChanged: (value) {
@@ -638,9 +646,9 @@ class _TabelaPaisState extends State<TabelaPais> {
                                     return 'Campo obrigatório';
                                   }
                                   if (value.length != 4) {
-                                                        return 'A sigla deve ter exatamente 4 dígitos.';
-                                                }
-                                                return null;
+                                                      return 'A sigla deve ter exatamente 4 dígitos.';
+                                                    }
+                                                  return null;
                                 },
                               ),
                             ),

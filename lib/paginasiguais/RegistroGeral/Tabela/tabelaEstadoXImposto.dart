@@ -3,241 +3,83 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Para FilteringTextInputFormatter
 import 'package:flutter_application_1/submenus.dart';
 import 'package:intl/intl.dart'; // Para formatar a data
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 // Importar os componentes reutilizáveis
 import 'package:flutter_application_1/reutilizaveis/tela_base.dart';
 import 'package:flutter_application_1/reutilizaveis/barraSuperior.dart';
 import 'package:flutter_application_1/reutilizaveis/menuLateral.dart';
 import 'package:flutter_application_1/reutilizaveis/customImputField.dart';
-import 'package:flutter_application_1/reutilizaveis/informacoesInferioresPagina.dart';
 
+// Importes para PDF
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 //Validator para UF
-String? _ufValidator(String? value) {
+String? ufValidator(String? value) {
   if (value == null || value.isEmpty) {
-    return 'O campo é obrigatório.';
+    return 'Obrigatório.';
   }
   final List<String> validUFs = [
     'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS',
     'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC',
     'SP', 'SE', 'TO'
   ];
-  if (!validUFs.contains(value.toUpperCase())) {
-    return 'UF inválida. Use um formato como SP, RJ, etc.';
+  if (value.length != 2 || !validUFs.contains(value.toUpperCase())) {
+    return 'UF inválida.';
   }
-  
   return null;
-
 }
 
-
-// NOVO FORMATTER: PercentageInputFormatter (formata da direita para a esquerda)
+// FORMATTER: PercentageInputFormatter com 2 casas decimais
 class PercentageInputFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
       TextEditingValue oldValue, TextEditingValue newValue) {
-    if (newValue.text.isEmpty) {
-      return newValue.copyWith(text: '');
-    }
+    String newText = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
 
-    // Remove tudo que não for dígito
-    String cleanedText = newValue.text.replaceAll(RegExp(r'\D'), '');
-
-    if (cleanedText.isEmpty) {
-      return newValue.copyWith(text: '');
-    }
-
-    // Se tiver apenas 1 ou 2 dígitos, adiciona um 0 na frente para forçar o formato 0,XX
-    while (cleanedText.length < 3 && cleanedText.length > 0) {
-        // Isso é opcional, mas garante que "1" vira "0,01" se você quiser.
-        // Se 1 deve virar 0,01, então não adicione o "0" aqui.
-        // Pelo seu exemplo (345 -> 3,45), significa que 2 casas são decimais.
-        // Ou seja, o número inteiro está à esquerda da vírgula.
-        // Se 345 vira 3,45 e 3456 vira 34,56, então a vírgula está sempre
-        // 2 casas da direita para a esquerda.
-        break; // Não adiciona 0, apenas formata.
-    }
-
-
-    String formattedText;
-    int cursorPosition;
-
-    if (cleanedText.length <= 2) {
-      // Se 0 ou 1 ou 2 dígitos (ex: "", "1", "12")
-      formattedText = cleanedText; // Ainda não tem vírgula
-      cursorPosition = formattedText.length;
-    } else {
-      // Para 3 ou mais dígitos (ex: "345", "3456")
-      // A vírgula sempre estará duas posições da direita para a esquerda
-      int integerPartLength = cleanedText.length - 2;
-      String integerPart = cleanedText.substring(0, integerPartLength);
-      String decimalPart = cleanedText.substring(integerPartLength);
-
-      formattedText = '$integerPart,$decimalPart';
-      cursorPosition = formattedText.length; // Cursor no final
-    }
-
-    // Se o texto antigo tinha menos caracteres e não tinha vírgula
-    // e o novo texto adicionou, ajusta o cursor
-    if (oldValue.text.length < formattedText.length &&
-        !oldValue.text.contains(',') && formattedText.contains(',')) {
-      cursorPosition = newValue.selection.end + 1;
-    } else if (oldValue.text.length > formattedText.length &&
-               oldValue.text.contains(',') && !formattedText.contains(',')) {
-      // Se a vírgula foi removida (ex: 3,45 -> 345)
-      cursorPosition = newValue.selection.end - 1;
-    } else {
-      cursorPosition = newValue.selection.end;
-    }
-
-
-    return TextEditingValue(
-      text: formattedText,
-      selection: TextSelection.collapsed(offset: cursorPosition),
-    );
-  }
-}
-
-
-class PercentageInputFormatter3Antes extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue, TextEditingValue newValue) {
-    // 1. Limpar a entrada: remover tudo que não for dígito.
-    String newText = newValue.text.replaceAll(RegExp(r'\D'), '');
-
-    // Se o texto está vazio, retorna um valor vazio.
     if (newText.isEmpty) {
       return TextEditingValue.empty;
     }
 
-    // 2. Formatar o texto: Adicionar a vírgula duas casas da direita para a esquerda.
-    String formattedText;
-    int decimalDigits = 2; // Queremos XX,XX, então 2 casas decimais
+    double value = double.parse(newText) / 100.0;
+    String formattedText = NumberFormat("#,##0.00", "pt_BR").format(value);
 
-    if (newText.length <= decimalDigits) {
-      // Se 0, 1 ou 2 dígitos (ex: "", "1", "12"), a vírgula ainda não aparece.
-      // Apenas exibe o número puro.
-      formattedText = newText;
-    } else {
-      // Para 3 ou mais dígitos (ex: "123", "1234", "12345")
-      // A vírgula é inserida 'decimalDigits' posições da direita para a esquerda.
-      int integerPartLength = newText.length - decimalDigits;
-      String integerPart = newText.substring(0, integerPartLength);
-      String decimalPart = newText.substring(integerPartLength);
-
-      formattedText = '$integerPart,$decimalPart';
-    }
-
-    // 3. Ajustar a posição do cursor.
-    // O objetivo é que o cursor tente manter sua posição lógica
-    // na string formatada.
-
-    TextSelection newSelection = newValue.selection; // Posição atual do cursor na nova string (não formatada ainda)
-
-    // Se a vírgula foi inserida onde o cursor estaria, move-o para depois da vírgula.
-    // Isso é especialmente importante quando se digita o terceiro dígito (ex: 12 -> 1,23).
-    // Se o cursor estava em index 2 (depois do '2' em '12') e a vírgula entra em index 1,
-    // o cursor deve pular para index 2 (depois da vírgula em '1,23').
-    int oldCleanedLength = oldValue.text.replaceAll(RegExp(r'\D'), '').length;
-    int newCleanedLength = newText.length;
-
-    int newCursorOffset = newValue.selection.end; // Posição final do cursor no texto limpo
-
-    if (newCleanedLength > oldCleanedLength) { // Se o usuário digitou
-      // Se a vírgula foi inserida entre a posição antiga e nova do cursor
-      // (ex: de "12|" para "1,2|3")
-      if (newCursorOffset > (newCleanedLength - decimalDigits)) {
-        newCursorOffset++; // Pula a vírgula
-      }
-    } else if (newCleanedLength < oldCleanedLength) { // Se o usuário deletou
-      // Se a vírgula foi removida (ex: "1,2|3" para "12|")
-      if (newCursorOffset > (newCleanedLength - decimalDigits)) {
-        // Nada a fazer, o cursor já deve estar na posição correta ou antes do final.
-      }
-    }
-
-    // Garante que o cursor não vá para uma posição fora dos limites da nova string formatada.
-    if (newCursorOffset < 0) newCursorOffset = 0;
-    if (newCursorOffset > formattedText.length) newCursorOffset = formattedText.length;
-
-
-    return TextEditingValue(
+    return newValue.copyWith(
       text: formattedText,
-      selection: TextSelection.collapsed(offset: newCursorOffset),
+      selection: TextSelection.collapsed(offset: formattedText.length),
     );
   }
 }
 
-
-class PercentageInputFormatter4CasasDecimais extends TextInputFormatter {
-  final int decimalDigits = 4; // Casas decimais fixas
-
+// FORMATTER: PercentageInputFormatter com 4 casas decimais
+class PercentageInputFormatter4Casas extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
       TextEditingValue oldValue, TextEditingValue newValue) {
-    String newTextCleaned = newValue.text.replaceAll(RegExp(r'\D'), '');
-
-    // Caso de texto vazio ou apenas zeros
-    if (newTextCleaned.isEmpty) {
+    String newText = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    
+    if (newText.isEmpty) {
       return TextEditingValue.empty;
     }
 
-    // Se o usuário digitou apenas zeros e não há outros dígitos, pode ser "0,0000"
-    if (int.tryParse(newTextCleaned) == 0) {
-      return const TextEditingValue(
-        text: '0,0000',
-        selection: TextSelection.collapsed(offset: 6), // Cursor no final
-      );
-    }
+    double value = double.parse(newText) / 10000.0;
+    String formattedText = NumberFormat("#,##0.0000", "pt_BR").format(value);
 
-    String formattedText;
-    int newCursorOffset;
-
-    // Garante que a string limpa tenha pelo menos o número de dígitos decimais
-    // para que a vírgula possa ser inserida corretamente da direita para a esquerda.
-    // Ex: "1" -> "0001", "12" -> "0012", "123" -> "0123", "1234" -> "1234"
-    String tempCleanedText = newTextCleaned.padLeft(decimalDigits, '0');
-
-    // A vírgula sempre será inserida 'decimalDigits' posições da direita para a esquerda.
-    // Se a string tem menos que 'decimalDigits' + 1, significa que a parte inteira é '0'
-    if (tempCleanedText.length <= decimalDigits) {
-        formattedText = '0,$tempCleanedText'; // Ex: "0,0001", "0,0012", "0,0123", "0,1234"
-    } else {
-        // Divide a string em parte inteira e parte decimal
-        int integerPartLength = tempCleanedText.length - decimalDigits;
-        String integerPart = tempCleanedText.substring(0, integerPartLength);
-        String decimalPart = tempCleanedText.substring(integerPartLength);
-
-        // Remove zeros à esquerda da parte inteira, a menos que seja apenas "0"
-        if (integerPart.length > 1 && integerPart.startsWith('0')) {
-             integerPart = integerPart.substring(1); // Ex: "01" vira "1"
-        }
-        if (integerPart.isEmpty) integerPart = '0'; // Garante que não fique vazio se virar "0"
-
-        formattedText = '$integerPart,$decimalPart';
-    }
-
-
-    // --- Ajuste da Posição do Cursor ---
-    // A lógica mais simples e robusta para este tipo de formatador
-    // é manter o cursor sempre no final.
-    // Se o usuário precisa editar no meio, a experiência pode ser prejudicada,
-    // mas tentar calcular posições intermediárias com preenchimento de zero e vírgula
-    // é extremamente complexo e propenso a bugs visuais.
-    newCursorOffset = formattedText.length;
-
-    return TextEditingValue(
+    return newValue.copyWith(
       text: formattedText,
-      selection: TextSelection.collapsed(offset: newCursorOffset),
+      selection: TextSelection.collapsed(offset: formattedText.length),
     );
   }
 }
+
 
 class TabelaEstadoXImposto extends StatefulWidget {
   final String mainCompanyId;
   final String secondaryCompanyId;
-  final String? userRole; // Se precisar usar a permissão aqui também
+  final String? userRole;
 
   const TabelaEstadoXImposto({
     super.key,
@@ -251,13 +93,11 @@ class TabelaEstadoXImposto extends StatefulWidget {
 }
 
 class _TabelaEstadoXImpostoState extends State<TabelaEstadoXImposto> {
-  static const double _breakpoint = 700.0; // Desktop breakpoint
-
+  static const double _breakpoint = 700.0;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-
   late String _currentDate;
 
-  // Controllers para os campos da tela "Estado X Imposto"
+  // Controllers para os campos
   final TextEditingController _estadoOrigemController = TextEditingController();
   final TextEditingController _estadoDestinoController = TextEditingController();
   final TextEditingController _aliqInterstadualController = TextEditingController();
@@ -273,39 +113,325 @@ class _TabelaEstadoXImpostoState extends State<TabelaEstadoXImposto> {
   final TextEditingController _ctaContabilSubsTribEntrDebController = TextEditingController();
   final TextEditingController _aliqCombatePobrezaController = TextEditingController();
 
-
-  // Variáveis para os Radio Buttons (Sim/Não para Cálculo DIFAL Dentro)
-  bool? _calculoDIFALDentro = false; // Valor inicial para "Não"
+  bool _calculoDIFALDentro = false;
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
     _currentDate = DateFormat('dd/MM/yyyy').format(DateTime.now());
 
-    _estadoOrigemController.addListener(_updateFieldCounters);
-    _estadoDestinoController.addListener(_updateFieldCounters);
-    _aliqInterstadualController.addListener(_updateFieldCounters);
-    _aliqInternaDIFALController.addListener(_updateFieldCounters);
-    _descontoDiferencaICMSRevendaController.addListener(_updateFieldCounters);
-    _descontoDiferencaICMSOutrosController.addListener(_updateFieldCounters);
-    _aliqICMSSubstituicaoController.addListener(_updateFieldCounters);
-    _aliqAbatimentoICMSController.addListener(_updateFieldCounters);
-    _aliqAbatimentoICMSRevendaController.addListener(_updateFieldCounters);
-    _aliqAbatimentoICMSConsumidorController.addListener(_updateFieldCounters);
-    _mvaSTController.addListener(_updateFieldCounters);
-    _mvaSTImportaController.addListener(_updateFieldCounters);
-    _ctaContabilSubsTribEntrDebController.addListener(_updateFieldCounters);
-    _aliqCombatePobrezaController.addListener(_updateFieldCounters);
+    // Listeners para buscar dados quando origem e destino são preenchidos
+    _estadoOrigemController.addListener(_onStateFieldsChanged);
+    _estadoDestinoController.addListener(_onStateFieldsChanged);
+    _aliqInterstadualController.addListener(_updateCounters);
+    _aliqInternaDIFALController.addListener(_updateCounters);
+    _descontoDiferencaICMSRevendaController.addListener(_updateCounters);
+    _descontoDiferencaICMSOutrosController.addListener(_updateCounters);
+    _aliqICMSSubstituicaoController.addListener(_updateCounters);
+    _aliqAbatimentoICMSController.addListener(_updateCounters);
+    _aliqAbatimentoICMSRevendaController.addListener(_updateCounters);
+    _aliqAbatimentoICMSConsumidorController.addListener(_updateCounters);
+    _mvaSTController.addListener(_updateCounters);
+    _mvaSTImportaController.addListener(_updateCounters);
+    _ctaContabilSubsTribEntrDebController.addListener(_updateCounters);
+    _aliqCombatePobrezaController.addListener(_updateCounters);
   }
 
-  void _updateFieldCounters() {
+  // Helper para obter a referência da coleção
+  CollectionReference get _collectionRef => FirebaseFirestore.instance
+      .collection('companies')
+      .doc(widget.mainCompanyId)
+      .collection('secondaryCompanies')
+      .doc(widget.secondaryCompanyId)
+      .collection('data')
+      .doc('estado_imposto')
+      .collection('items');
+
+  // Constrói o ID do documento a partir dos estados
+  String _getDocumentId() {
+    final origem = _estadoOrigemController.text.trim().toUpperCase();
+    final destino = _estadoDestinoController.text.trim().toUpperCase();
+    if (origem.isNotEmpty && destino.isNotEmpty) {
+      return '$origem-$destino';
+    }
+    return '';
+  }
+
+  // Limpa todos os campos dependentes (exceto origem e destino)
+  void _clearDependentFields() {
+    _aliqInterstadualController.clear();
+    _aliqInternaDIFALController.clear();
+    _descontoDiferencaICMSRevendaController.clear();
+    _descontoDiferencaICMSOutrosController.clear();
+    _aliqICMSSubstituicaoController.clear();
+    _aliqAbatimentoICMSController.clear();
+    _aliqAbatimentoICMSRevendaController.clear();
+    _aliqAbatimentoICMSConsumidorController.clear();
+    _mvaSTController.clear();
+    _mvaSTImportaController.clear();
+    _ctaContabilSubsTribEntrDebController.clear();
+    _aliqCombatePobrezaController.clear();
     setState(() {
-      // Força a reconstrução para atualizar o suffixText dos CustomInputField
+      _calculoDIFALDentro = false;
     });
+  }
+
+  // Listener que verifica se deve buscar os dados
+  void _onStateFieldsChanged() {
+    final origem = _estadoOrigemController.text.trim();
+    final destino = _estadoDestinoController.text.trim();
+
+    if (origem.length == 2 && destino.length == 2) {
+      _fetchImpostoData();
+    } else {
+      _clearDependentFields();
+    }
+  }
+
+  // Busca os dados no Firebase
+  Future<void> _fetchImpostoData() async {
+    final docId = _getDocumentId();
+    if (docId.isEmpty) return;
+
+    setState(() => _isLoading = true);
+    try {
+      final docSnapshot = await _collectionRef.doc(docId).get();
+      if (docSnapshot.exists) {
+        final data = docSnapshot.data() as Map<String, dynamic>;
+        setState(() {
+          _aliqInterstadualController.text = data['aliqInterstadual'] ?? '';
+          _aliqInternaDIFALController.text = data['aliqInternaDIFAL'] ?? '';
+          _descontoDiferencaICMSRevendaController.text = data['descontoIcmsRevenda'] ?? '';
+          _descontoDiferencaICMSOutrosController.text = data['descontoIcmsOutros'] ?? '';
+          _aliqICMSSubstituicaoController.text = data['aliqIcmsSubstituicao'] ?? '';
+          _aliqAbatimentoICMSController.text = data['aliqAbatimentoIcms'] ?? '';
+          _aliqAbatimentoICMSRevendaController.text = data['aliqAbatimentoIcmsRevenda'] ?? '';
+          _aliqAbatimentoICMSConsumidorController.text = data['aliqAbatimentoIcmsConsumidor'] ?? '';
+          _mvaSTController.text = data['mvaST'] ?? '';
+          _mvaSTImportaController.text = data['mvaSTImporta'] ?? '';
+          _ctaContabilSubsTribEntrDebController.text = data['ctaContabil'] ?? '';
+          _aliqCombatePobrezaController.text = data['aliqCombatePobreza'] ?? '';
+          _calculoDIFALDentro = data['calculoDifalDentro'] ?? false;
+        });
+      } else {
+        _clearDependentFields();
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao buscar dados: $e')),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  // Salva os dados no Firebase
+  Future<void> _saveData() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    
+    final docId = _getDocumentId();
+    if (docId.isEmpty) {
+       ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Estado de Origem e Destino são obrigatórios.')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    final dataToSave = {
+      'estadoOrigem': _estadoOrigemController.text.trim().toUpperCase(),
+      'estadoDestino': _estadoDestinoController.text.trim().toUpperCase(),
+      'aliqInterstadual': _aliqInterstadualController.text.trim(),
+      'aliqInternaDIFAL': _aliqInternaDIFALController.text.trim(),
+      'descontoIcmsRevenda': _descontoDiferencaICMSRevendaController.text.trim(),
+      'descontoIcmsOutros': _descontoDiferencaICMSOutrosController.text.trim(),
+      'aliqIcmsSubstituicao': _aliqICMSSubstituicaoController.text.trim(),
+      'aliqAbatimentoIcms': _aliqAbatimentoICMSController.text.trim(),
+      'aliqAbatimentoIcmsRevenda': _aliqAbatimentoICMSRevendaController.text.trim(),
+      'aliqAbatimentoIcmsConsumidor': _aliqAbatimentoICMSConsumidorController.text.trim(),
+      'mvaST': _mvaSTController.text.trim(),
+      'mvaSTImporta': _mvaSTImportaController.text.trim(),
+      'ctaContabil': _ctaContabilSubsTribEntrDebController.text.trim(),
+      'aliqCombatePobreza': _aliqCombatePobrezaController.text.trim(),
+      'calculoDifalDentro': _calculoDIFALDentro,
+      'ultima_atualizacao': FieldValue.serverTimestamp(),
+      'criado_por': FirebaseAuth.instance.currentUser?.email ?? 'desconhecido',
+    };
+
+    try {
+      await _collectionRef.doc(docId).set(dataToSave, SetOptions(merge: true));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Dados salvos com sucesso!')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao salvar: $e')),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  // Exclui os dados do Firebase
+  Future<void> _deleteData() async {
+    final docId = _getDocumentId();
+    if (docId.isEmpty) {
+       ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Preencha Origem e Destino para excluir.')),
+      );
+      return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confirmar Exclusão'),
+        content: Text('Deseja excluir os impostos para o par de estados $docId?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancelar')),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Excluir'), style: TextButton.styleFrom(foregroundColor: Colors.red)),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _isLoading = true);
+    try {
+      await _collectionRef.doc(docId).delete();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Registro excluído com sucesso!')),
+      );
+      _clearFormFields();
+    } catch(e) {
+       ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao excluir: $e')),
+      );
+    } finally {
+       setState(() => _isLoading = false);
+    }
+  }
+
+  // Gera o relatório em PDF
+  Future<void> _generateReport() async {
+    setState(() => _isLoading = true);
+    ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Gerando relatório...')),
+    );
+
+    try {
+        final querySnapshot = await _collectionRef.get();
+
+        if (querySnapshot.docs.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Nenhum dado de imposto encontrado para gerar relatório.')),
+            );
+            return;
+        }
+
+        final List<Map<String, dynamic>> allData = [];
+        for (var doc in querySnapshot.docs) {
+            allData.add(doc.data() as Map<String, dynamic>);
+        }
+        
+        allData.sort((a, b) {
+            int compare = (a['estadoOrigem'] ?? '').compareTo(b['estadoOrigem'] ?? '');
+            if (compare == 0) {
+                compare = (a['estadoDestino'] ?? '').compareTo(b['estadoDestino'] ?? '');
+            }
+            return compare;
+        });
+
+        final pdf = pw.Document();
+
+        final headers = [
+            'Origem',
+            'Destino',
+            'C/Insc',
+            'S/Insc',
+            'Revenda',
+            'Outros',
+            'Alíq. FCP',
+            'MVA ST',
+            'DIFAL Dentro'
+        ];
+        
+        final data = allData.map((item) => [
+            item['estadoOrigem'] ?? '',
+            item['estadoDestino'] ?? '',
+            item['aliqInterstadual'] ?? '0',
+            item['aliqInternaDIFAL'] ?? '0',
+            item['descontoIcmsRevenda'] ?? '0',
+            item['descontoIcmsOutros'] ?? '0',
+            
+            item['aliqCombatePobreza'] ?? '0',
+            item['mvaST'] ?? '0',
+            (item['calculoDifalDentro'] ?? false) ? 'Sim' : 'Não',
+        ]).toList();
+
+        pdf.addPage(
+            pw.MultiPage(
+                pageFormat: PdfPageFormat.a4.landscape,
+                header: (context) => pw.Header(
+                    level: 0,
+                    child: pw.Text('Relatório de Impostos por Estado - ${widget.secondaryCompanyId}', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold))
+                ),
+                build: (context) => [
+                    pw.Table.fromTextArray(
+                        headers: headers,
+                        data: data,
+                        border: pw.TableBorder.all(),
+                        headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                        headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
+                        cellStyle: const pw.TextStyle(fontSize: 8),
+                        cellAlignments: {
+                            0: pw.Alignment.center,
+                            1: pw.Alignment.center,
+                            6: pw.Alignment.center,
+                        }
+                    )
+                ],
+                footer: (context) => pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                        pw.Text('Gerado em: ${DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now())}'),
+                        pw.Text('Página ${context.pageNumber} de ${context.pagesCount}'),
+                    ]
+                )
+            ),
+        );
+        
+        await Printing.layoutPdf(
+            onLayout: (PdfPageFormat format) async => pdf.save(),
+            name: 'relatorio_impostos_${widget.secondaryCompanyId}_${DateFormat('yyyyMMdd').format(DateTime.now())}.pdf'
+        );
+
+    } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Erro ao gerar relatório: $e')),
+        );
+    } finally {
+        setState(() => _isLoading = false);
+    }
+  }
+  
+  void _clearFormFields(){
+     _estadoOrigemController.clear();
+     _estadoDestinoController.clear();
+     _clearDependentFields();
+  }
+
+  void _updateCounters() {
+    setState(() {});
   }
 
   @override
   void dispose() {
+    _estadoOrigemController.removeListener(_onStateFieldsChanged);
+    _estadoDestinoController.removeListener(_onStateFieldsChanged);
+
     _estadoOrigemController.dispose();
     _estadoDestinoController.dispose();
     _aliqInterstadualController.dispose();
@@ -326,103 +452,103 @@ class _TabelaEstadoXImpostoState extends State<TabelaEstadoXImposto> {
   @override
   Widget build(BuildContext context) {
     return TelaBase(
-      body: Column(
+      body: Stack(
         children: [
-          TopAppBar(
-            onBackPressed: () {
-Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => TelaSubPrincipal(
-          mainCompanyId: widget.mainCompanyId, // Repassa o ID da empresa principal
-          secondaryCompanyId: widget.secondaryCompanyId, // Repassa o ID da empresa secundária
-          userRole: widget.userRole, // Repassa o papel do usuário
-        ),
-      ),
-    );            },
-            currentDate: _currentDate,
-          ),
-          Expanded(
-            child: LayoutBuilder(
-              builder: (BuildContext context, BoxConstraints constraints) {
-                if (constraints.maxWidth > _breakpoint) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              flex: 1,
-                              child: AppDrawer(
-                                parentMaxWidth: constraints.maxWidth,
-                          breakpoint: 700.0,
-                          mainCompanyId: widget.mainCompanyId, // Passa
-                          secondaryCompanyId: widget.secondaryCompanyId, // Passa
-                          userRole: widget.userRole,
-                              ),
-                            ),
-                            Expanded(
-                              flex: 3,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Padding(
-                                    padding: EdgeInsets.only(top: 20.0, bottom: 0.0),
-                                    child: Center(
-                                      child: Text(
-                                        'Estado X Imposto',
-                                        style: TextStyle(
-                                          fontSize: 28,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.black87,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child: _buildCentralInputArea(),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
+          Column(
+            children: [
+              TopAppBar(
+                onBackPressed: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => TelaSubPrincipal(
+                        mainCompanyId: widget.mainCompanyId,
+                        secondaryCompanyId: widget.secondaryCompanyId,
+                        userRole: widget.userRole,
                       ),
-                    ],
-                  );
-                } else {
-                  return SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        const Padding(
-                          padding: EdgeInsets.only(top: 15.0, bottom: 8.0),
-                          child: Center(
-                            child: Text(
-                              'Estado X Imposto',
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
-                            ),
-                          ),
-                        ),
-                        AppDrawer(
-                            parentMaxWidth: constraints.maxWidth,
-                          breakpoint: 700.0,
-                          mainCompanyId: widget.mainCompanyId, // Passa
-                          secondaryCompanyId: widget.secondaryCompanyId, // Passa
-                          userRole: widget.userRole,),
-                        _buildCentralInputArea(),
-                      ],
                     ),
                   );
-                }
-              },
-            ),
+                },
+                currentDate: _currentDate,
+              ),
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (BuildContext context, BoxConstraints constraints) {
+                    if (constraints.maxWidth > _breakpoint) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  flex: 1,
+                                  child: AppDrawer(
+                                    parentMaxWidth: constraints.maxWidth,
+                                    breakpoint: 700.0,
+                                    mainCompanyId: widget.mainCompanyId,
+                                    secondaryCompanyId: widget.secondaryCompanyId,
+                                    userRole: widget.userRole,
+                                  ),
+                                ),
+                                Expanded(
+                                  flex: 3,
+                                  child: Column(
+                                    children: [
+                                      const Padding(
+                                        padding: EdgeInsets.only(top: 20.0, bottom: 0.0),
+                                        child: Center(
+                                          child: Text(
+                                            'Estado X Imposto',
+                                            style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.black87),
+                                          ),
+                                        ),
+                                      ),
+                                      Expanded(child: _buildCentralInputArea()),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    } else {
+                      return SingleChildScrollView(
+                        child: Column(
+                          children: [
+                            const Padding(
+                              padding: EdgeInsets.only(top: 15.0, bottom: 8.0),
+                              child: Center(
+                                child: Text(
+                                  'Estado X Imposto',
+                                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black87),
+                                ),
+                              ),
+                            ),
+                            AppDrawer(
+                              parentMaxWidth: constraints.maxWidth,
+                              breakpoint: 700.0,
+                              mainCompanyId: widget.mainCompanyId,
+                              secondaryCompanyId: widget.secondaryCompanyId,
+                              userRole: widget.userRole,
+                            ),
+                            _buildCentralInputArea(),
+                          ],
+                        ),
+                      );
+                    }
+                  },
+                ),
+              ),
+            ],
           ),
+          if (_isLoading)
+            Container(
+              color: Colors.black.withOpacity(0.5),
+              child: const Center(child: CircularProgressIndicator()),
+            ),
         ],
       ),
     );
@@ -434,362 +560,94 @@ Navigator.pushReplacement(
       child: Padding(
         padding: const EdgeInsets.all(25),
         child: Container(
-          padding: const EdgeInsets.all(0.0), // Remove o padding externo
           decoration: BoxDecoration(
             color: Colors.blue[100],
             border: Border.all(color: Colors.black, width: 1.0),
             borderRadius: BorderRadius.circular(10.0),
           ),
-          // UM ÚNICO SingleChildScrollView para toda a área de conteúdo que rola
-          child: Column( // A coluna que contém todo o conteúdo rolante e fixo
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Column(
             children: [
-              Expanded( // Este Expanded empurra o conteúdo fixo para baixo
+              Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.only(top: 15, bottom: 0), // Padding interno para o conteúdo rolante
-                  child: Column( // Coluna para organizar todos os elementos que devem rolar
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  padding: const EdgeInsets.only(top: 15, bottom: 0),
+                  child: Column(
                     children: [
                       // Linha 1: Estado Origem, Estado Destino
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          SizedBox(width: 90,),
+                          const SizedBox(width: 90),
                           Expanded(
                             child: CustomInputField(
-                              inputFormatters: [FilteringTextInputFormatter.deny('1',),FilteringTextInputFormatter.deny('2',),
-                              FilteringTextInputFormatter.deny('3',),FilteringTextInputFormatter.deny('4',),FilteringTextInputFormatter.deny('5',),
-                              FilteringTextInputFormatter.deny('6',),FilteringTextInputFormatter.deny('7',),FilteringTextInputFormatter.deny('8',),
-                              FilteringTextInputFormatter.deny('9',),FilteringTextInputFormatter.deny('0',),],
+                              inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z]'))],
                               controller: _estadoOrigemController,
                               label: 'Estado Origem',
                               maxLength: 2,
                               suffixText: '${_estadoOrigemController.text.length}/2',
-                              
                               validator: ufValidator,
                             ),
                           ),
-                          
-                          const SizedBox(width: 20), // Espaçamento entre H e Estado Destino
+                          const SizedBox(width: 20),
                           Expanded(
                             child: CustomInputField(
                               controller: _estadoDestinoController,
-                              inputFormatters: [FilteringTextInputFormatter.deny('1',),FilteringTextInputFormatter.deny('2',),
-                              FilteringTextInputFormatter.deny('3',),FilteringTextInputFormatter.deny('4',),FilteringTextInputFormatter.deny('5',),
-                              FilteringTextInputFormatter.deny('6',),FilteringTextInputFormatter.deny('7',),FilteringTextInputFormatter.deny('8',),
-                              FilteringTextInputFormatter.deny('9',),FilteringTextInputFormatter.deny('0',),],
+                              inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z]'))],
                               label: 'Estado Destino',
                               maxLength: 2,
                               suffixText: '${_estadoDestinoController.text.length}/2',
                               validator: ufValidator,
-
                             ),
                           ),
-                          SizedBox(width: 90,),
-
-                          
+                          const SizedBox(width: 90),
                         ],
                       ),
                       const Divider(height: 6, thickness: 2, color: Colors.blue),
-
-                      SizedBox(height: 5,),
+                      const SizedBox(height: 5),
                       // Linha que conterá as duas colunas ICMS e ST
                       Padding(
-                        padding: const EdgeInsets.only(right: 8,left: 8),
-                        child: IntrinsicHeight( // Permite que as colunas dentro do Row tenham a mesma altura
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: IntrinsicHeight(
                           child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start, // Alinha o topo das colunas
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               // Coluna ICMS
                               Expanded(
                                 flex: 1,
                                 child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Center(
-                                      child: const Text(
-                                        'ICMS',
-                                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black),
-                                      ),
-                                    ),
+                                    const Text('ICMS', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black)),
                                     const SizedBox(height: 3),
-                        
-                                    Padding(
-                                      padding: const EdgeInsets.only(right: 20, left: 20),
-                                      child: CustomInputField(
-                                        controller: _aliqCombatePobrezaController,
-                                        label: 'Alíquota Combate a Fundo Pobreza',
-                                        maxLength: 5,
-                                        keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                       inputFormatters: [PercentageInputFormatter3Antes(),],
-                                       suffixText: '${_aliqCombatePobrezaController.text.length}/5',
-                                      ),
-                                    ),
-                                    const SizedBox(height: 3),
-                        
-                                    Padding(
-                                      padding: const EdgeInsets.only(right: 20, left: 20),
-                                      child: CustomInputField(
-                                        controller: _aliqInterstadualController,
-                                        label: 'Alíquota Interestadual',
-                                        maxLength: 5,
-                                        keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                       inputFormatters: [PercentageInputFormatter3Antes(),],
-                                       suffixText: '${_aliqInterstadualController.text.length}/5',
-                                      ),
-                                    ),
-                                    const SizedBox(height: 3),
-                        
-                                    Padding(
-                                      padding: const EdgeInsets.only(right: 20, left: 20),
-                                      child: CustomInputField(
-                                        controller: _aliqInternaDIFALController,
-                                        label: 'Alíquota Interna - DIFAL',
-                                        maxLength: 5,
-                                        keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                       inputFormatters: [PercentageInputFormatter3Antes(),],
-                                       suffixText: '${_aliqInternaDIFALController.text.length}/5',
-                                      ),
-                                    ),
-                                    const SizedBox(height: 3),
-                        
-                                    Padding(
-                                      padding: const EdgeInsets.only(right: 20, left: 20),
-                                      child: CustomInputField(
-                                        controller: _descontoDiferencaICMSRevendaController,
-                                        label: 'Desconto Diferença ICMS Revenda',
-                                        maxLength: 7,
-                                        keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                       inputFormatters: [PercentageInputFormatter4CasasDecimais(),],
-                                       suffixText: '${_descontoDiferencaICMSRevendaController.text.length}/7',
-                                      ),
-                                    ),
-                                    const SizedBox(height: 3),
-                        
-                                    Padding(
-                                      padding: const EdgeInsets.only(right: 20, left: 20),
-                                      child: CustomInputField(
-                                        controller: _descontoDiferencaICMSOutrosController,
-                                        label: 'Desconto Diferença ICMS Outros',
-                                        maxLength: 7,
-                                        keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                       inputFormatters: [PercentageInputFormatter4CasasDecimais(),],
-                                        suffixText: '${_descontoDiferencaICMSOutrosController.text.length}/7',
-                                        validator: (value) {
-                                          if (value == null || value.isEmpty) return 'Campo obrigatório';
-                                          return null;
-                                        },
-                                      ),
-                                    ),
-                                    const SizedBox(height: 10),
-
-
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Padding(
-                                            padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                                            child: Container(
-                                              decoration: BoxDecoration(
-                                                color: const Color.fromARGB(255, 153, 205, 248), // Cor de fundo do container de integração
-                                                borderRadius: BorderRadius.circular(5),
-                                                border: Border.all(color: Colors.blue, width: 2.0),
-                                              ),
-                                              child: Padding(
-                                                padding: const EdgeInsets.all(6.0), // Padding interno para o conteúdo
-                                                child: Row( // <-- Voltando para Row para manter o texto 'Integração' ao lado
-                                                  crossAxisAlignment: CrossAxisAlignment.center, // Centraliza verticalmente o conteúdo da Row
-                                                  children: [
-                                                    Column(
-                                                      children: [
-                                                        const Text('Cálculo :', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
-                                                        const Text('DIFAL :', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
-                                                        const Text('Dentro :', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
-                                                      ],
-                                                    ),
-                                                    // Removido SizedBox(width: 16) para compactar mais, você pode ajustar
-                                                    Expanded( // <-- O Expanded é importante para dar espaço aos CheckboxListTile
-                                                      child: Column( // Column para empilhar os CheckboxListTile
-                                                        crossAxisAlignment: CrossAxisAlignment.start, // Alinha os CheckboxListTile à esquerda
-                                                        mainAxisAlignment: MainAxisAlignment.center, // Centraliza os checkboxes na coluna
-                                                        children: [
-                                                          Row(
-                                                  children: [
-                                                    Checkbox(
-                                                      value: _calculoDIFALDentro == true,
-                                                      onChanged: (bool? value) {
-                                                        setState(() {
-                                                          _calculoDIFALDentro = value;
-                                                        });
-                                                      },
-                                                      activeColor: Colors.blue,
-                                                    ),
-                                                    const Text('Sim', style: TextStyle(color: Colors.black)),
-                                                  ],
-                                                ),
-                                                Row(
-                                                  children: [
-                                                    Checkbox(
-                                                      value: _calculoDIFALDentro == false,
-                                                      onChanged: (bool? value) {
-                                                        setState(() {
-                                                          _calculoDIFALDentro = !(value ?? false);
-                                                        });
-                                                      },
-                                                      activeColor: Colors.blue,
-                                                    ),
-                                                    const Text('Não', style: TextStyle(color: Colors.black)),
-                                                  ],
-                                                ),]
-                                                      ),
-                                                    ),
-                                                    // Texto de integrações selecionadas movido para a direita, ou pode ser removido se não for essencial aqui
-                                                    // Padding(
-                                                    //   padding: const EdgeInsets.only(left: 8.0),
-                                                    //   child: Text(
-                                                    //     'Sel: ${_integracaoSelections.join(', ')}',
-                                                    //     style: const TextStyle(color: Colors.white, fontSize: 12),
-                                                    //   ),
-                                                    // ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 250),
-                                      ],
-                                    ),
-                        
-                                    const SizedBox(height: 0),
+                                    _buildInputField(_aliqCombatePobrezaController, 'Alíquota Combate a Fundo Pobreza', 5, formatter: PercentageInputFormatter()),
+                                    _buildInputField(_aliqInterstadualController, 'Alíquota Interestadual', 5, formatter: PercentageInputFormatter()),
+                                    _buildInputField(_aliqInternaDIFALController, 'Alíquota Interna - DIFAL', 5, formatter: PercentageInputFormatter()),
+                                    _buildInputField(_descontoDiferencaICMSRevendaController, 'Desconto Diferença ICMS Revenda', 7, formatter: PercentageInputFormatter4Casas()),
+                                    _buildInputField(_descontoDiferencaICMSOutrosController, 'Desconto Diferença ICMS Outros', 7, formatter: PercentageInputFormatter4Casas()),
+                                    _buildCheckboxRow(),
                                   ],
                                 ),
                               ),
-                        
-                              // Divisor Vertical
                               const VerticalDivider(width: 60, thickness: 2, color: Colors.blue),
-                        
-                              // Coluna ST - Substituição Tributária ICMS
+                              // Coluna ST
                               Expanded(
                                 flex: 1,
                                 child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Center(
-                                      child: const Text(
-                                        'ST - Substituição Tributária ICMS',
-                                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black),
-                                      ),
-                                    ),
+                                    const Text('ST - Substituição Tributária ICMS', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black), textAlign: TextAlign.center),
                                     const SizedBox(height: 3),
-                        
-                                    Padding(
-                                      padding: const EdgeInsets.only(right: 20,  left: 20),
-                                      child: CustomInputField(
-                                        controller: _aliqICMSSubstituicaoController,
-                                        label: 'Aliq. ICMS Substituição',
-                                        maxLength: 5,
-                                        keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                        suffixText: '${_aliqICMSSubstituicaoController.text.length}/5',
-                                         inputFormatters: [PercentageInputFormatter3Antes(),],
-                                      ),
-                                    ),
-                                    const SizedBox(height: 3),
-                        
-                                    Padding(
-                                      padding: const EdgeInsets.only(right: 20,  left: 20),
-                                      child: CustomInputField(
-                                        controller: _aliqAbatimentoICMSController,
-                                        label: 'Aliq. Abatimento ICMS',
-                                        maxLength: 5,
-                                        keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                        suffixText: '${_aliqAbatimentoICMSController.text.length}/5',
-                                        inputFormatters: [PercentageInputFormatter3Antes(),],   
-                                      ),
-                                    ),
-                                    const SizedBox(height: 3),
-                        
-                                    Padding(
-                                      padding: const EdgeInsets.only(right: 20,  left: 20),
-                                      child: CustomInputField(
-                                        controller: _aliqAbatimentoICMSRevendaController,
-                                        label: 'Aliq. Abatimento ICMS Revenda',
-                                        maxLength: 5,
-                                        keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                        suffixText: '${_aliqAbatimentoICMSRevendaController.text.length}/5',
-                                        inputFormatters: [PercentageInputFormatter3Antes(),],   
-                                      ),
-                                    ),
-                                    const SizedBox(height: 3),
-                        
-                                    Padding(
-                                      padding: const EdgeInsets.only(right: 20,  left: 20),
-                                      child: CustomInputField(
-                                        controller: _aliqAbatimentoICMSConsumidorController,
-                                        label: 'Aliq. Abatimento ICMS Consumidor',
-                                        maxLength: 5,
-                                        keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                        suffixText: '${_aliqAbatimentoICMSConsumidorController.text.length}/5',
-                                        inputFormatters: [PercentageInputFormatter3Antes(),],   
-                                      ),
-                                    ),
-                                    const SizedBox(height: 3),
-                        
-                                    Row( // MVA-St e MVA-St Importa (com H)
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Expanded(
-                                          child: Padding(
-                                      padding: const EdgeInsets.only(left: 20, ),
-                                            child: CustomInputField(
-                                              controller: _mvaSTController,
-                                              label: 'MVA-St',
-                                              maxLength: 6,
-                                              keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                              suffixText: '${_mvaSTController.text.length}/5',
-                                                                                inputFormatters: [PercentageInputFormatter3Antes(),],   
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 20),
-                                        Expanded(
-                                          child: Padding(
-                                      padding: const EdgeInsets.only(  right: 20),
-                                            child: CustomInputField(
-                                              controller: _mvaSTImportaController,
-                                              label: 'MVA-St Importa',
-                                              maxLength: 6,
-                                              keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                              suffixText: '${_mvaSTImportaController.text.length}/5',
-                                                                                inputFormatters: [PercentageInputFormatter3Antes(),],   
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 3),
-                        
-                                    Padding(
-                                      padding: const EdgeInsets.only(right: 20,  left: 20),
-                                      child: CustomInputField(
-                                        controller: _ctaContabilSubsTribEntrDebController,
-                                        label: 'Cta Contabil Subs.Trib.Entr.Deb',
-                                        maxLength: 7,
-                                        suffixText: '${_ctaContabilSubsTribEntrDebController.text.length}/7',
-                                        validator: (value) {
-                                          // **VALIDAÇÃO EXTRA AQUI:** Deve ter exatamente 2 caracteres
-                                  if (value == null || value.isEmpty) {
-                                    return null;
+                                    _buildInputField(_aliqICMSSubstituicaoController, 'Aliq. ICMS Substituição', 5, formatter: PercentageInputFormatter()),
+                                    _buildInputField(_aliqAbatimentoICMSController, 'Aliq. Abatimento ICMS', 5, formatter: PercentageInputFormatter()),
+                                    _buildInputField(_aliqAbatimentoICMSRevendaController, 'Aliq. Abatimento ICMS Revenda', 5, formatter: PercentageInputFormatter()),
+                                    _buildInputField(_aliqAbatimentoICMSConsumidorController, 'Aliq. Abatimento ICMS Consumidor', 5, formatter: PercentageInputFormatter()),
+                                    _buildStRow(),
+                                    _buildInputField(_ctaContabilSubsTribEntrDebController, 'Cta Contabil Subs.Trib.Entr.Deb', 7,validator: (value){
+                                      if (value == null || value.isEmpty) {
+                                    return 'O campo deve ser preenchido.';
                                   }
-                                  // **VALIDAÇÃO EXTRA AQUI:** Deve ter exatamente 2 caracteres
                                   if (value.length != 7) {
-                                    return 'A sigla deve ter exatamente 7 caracteres/dígitos.';
+                                    return 'O campo deve ter 7 dígitos.'; // Mensagem de erro mais clara
                                   }
                                   return null;
-                                        },
-                                      ),
-                                    ),
-                                    const SizedBox(height: 10),
+                                    }),
                                   ],
                                 ),
                               ),
@@ -797,36 +655,24 @@ Navigator.pushReplacement(
                           ),
                         ),
                       ),
-                      // Botões de Ação - nao mais FIXOS na parte inferior da área central
-                      Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 25.0, vertical: 10.0),
-                child: Center(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _buildActionButton('EXCLUIR', Colors.red),
-                      const SizedBox(width: 30),
-                      _buildActionButton('SALVAR', Colors.green),
-                      
                     ],
                   ),
                 ),
               ),
-              //BottomInfoContainers(tablePath: 'Tabela > Estado X Imposto'),
-                    ],
-                  ),
+              // Botões de Ação
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _buildActionButton('EXCLUIR', Colors.red, _deleteData),
+                    const SizedBox(width: 30),
+                    _buildActionButton('SALVAR', Colors.green, _saveData),
+                     const SizedBox(width: 30),
+                    _buildActionButton('RELATÓRIO', Colors.yellow, _generateReport),
+                  ],
                 ),
               ),
-
-              // Botões de Ação - FIXOS na parte inferior da área central
-              
-
-              // Informações Inferiores - FIXAS na parte inferior da área central
-              const SizedBox(height: 0),
-              ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
-              /// SE QUISER COLOCAR A BARRA INFERIOR FIXA, COLOCA AQUI
-              //////////////////////////////////////////////////////////////////////////////////////////////////////////////
-              //BottomInfoContainers(tablePath: 'Tabela > Estado X Imposto'),
             ],
           ),
         ),
@@ -834,51 +680,75 @@ Navigator.pushReplacement(
     );
   }
 
-  // Novo método auxiliar para construir CustomInputField com o círculo 'H'
-  
+  Widget _buildInputField(TextEditingController controller, String label, int maxLength, {bool isRequired = false, String? Function(String?)? validator,TextInputFormatter? formatter}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+      child: CustomInputField(
+        controller: controller,
+        validator: validator ?? (isRequired ? (v) => v!.isEmpty ? 'Obrigatório' : null : null),
+        label: label,
+        maxLength: maxLength,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        inputFormatters: formatter != null ? [formatter] : [],
+        suffixText: '${controller.text.length}/$maxLength',
+      ),
+    );
+  }
 
-  // Função auxiliar para construir botões de ação
-  Widget _buildActionButton(String text, Color color) {
+  Widget _buildCheckboxRow() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20.0),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color.fromARGB(255, 153, 205, 248),
+          borderRadius: BorderRadius.circular(5),
+          border: Border.all(color: Colors.blue, width: 2.0),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Column(
+              children: [
+                Text('Cálculo :', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                Text('DIFAL :', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                Text('Dentro :', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              ],
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [ Checkbox(value: _calculoDIFALDentro, onChanged: (v) => setState(() => _calculoDIFALDentro = true)), const Text('Sim') ]),
+                Row(children: [ Checkbox(value: !_calculoDIFALDentro, onChanged: (v) => setState(() => _calculoDIFALDentro = false)), const Text('Não') ]),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildStRow() {
+     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: _buildInputField(_mvaSTController, 'MVA-St', 6, formatter: PercentageInputFormatter())),
+        const SizedBox(width: 20),
+        Expanded(child: _buildInputField(_mvaSTImportaController, 'MVA-St Importa', 6, formatter: PercentageInputFormatter())),
+      ],
+    );
+  }
+
+  Widget _buildActionButton(String text, Color color, VoidCallback onPressed) {
     return ElevatedButton(
-      onPressed: () {
-        if (_formKey.currentState?.validate() ?? false) {
-          print('Botão $text pressionado. Formulário válido.');
-          _printFormValues();
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Por favor, corrija os erros nos campos antes de prosseguir.')),
-          );
-        }
-      },
+      onPressed: onPressed,
       style: ElevatedButton.styleFrom(
         fixedSize: const Size(200, 50),
         side: const BorderSide(width: 1.0, color: Colors.black),
         backgroundColor: color,
         foregroundColor: Colors.black,
-        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20.0),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.0)),
       ),
       child: Text(text, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
     );
-  }
-
-  void _printFormValues() {
-    print('--- Dados do Formulário Estado X Imposto ---');
-    print('Estado Origem: ${_estadoOrigemController.text}');
-    print('Estado Destino: ${_estadoDestinoController.text}');
-    print('Aliq. Interestadual: ${_aliqInterstadualController.text}');
-    print('Aliq. Interna - DIFAL: ${_aliqInternaDIFALController.text}');
-    print('Desc. Diferença ICMS Revenda: ${_descontoDiferencaICMSRevendaController.text}');
-    print('Desc. Diferença ICMS Outros: ${_descontoDiferencaICMSOutrosController.text}');
-    print('Cálculo DIFAL Dentro: ${_calculoDIFALDentro == true ? 'Sim' : 'Não'}');
-    print('Aliq. ICMS Substituição: ${_aliqICMSSubstituicaoController.text}');
-    print('Aliq. Abatimento ICMS: ${_aliqAbatimentoICMSController.text}');
-    print('Aliq. Abatimento MS Consumidor: ${_aliqAbatimentoICMSConsumidorController.text}');
-    print('MVA-St: ${_mvaSTController.text}');
-    print('MVA-St Importa: ${_mvaSTImportaController.text}');
-    print('Cta Contabil Subs.Trib.Entr.Deb: ${_ctaContabilSubsTribEntrDebController.text}');
-    print('------------------------------------------');
   }
 }

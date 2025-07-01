@@ -1,20 +1,24 @@
-// lib/tabela_estado_imposto.dart
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Para FilteringTextInputFormatter
+import 'package:flutter/services.dart';
 import 'package:flutter_application_1/submenus.dart';
-import 'package:intl/intl.dart'; // Para formatar a data
+import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
 import 'package:flutter_application_1/reutilizaveis/tela_base.dart';
 import 'package:flutter_application_1/reutilizaveis/barraSuperior.dart';
 import 'package:flutter_application_1/reutilizaveis/menuLateral.dart';
 import 'package:flutter_application_1/reutilizaveis/customImputField.dart';
-import 'package:flutter_application_1/reutilizaveis/informacoesInferioresPagina.dart';
 
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 
 class TabelaSituacao extends StatefulWidget {
   final String mainCompanyId;
   final String secondaryCompanyId;
-  final String? userRole; // Se precisar usar a permissão aqui também
+  final String? userRole;
 
   const TabelaSituacao({
     super.key,
@@ -28,161 +32,277 @@ class TabelaSituacao extends StatefulWidget {
 }
 
 class _TabelaSituacaoState extends State<TabelaSituacao> {
-  static const double _breakpoint = 700.0; // Desktop breakpoint
-
+  static const double _breakpoint = 700.0;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-
   late String _currentDate;
 
-  // Controllers para os campos da tela "Estado X Imposto"
   final TextEditingController _codigoController = TextEditingController();
-  final TextEditingController _descricaoController= TextEditingController();
+  final TextEditingController _descricaoController = TextEditingController();
   
-
-  // Variável para controlar se o campo 'País' é somente leitura
-  bool _paisReadOnly = true; // Inicia como true (desabilitado)
-
-  // Variável para controlar o Radio Button selecionado na seção "Bloqueio"
-  String? _selectedBloqueioOption; // 'Normal', 'Mensagem', 'Bloqueio', 'Apenas Dinheiro'
+  String _selectedBloqueioOption = 'Normal';
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
     _currentDate = DateFormat('dd/MM/yyyy').format(DateTime.now());
-
-    _codigoController.addListener(_updateFieldCounters);
-    _descricaoController.addListener(_updateFieldCounters);
-    
-
-
-    // Define 'Normal' como a opção selecionada por padrão
-    _selectedBloqueioOption = 'Normal';
+    _codigoController.addListener(_onCodigoChanged);
   }
 
-  void _onEstadoChanged() {
+  CollectionReference get _collectionRef => FirebaseFirestore.instance
+      .collection('companies')
+      .doc(widget.mainCompanyId)
+      .collection('secondaryCompanies')
+      .doc(widget.secondaryCompanyId)
+      .collection('data')
+      .doc('situacoes')
+      .collection('items');
+
+  void _clearFields({bool clearCode = false}) {
+    if (clearCode) {
+      _codigoController.clear();
+    }
+    _descricaoController.clear();
     setState(() {
-
-
+      _selectedBloqueioOption = 'Normal';
     });
-    _updateFieldCounters(); // Para atualizar o suffixText se necessário
   }
 
-  void _updateFieldCounters() {
-    setState(() {
-      // Força a reconstrução para atualizar o suffixText dos CustomInputField
-    });
+  Future<void> _onCodigoChanged() async {
+    final codigo = _codigoController.text.trim();
+    if (codigo.isEmpty) {
+      _clearFields();
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      final docSnapshot = await _collectionRef.doc(codigo).get();
+      if (docSnapshot.exists) {
+        final data = docSnapshot.data() as Map<String, dynamic>;
+        setState(() {
+          _descricaoController.text = data['descricao'] ?? '';
+          _selectedBloqueioOption = data['bloqueio'] ?? 'Normal';
+        });
+      } else {
+        _clearFields();
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao buscar situação: $e')),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _saveData() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    final docId = _codigoController.text.trim();
+    setState(() => _isLoading = true);
+
+    final dataToSave = {
+      'descricao': _descricaoController.text.trim(),
+      'bloqueio': _selectedBloqueioOption,
+      'ultima_atualizacao': FieldValue.serverTimestamp(),
+      'criado_por': FirebaseAuth.instance.currentUser?.email ?? 'desconhecido',
+    };
+
+    try {
+      await _collectionRef.doc(docId).set(dataToSave);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Situação salva com sucesso!')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao salvar: $e')),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _deleteData() async {
+    final docId = _codigoController.text.trim();
+    if (docId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Preencha o Código para excluir.')),
+      );
+      return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confirmar Exclusão'),
+        content: Text('Deseja excluir a situação com código $docId?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancelar')),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Excluir'), style: TextButton.styleFrom(foregroundColor: Colors.red)),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _isLoading = true);
+    try {
+      await _collectionRef.doc(docId).delete();
+      _clearFields(clearCode: true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Situação excluída com sucesso!')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao excluir: $e')),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _generateReport() async {
+    setState(() => _isLoading = true);
+    try {
+      final querySnapshot = await _collectionRef.get();
+      if (querySnapshot.docs.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nenhuma situação para gerar relatório.')));
+        return;
+      }
+
+      final pdf = pw.Document();
+      final headers = ['Código', 'Descrição', 'Bloqueio'];
+      final data = querySnapshot.docs.map((doc) {
+        final item = doc.data() as Map<String, dynamic>;
+        return [doc.id, item['descricao'] ?? '', item['bloqueio'] ?? ''];
+      }).toList();
+
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          header: (context) => pw.Header(
+            level: 0,
+            child: pw.Text('Relatório de Situações - ${widget.secondaryCompanyId}', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
+          ),
+          build: (context) => [
+            pw.Table.fromTextArray(
+              headers: headers,
+              data: data,
+              border: pw.TableBorder.all(),
+              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+            )
+          ],
+        ),
+      );
+
+      await Printing.layoutPdf(onLayout: (format) async => pdf.save());
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao gerar PDF: $e')));
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 
   @override
   void dispose() {
+    _codigoController.removeListener(_onCodigoChanged);
     _codigoController.dispose();
     _descricaoController.dispose();
-    
-
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return TelaBase(
-      body: Column(
+      body: Stack(
         children: [
-          TopAppBar(
-            onBackPressed: () {
-              Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => TelaSubPrincipal(
-          mainCompanyId: widget.mainCompanyId, // Repassa o ID da empresa principal
-          secondaryCompanyId: widget.secondaryCompanyId, // Repassa o ID da empresa secundária
-          userRole: widget.userRole, // Repassa o papel do usuário
-        ),
-      ),
-    );
-            },
-            currentDate: _currentDate,
-          ),
-          Expanded(
-            child: LayoutBuilder(
-              builder: (BuildContext context, BoxConstraints constraints) {
-                if (constraints.maxWidth > _breakpoint) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              flex: 1,
-                              child: AppDrawer(
-                                parentMaxWidth: constraints.maxWidth,
-                          breakpoint: 700.0,
-                          mainCompanyId: widget.mainCompanyId, // Passa
-                          secondaryCompanyId: widget.secondaryCompanyId, // Passa
-                          userRole: widget.userRole,
-                              ),
-                            ),
-                            Expanded(
-                              flex: 3,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Padding(
-                                    padding: EdgeInsets.only(top: 20.0, bottom: 0.0),
-                                    child: Center(
-                                      child: Text(
-                                        'Situação',
-                                        style: TextStyle(
-                                          fontSize: 28,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.black87,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child: _buildCentralInputArea(),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
+          Column(
+            children: [
+              TopAppBar(
+                onBackPressed: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => TelaSubPrincipal(
+                        mainCompanyId: widget.mainCompanyId,
+                        secondaryCompanyId: widget.secondaryCompanyId,
+                        userRole: widget.userRole,
                       ),
-                    ],
-                  );
-                } else {
-                  return SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        const Padding(
-                          padding: EdgeInsets.only(top: 15.0, bottom: 8.0),
-                          child: Center(
-                            child: Text(
-                              'Situação',
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
-                            ),
-                          ),
-                        ),
-                        AppDrawer(
-                           parentMaxWidth: constraints.maxWidth,
-                          breakpoint: 700.0,
-                          mainCompanyId: widget.mainCompanyId, // Passa
-                          secondaryCompanyId: widget.secondaryCompanyId, // Passa
-                          userRole: widget.userRole,),
-                        _buildCentralInputArea(),
-                      ],
                     ),
                   );
-                }
-              },
-            ),
+                },
+                currentDate: _currentDate,
+              ),
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    if (constraints.maxWidth > _breakpoint) {
+                      return _buildDesktopLayout(constraints);
+                    } else {
+                      return _buildMobileLayout();
+                    }
+                  },
+                ),
+              ),
+            ],
           ),
+          if (_isLoading)
+            Container(
+              color: Colors.black.withOpacity(0.5),
+              child: const Center(child: CircularProgressIndicator()),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDesktopLayout(BoxConstraints constraints) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          flex: 1,
+          child: AppDrawer(
+            parentMaxWidth: constraints.maxWidth,
+            breakpoint: _breakpoint,
+            mainCompanyId: widget.mainCompanyId,
+            secondaryCompanyId: widget.secondaryCompanyId,
+            userRole: widget.userRole,
+          ),
+        ),
+        Expanded(
+          flex: 3,
+          child: Column(
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(top: 20.0, bottom: 10.0),
+                child: Text('Situação', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+              ),
+              Expanded(child: _buildCentralInputArea()),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMobileLayout() {
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 15.0, bottom: 8.0),
+            child: Text('Situação', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          ),
+          AppDrawer(
+            parentMaxWidth: 0,
+            breakpoint: _breakpoint,
+            mainCompanyId: widget.mainCompanyId,
+            secondaryCompanyId: widget.secondaryCompanyId,
+            userRole: widget.userRole,
+          ),
+          _buildCentralInputArea(),
         ],
       ),
     );
@@ -194,265 +314,142 @@ class _TabelaSituacaoState extends State<TabelaSituacao> {
       child: Padding(
         padding: const EdgeInsets.all(25),
         child: Container(
-          padding: const EdgeInsets.all(0.0), // Remove o padding externo
           decoration: BoxDecoration(
             color: Colors.blue[100],
-            border: Border.all(color: Colors.black, width: 1.0),
-            borderRadius: BorderRadius.circular(10.0),
+            border: Border.all(color: Colors.black),
+            borderRadius: BorderRadius.circular(10),
           ),
-          // UM ÚNICO SingleChildScrollView para toda a área de conteúdo que rola
-          child: Column( // A coluna que contém todo o conteúdo rolante e fixo
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Column(
             children: [
-              Expanded( // Este Expanded empurra o conteúdo fixo para baixo
+              Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.only(top: 15, bottom: 0), // Padding interno para o conteúdo rolante
-                  child: Column( // Coluna para organizar todos os elementos que devem rolar
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  padding: const EdgeInsets.all(30),
+                  child: Column(
                     children: [
-
-
-                      const SizedBox(height: 5,),
-                      // Linha que conterá as duas colunas ICMS e ST
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8,left: 8),
-                        child: IntrinsicHeight( // Permite que as colunas dentro do Row tenham a mesma altura
-                          child: Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start, // Alinha o topo das colunas
-                              children: [
-                                // Coluna ICMS
-                                Expanded(
-                                  flex: 1,
-                                  child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-
-                                      const SizedBox(height: 50),
-
-                                      Expanded(
-                                        child: Padding(
-                                          padding: const EdgeInsets.only(right: 20, left: 20),
-                                          child: CustomInputField(
-                                            controller: _codigoController,
-                                            label: 'Código',
-                                            maxLength: 2,
-                                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                                            keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                            validator: (value) {
-                                              if (value == null || value.isEmpty) {
-                                                return 'Campo obrigatório';
-                                              }},
-                                            suffixText: '${_codigoController.text.length}/2',
-                                            // fillColor: Colors.white, // Não precisa especificar, CustomInputField já tem padrão branco
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 3),
-
-                                      Expanded(
-                                        child: Padding(
-                                          padding: const EdgeInsets.only(right: 20, left: 20),
-                                          child: CustomInputField(
-                                            controller: _descricaoController,
-                                            label: 'Descrição',
-                                            maxLength: 30,
-                                            validator: (value) {
-                                              if (value == null || value.isEmpty) {
-                                                return 'Campo obrigatório';
-                                              }},
-                                            keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                            suffixText: '${_descricaoController.text.length}/30',
-                                            // fillColor: Colors.white, // Não precisa especificar, CustomInputField já tem padrão branco
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 3),
-
-                                      const SizedBox(width: 0),
-                                    ],
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Column(
-                                    children: [
-                                      Expanded(
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                                          child: Container(
-                                            decoration: BoxDecoration(
-                                              color: const Color.fromARGB(255, 153, 205, 248), // Cor de fundo do container de integração
-                                              borderRadius: BorderRadius.circular(5),
-                                              border: Border.all(color: Colors.blue, width: 2.0),
-                                            ),
-                                            child: Padding(
-                                              padding: const EdgeInsets.all(6.0), // Padding interno para o conteúdo
-                                              child: Column(
-                                                crossAxisAlignment: CrossAxisAlignment.center, // Centraliza verticalmente o conteúdo da Row
-                                                children: [
-                                                  Row(mainAxisAlignment: MainAxisAlignment.center,
-                                                    children: [
-                                                      const Text('Bloqueio :', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
-                                                    ],
-                                                  ),
-                                                  Expanded(
-                                                    child: Row( // Alterado para Column para empilhar os RadioListTile
-                                                      crossAxisAlignment: CrossAxisAlignment.start, // Alinha os RadioListTile à esquerda
-                                                      children: [
-                                                        Expanded(
-                                                          child: RadioListTile<String>(
-                                                            title: const Text('Normal', style: TextStyle(color: Colors.black)),
-                                                            value: 'Normal',
-                                                            groupValue: _selectedBloqueioOption,
-                                                            onChanged: (String? value) {
-                                                              setState(() {
-                                                                _selectedBloqueioOption = value;
-                                                              });
-                                                            },
-                                                            activeColor: Colors.blue,
-                                                          ),
-                                                        ),
-                                                        Expanded(
-                                                          child: RadioListTile<String>(
-                                                            title: const Text('Mensagem', style: TextStyle(color: Colors.black)),
-                                                            value: 'Mensagem',
-                                                            groupValue: _selectedBloqueioOption,
-                                                            onChanged: (String? value) {
-                                                              setState(() {
-                                                                _selectedBloqueioOption = value;
-                                                              });
-                                                            },
-                                                            activeColor: Colors.blue,
-                                                          ),
-                                                        ),
-                                                        Expanded(
-                                                          child: RadioListTile<String>(
-                                                            title: const Text('Bloqueio', style: TextStyle(color: Colors.black)),
-                                                            value: 'Bloqueio',
-                                                            groupValue: _selectedBloqueioOption,
-                                                            onChanged: (String? value) {
-                                                              setState(() {
-                                                                _selectedBloqueioOption = value;
-                                                              });
-                                                            },
-                                                            activeColor: Colors.blue,
-                                                          ),
-                                                        ),
-                                                        Expanded(
-                                                          child: RadioListTile<String>(
-                                                            title: const Text('Apenas Dinheiro', style: TextStyle(color: Colors.black)),
-                                                            value: 'Apenas Dinheiro',
-                                                            groupValue: _selectedBloqueioOption,
-                                                            onChanged: (String? value) {
-                                                              setState(() {
-                                                                _selectedBloqueioOption = value;
-                                                              });
-                                                            },
-                                                            activeColor: Colors.blue,
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-
-
-                                const SizedBox(height: 10),
-
-
-                              ],
+                      Row(
+                        children: [
+                          Expanded(
+                            flex: 1,
+                            child: CustomInputField(
+                              controller: _codigoController,
+                              label: 'Código',
+                              maxLength: 2,
+                              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                              validator: (v) => v!.isEmpty ? 'Obrigatório' : null,
                             ),
                           ),
-                        ),
+                          const SizedBox(width: 20,),
+                          Expanded(
+                            flex: 3,
+                            child: CustomInputField(
+                                                    controller: _descricaoController,
+                                                    label: 'Descrição',
+                                                    maxLength: 30,
+                                                    validator: (v) => v!.isEmpty ? 'Obrigatório' : null,
+                                                  ),
+                          ),
+                        ],
                       ),
-                      SizedBox(height: 40,),
-
-
-
+                      const SizedBox(height: 20),
+                      
+                      const SizedBox(height: 20),
+                      _buildBloqueioOptions(),
                     ],
                   ),
                 ),
               ),
-
-              // Botões de Ação - FIXOS na parte inferior da área central
-
-
-              // Informações Inferiores - FIXAS na parte inferior da área central
-              const SizedBox(height: 0),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 25.0, vertical: 10.0),
-                child: Center(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _buildActionButton('EXCLUIR', Colors.red),
-                      const SizedBox(width: 30),
-                      _buildActionButton('SALVAR', Colors.green),
-                      const SizedBox(width: 30),
-                      _buildActionButton('RELATÓRIO', Colors.yellow),
-
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 40),
-              ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
-              /// SE QUISER COLOCAR A BARRA INFERIOR FIXA, COLOCA AQUI
-              //////////////////////////////////////////////////////////////////////////////////////////////////////////////
-              //BottomInfoContainers(tablePath: 'Tabela > Estado X Imposto'),
+              _buildActionButtons(),
+              SizedBox(height: 20,),
             ],
           ),
         ),
       ),
     );
   }
+  
+  Widget _buildBloqueioOptions() {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: const Color.fromARGB(255, 153, 205, 248),
+        borderRadius: BorderRadius.circular(5),
+        border: Border.all(color: Colors.blue, width: 2.0),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          const Center(child: Text('Bloqueio', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
+          Row(
+            children: [
+              Expanded(
+                child: RadioListTile<String>(
+                  title: const Text('Normal'),
+                  value: 'Normal',
+                  groupValue: _selectedBloqueioOption,
+                  onChanged: (v) => setState(() => _selectedBloqueioOption = v!),
+                ),
+              ),
+              Expanded(
+                child: RadioListTile<String>(
+                  title: const Text('Mensagem'),
+                  value: 'Mensagem',
+                  groupValue: _selectedBloqueioOption,
+                  onChanged: (v) => setState(() => _selectedBloqueioOption = v!),
+                ),
+              ),
+              Expanded(
+                child: RadioListTile<String>(
+                  title: const Text('Bloqueio'),
+                  value: 'Bloqueio',
+                  groupValue: _selectedBloqueioOption,
+                  onChanged: (v) => setState(() => _selectedBloqueioOption = v!),
+                ),
+              ),
+              Expanded(
+                child: RadioListTile<String>(
+                  title: const Text('Apenas Dinheiro'),
+                  value: 'Apenas Dinheiro',
+                  groupValue: _selectedBloqueioOption,
+                  onChanged: (v) => setState(() => _selectedBloqueioOption = v!),
+                ),
+              ),
+            ],
+          ),
+          
+        ],
+      ),
+    );
+  }
 
-  // Novo método auxiliar para construir CustomInputField com o círculo 'H'
+  Widget _buildActionButtons() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10.0),
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        spacing: 20,
+        runSpacing: 15,
+        children: [
+          _buildActionButton('EXCLUIR', Colors.red, _deleteData),
+          _buildActionButton('SALVAR', Colors.green, _saveData),
+          _buildActionButton('RELATÓRIO', Colors.yellow, _generateReport),
+        ],
+      ),
+    );
+  }
 
-
-  // Função auxiliar para construir botões de ação
-  Widget _buildActionButton(String text, Color color) {
+  Widget _buildActionButton(String text, Color color, VoidCallback onPressed) {
     return ElevatedButton(
-      onPressed: () {
-        if (_formKey.currentState?.validate() ?? false) {
-          print('Botão $text pressionado. Formulário válido.');
-          _printFormValues();
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Por favor, corrija os erros nos campos antes de prosseguir.')),
-          );
-        }
-      },
+      onPressed: _isLoading ? null : onPressed,
       style: ElevatedButton.styleFrom(
         fixedSize: const Size(200, 50),
         side: const BorderSide(width: 1.0, color: Colors.black),
         backgroundColor: color,
         foregroundColor: Colors.black,
-        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20.0),
         ),
       ),
       child: Text(text, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
     );
-  }
-
-  void _printFormValues() {
-    print('--- Dados do Formulário Estado X Imposto ---');
-    print('Codigo Situação: ${_codigoController.text}');
-    print('Descrição Situação: ${_descricaoController.text}');
-
-    print('Bloqueio: ${_selectedBloqueioOption ?? 'Nenhum selecionado'}'); // Usar a nova variável
-
-
-    print('------------------------------------------');
   }
 }

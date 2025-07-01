@@ -19,6 +19,7 @@ import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaS
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaTipoBemCredito.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaTipoHistorico.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tipoTelefone.dart';
+import 'package:flutter_application_1/registroGeral/manut_rg.dart';
 
 // NOVO WIDGET: Item de menu com efeito de hover
 class HoverMenuItem extends StatefulWidget {
@@ -255,6 +256,8 @@ class AppDrawer extends StatelessWidget {
           _buildMenuItemWithSubitems(context, 'Registro Geral', Icons.app_registration, [
             _buildSubMenuItem(context, 'Manut RG', () => print('Clicou em Manut RG')),
             _buildSubMenuItem(context, 'TEXTO', () => print('Clicou em TEXTO do submenu')),
+            _buildSubMenuItem(context, 'Teste', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  PaginaComAbasLaterais(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
+
           ]),
           _buildMenuItem(context, 'Crédito', Icons.credit_card, () => print('Clicou em Crédito')),
           _buildMenuItem(context, 'Relatório', Icons.bar_chart, () => print('Clicou em Relatório')),
