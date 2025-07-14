@@ -1,5 +1,6 @@
 // lib/widgets/bottom_info_containers.dart
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Um widget que exibe informações padronizadas na parte inferior.
 /// O texto `tablePath` é requerido e pode ser personalizado por página.
@@ -10,6 +11,17 @@ class BottomInfoContainers extends StatelessWidget {
     Key? key,
     required this.tablePath,
   }) : super(key: key);
+
+  Future<void> _launchURL(String url) async {
+    final Uri uri = Uri.parse(url);
+    if (!await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication, // Garante que abra fora do app
+    )) {
+      // Em um app real, você poderia mostrar um SnackBar com o erro.
+      throw 'Não foi possível abrir $url';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

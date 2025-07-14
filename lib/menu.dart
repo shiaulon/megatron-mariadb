@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Para FilteringTextInputFormatter
+import 'package:flutter_application_1/ajuda/ajuda.dart';
 import 'package:flutter_application_1/secondary_company_selection_page.dart';
 import 'package:intl/intl.dart'; // Importe para formatar a data
 import 'package:firebase_auth/firebase_auth.dart'; // Para FirebaseAuth.instance.currentUser
@@ -88,6 +89,13 @@ class TelaPrincipal extends StatefulWidget {
   State<TelaPrincipal> createState() => _TelaPrincipalState();
 }
 
+class ChecklistItem {
+  String text;
+  bool isChecked;
+
+  ChecklistItem({required this.text, this.isChecked = false});
+}
+
 class _TelaPrincipalState extends State<TelaPrincipal> {
   static const double _breakpoint = 700.0;
   final TextEditingController _textEditingController = TextEditingController();
@@ -170,7 +178,16 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
       ButtonData(text: 'Mail', iconData: Icons.mail, onPressed: () => print('Clicou em Email')),
       ButtonData(text: 'Phone', iconData: Icons.phone, onPressed: () => print('Clicou em Telefone')),
       ButtonData(text: 'Cloud', iconData: Icons.cloud, onPressed: () => print('Clicou em Nuvem')),
-      ButtonData(text: 'Help', iconData: Icons.help, onPressed: () => print('Clicou em Ajuda')),
+      ButtonData(text: 'Help', iconData: Icons.help, onPressed: () {Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => TelaAjuda(
+                mainCompanyId: widget.mainCompanyId,
+                secondaryCompanyId: widget.secondaryCompanyId,
+                userRole: role,
+              ),
+            ),
+          );}),
       ButtonData(text: 'Info', iconData: Icons.info, onPressed: () => print('Clicou em Info')),
       ButtonData(text: 'Star', iconData: Icons.star, onPressed: () => print('Clicou em Estrela')),
       ButtonData(text: 'Add', iconData: Icons.add, onPressed: () => print('Clicou em Adicionar')),
@@ -201,6 +218,120 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
     _textEditingController.removeListener(_handleTextChange);
     _textEditingController.dispose();
     super.dispose();
+  }
+  
+
+  final List<ChecklistItem> _annotations = [
+    
+    //ChecklistItem(text: 'Exemplo de anotação 2', isChecked: false),
+  ];
+
+  // Método para exibir o diálogo de confirmação de exclusão
+  Future<bool> _showDeleteConfirmationDialog(String annotationText) async {
+    return await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Confirmar Exclusão'),
+          content: Text('Deseja realmente excluir a anotação: "$annotationText"?'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Não'),
+              onPressed: () {
+                Navigator.of(context).pop(false); // Retorna false (não quer excluir)
+              },
+            ),
+            TextButton(
+              child: const Text('Sim'),
+              onPressed: () {
+                Navigator.of(context).pop(true); // Retorna true (quer excluir)
+              },
+            ),
+          ],
+        );
+      },
+    ) ?? false; // Retorna false se o diálogo for fechado de outra forma
+  }
+
+  // Método para alternar o estado do checkbox e remover se for marcado
+  void _toggleCheckbox(int index, bool? newValue) async {
+    if (newValue != null) {
+      if (newValue == true) { // Se o checkbox está sendo marcado (concluído)
+        bool confirmDelete = await _showDeleteConfirmationDialog(_annotations[index].text);
+        if (confirmDelete) {
+          _removeAnnotation(index);
+        } else {
+          // Se o usuário cancelar a exclusão, revertemos o estado do checkbox
+          setState(() {
+            _annotations[index].isChecked = false;
+          });
+        }
+      } else { // Se o checkbox está sendo desmarcado
+        setState(() {
+          _annotations[index].isChecked = newValue;
+        });
+      }
+    }
+  }
+
+  // Método para adicionar uma nova anotação
+  void _addAnnotation(String text) {
+    if (text.isNotEmpty) {
+      setState(() {
+        _annotations.add(ChecklistItem(text: text));
+      });
+    }
+  }
+
+  // Método para remover uma anotação
+  void _removeAnnotation(int index) {
+    setState(() {
+      _annotations.removeAt(index);
+    });
+  }
+
+  // Método para exibir o diálogo de adicionar anotação
+  Future<void> _showAddAnnotationDialog() async {
+    String newAnnotationText = '';
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false, // O usuário deve tocar nos botões para fechar
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Adicionar Anotação'),
+          content: SingleChildScrollView(
+            child: ListBody(
+              children: <Widget>[
+                TextField(
+                  onChanged: (value) {
+                    newAnnotationText = value;
+                  },
+                  decoration: const InputDecoration(
+                    hintText: 'Digite sua anotação aqui',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancelar'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            TextButton(
+              child: const Text('Confirmar'),
+              onPressed: () {
+                _addAnnotation(newAnnotationText);
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -273,7 +404,7 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
                       ),
                       Expanded(
                         flex: 1,
-                        child: _buildTextField(),
+                        child: _buildAnnotationSection(),
                       ),
                     ],
                   );
@@ -285,7 +416,7 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
                           child: _buildMainContent(isMobile: true),
                         ),
                         const SizedBox(height: 20),
-                        _buildTextField(),
+                        _buildAnnotationSection(),
                       ],
                     ),
                   );
@@ -304,55 +435,64 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
       children: [
         const SizedBox(height: 10),
         Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-          child: Row(
-            children: [
-              Image.asset(
-                'assets/images/logo16.png',
-                width: 75,
-                height: 75,
+          padding: const EdgeInsets.all(8.0),
+          child:  Card(color: Colors.blue[100],
+                        //margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                        
+                        elevation: 4,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+              child: Row(
+                children: [
+                  Image.asset(
+                    'assets/images/logo16.png',
+                    width: 75,
+                    height: 75,
+                  ),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Exibir os IDs da empresa selecionada
+                        Text(
+                          'Empresa Principal ID: ${widget.mainCompanyId}',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                        Text(
+                          'Empresa Secundária Ativa: ${widget.secondaryCompanyId}',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                        Text(
+                          'Seu Cargo: ${widget.userRole ?? 'Não Definido'}', // Mostra o cargo
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                        // Você pode buscar o nome completo da empresa e CNPJ aqui se quiser
+                        // usando os IDs (mainCompanyId, secondaryCompanyId) e Firestore.
+                        // Por enquanto, mantendo os dados fixos abaixo.
+                        const Text(
+                          'MEGATRON TREINAMENTO E DESENVOLVIMENTO LTDA',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                        const Text(
+                          'CNPJ 12.395.757/0001-00',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                        const Text(
+                          'PRAÇA JOSÉ FRANCISCO JUCATELLI, 151 - JD. BOTÂNICO',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                        const Text(
+                          'RIBEIRÃO PRETO - SP',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 10),
-              Flexible(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Exibir os IDs da empresa selecionada
-                    Text(
-                      'Empresa Principal ID: ${widget.mainCompanyId}',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                    ),
-                    Text(
-                      'Empresa Secundária Ativa: ${widget.secondaryCompanyId}',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                    ),
-                    Text(
-                      'Seu Cargo: ${widget.userRole ?? 'Não Definido'}', // Mostra o cargo
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                    ),
-                    // Você pode buscar o nome completo da empresa e CNPJ aqui se quiser
-                    // usando os IDs (mainCompanyId, secondaryCompanyId) e Firestore.
-                    // Por enquanto, mantendo os dados fixos abaixo.
-                    const Text(
-                      'MEGATRON TREINAMENTO E DESENVOLVIMENTO LTDA',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                    ),
-                    const Text(
-                      'CNPJ 12.395.757/0001-00',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                    ),
-                    const Text(
-                      'PRAÇA JOSÉ FRANCISCO JUCATELLI, 151 - JD. BOTÂNICO',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                    ),
-                    const Text(
-                      'RIBEIRÃO PRETO - SP',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+            ),
           ),
         ),
         const SizedBox(height: 30),
@@ -362,7 +502,7 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
     );
   }
 
-  Widget _buildTextField() {
+  Widget _buildAnnotationSection() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(40.0, 30.0, 20.0, 20),
       child: Container(
@@ -378,17 +518,17 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12.0, 12.0, 12.0, 0),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(12.0, 12.0, 12.0, 0),
               child: Row(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.sticky_note_2,
                     size: 30,
                     color: Colors.black87,
                   ),
-                  const SizedBox(width: 8),
-                  const Text(
+                  SizedBox(width: 8),
+                  Text(
                     'LEMBRETES',
                     style: TextStyle(
                       fontSize: 30,
@@ -406,17 +546,58 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
               margin: const EdgeInsets.symmetric(horizontal: 12.0),
             ),
             Expanded(
-              child: TextField(
-                controller: _textEditingController,
-                maxLines: null,
-                expands: true,
-                decoration: const InputDecoration(
-                  hintText: 'Digite suas anotações aqui...',
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.all(12.0),
+              child: ListView.builder(
+                padding: const EdgeInsets.all(12.0),
+                itemCount: _annotations.length,
+                itemBuilder: (context, index) {
+                  return Padding( // Adicionando Padding para espaçamento
+                    padding: const EdgeInsets.symmetric(vertical: 4.0),
+                    child: Row(
+                      children: [
+                        // Checkbox
+                        Checkbox(
+                          value: _annotations[index].isChecked,
+                          onChanged: (newValue) async { // Agora é um método async
+                            _toggleCheckbox(index, newValue);
+                          },
+                        ),
+                        // Texto da anotação
+                        Expanded(
+                          child: Text(
+                            _annotations[index].text,
+                            style: TextStyle(
+                              decoration: _annotations[index].isChecked
+                                  ? TextDecoration.lineThrough
+                                  : TextDecoration.none,
+                              color: _annotations[index].isChecked
+                                  ? Colors.grey
+                                  : Colors.black,
+                            ),
+                          ),
+                        ),
+                        // O botão de exclusão foi removido daqui
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: ElevatedButton.icon(
+                  onPressed: _showAddAnnotationDialog,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Adicionar Anotação'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue[700], // Cor de fundo do botão
+                    foregroundColor: Colors.white, // Cor do texto e ícone
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8.0),
+                    ),
+                  ),
                 ),
-                textAlignVertical: TextAlignVertical.top,
-                keyboardType: TextInputType.multiline,
               ),
             ),
           ],

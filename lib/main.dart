@@ -27,9 +27,9 @@ class MyApp extends StatelessWidget { // <--- Voltou a ser StatelessWidget
 
   @override
   Widget build(BuildContext context) {
-    const String mainCompanyId = 'ID_EMPRESA_PRINCIPAL_TESTE';
+    /*const String mainCompanyId = 'ID_EMPRESA_PRINCIPAL_TESTE';
     const String secondaryCompanyId = 'ID_EMPRESA_SECUNDARIA_TESTE';
-    const String userRole = 'admin'; // ou 'user', etc.
+    const String userRole = 'admin'; // ou 'user', etc.*/
     // Agora que o Firebase já foi inicializado no main(),
     // podemos ir direto para o MaterialApp.
     return MaterialApp(
@@ -37,8 +37,8 @@ class MyApp extends StatelessWidget { // <--- Voltou a ser StatelessWidget
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: const PaginaComAbasLaterais(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole), // Inicia na LoginPage
-      //home: const LoginPage(),
+      //home: const PaginaComAbasLaterais(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole), // Inicia na LoginPage
+      home: const LoginPage(),
       debugShowCheckedModeBanner: false,
     );
   }

@@ -125,6 +125,28 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  Future<bool> _showAlert() async {
+    return await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Esqueceu sua senha?'),
+          content: Text('Entre em contato com o gerenciador do sistema por meio dos números na parte inferior da pagina'),
+          actions: <Widget>[
+            
+            TextButton(
+              child: const Text('Ok'),
+              onPressed: () {
+                Navigator.of(context).pop(true); // Retorna true (quer excluir)
+              },
+            ),
+          ],
+        );
+      },
+    ) ?? false; // Retorna false se o diálogo for fechado de outra forma
+  }
+
   @override
   Widget build(BuildContext context) {
     return TelaBase(
@@ -145,6 +167,7 @@ class _LoginPageState extends State<LoginPage> {
                 width: 300,
                 height: 35,
                 child: TextField(
+                  onSubmitted: (_) => _signIn(),
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   decoration: const InputDecoration(
@@ -160,6 +183,7 @@ class _LoginPageState extends State<LoginPage> {
                 width: 300,
                 height: 35,
                 child: TextField(
+                  onSubmitted: (_) => _signIn(),
                   controller: _passwordController,
                   obscureText: _obscurePassword,
                   decoration: InputDecoration(
@@ -208,7 +232,7 @@ class _LoginPageState extends State<LoginPage> {
               ),
               TextButton(
                 onPressed: () {
-                  print('Esqueceu sua senha? clicado');
+                  _showAlert();
                 },
                 child: const Text(
                   'Esqueceu sua senha?',
