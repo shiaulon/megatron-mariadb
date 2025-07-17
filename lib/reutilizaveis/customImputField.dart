@@ -250,12 +250,13 @@ String? ufValidator(String? value) {
 /// Um campo de entrada de texto padronizado para uso em formulários.
 class CustomInputField extends StatelessWidget {
   final TextEditingController controller;
+  final List<TextInputFormatter>? inputFormatters; // ADD THIS PARAMETER
+  final String? Function(String?)? validator; // ADD THIS PARAMETER
   final String label;
   final String? initialValue;
   final bool readOnly;
   final TextInputType? keyboardType;
-  final List<TextInputFormatter>? inputFormatters;
-  final String? Function(String?)? validator;
+  
   final int? maxLength;
   final TextCapitalization textCapitalization;
   final String? suffixText;
@@ -277,6 +278,7 @@ class CustomInputField extends StatelessWidget {
     this.readOnly = false,
     this.keyboardType,
     this.inputFormatters,
+    
     this.validator,
     this.maxLength,
     this.textCapitalization = TextCapitalization.none,
@@ -336,6 +338,7 @@ class CustomInputField extends StatelessWidget {
         textCapitalization: textCapitalization,
         maxLines: maxLines,
         minLines: minLines,
+        
         autovalidateMode: AutovalidateMode.onUserInteraction,
         onChanged: onChanged,
         decoration: InputDecoration(
