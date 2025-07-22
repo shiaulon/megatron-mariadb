@@ -1,6 +1,10 @@
 // lib/widgets/custom_input_field.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Para FilteringTextInputFormatter
+import 'package:flutter_application_1/reutilizaveis/barraSuperior.dart';
+
+import 'package:flutter_application_1/registroGeral/manut_rg.dart'; // Ajuste o caminho se for diferente
+
 
 // --- FORMATTERS E VALIDATORS (Movidos para cá) ---
 
@@ -267,7 +271,13 @@ class CustomInputField extends StatelessWidget {
   final VoidCallback? onTap;
   final int? maxLines;
   final int?minLines;
-  final void Function(String)? onChanged;
+  final ValueChanged<String>? onChanged;
+  final bool trackUnsavedChanges; // NOVO: Flag para rastrear alterações não salvas
+  //final bool isMainFormInput;
+  //final bool isSubcollectionInput;
+  // NOVO: Callback para notificar o pai sobre alterações que precisam ser rastreadas
+  final VoidCallback? onUserInteraction; // Chamado quando o usuário altera o campo
+
 
   const CustomInputField({
     Key? key,
@@ -290,6 +300,10 @@ class CustomInputField extends StatelessWidget {
     this.maxLines = 1,
     this.minLines,
     this.onChanged,
+    this.trackUnsavedChanges = false, // NOVO: Default para false
+    this.onUserInteraction, 
+    //this.isMainFormInput = false, // Default é false
+    //this.isSubcollectionInput = false, // Default é false
     
   }) : super(key: key);
 
@@ -340,7 +354,16 @@ class CustomInputField extends StatelessWidget {
         minLines: minLines,
         
         autovalidateMode: AutovalidateMode.onUserInteraction,
-        onChanged: onChanged,
+        onChanged: (value) {
+        // Chame o onChanged personalizado se ele existir
+        onChanged?.call(value);
+
+        // Se o campo NÃO for readOnly (ou seja, o usuário pode digitar nele)
+        // e se um callback de interação foi fornecido, chame-o.
+        if (!readOnly && onUserInteraction != null) {
+          onUserInteraction!(); // Notifica o pai sobre a interação do usuário
+        }
+      },
         decoration: InputDecoration(
           isDense: isDense,
           alignLabelWithHint: true,
@@ -357,6 +380,7 @@ class CustomInputField extends StatelessWidget {
           hintText: hintText,
           suffixText: suffixText,
         ),
+        
         style: const TextStyle(fontSize: 14.0),
       ),
     );

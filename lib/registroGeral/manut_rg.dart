@@ -100,26 +100,19 @@ class PercentageInputFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
       TextEditingValue oldValue, TextEditingValue newValue) {
-    String newText = newValue.text.replaceAll(',', '.');
+    String newText = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+
     if (newText.isEmpty) {
-      return newValue.copyWith(text: '');
+      return TextEditingValue.empty;
     }
 
-    double? value = double.tryParse(newText);
-    if (value == null) {
-      return oldValue; // Reverte se não for um número válido
-    }
+    double value = double.parse(newText) / 100.0;
+    String formattedText = NumberFormat("#,##0.00", "pt_BR").format(value);
 
-    if (value < 0) {
-      return newValue.copyWith(text: '0');
-    }
-    if (value > 100) {
-      return newValue.copyWith(text: '100');
-    }
-
-    // Formata o número de volta para a exibição, se necessário (ex: 2 casas decimais)
-    // Para simplificar, vou manter a entrada como está, mas garantir que seja um número.
-    return newValue.copyWith(text: newText);
+    return newValue.copyWith(
+      text: formattedText,
+      selection: TextSelection.collapsed(offset: formattedText.length),
+    );
   }
 }
 
@@ -333,6 +326,7 @@ class _PaginaComAbasLateraisState extends State<PaginaComAbasLaterais> {
   final TextEditingController _resulNomeRefComercialController = TextEditingController();
   final TextEditingController _enderecoRefComercialController = TextEditingController();
   final TextEditingController _cidadeRefComercialController = TextEditingController();
+  final TextEditingController _resulcidadeRefComercialController = TextEditingController();
   final TextEditingController _contatoRefComercialController = TextEditingController();
   final TextEditingController _telefoneRefComercialController = TextEditingController();
   final TextEditingController _emailRefComercialController = TextEditingController();
@@ -360,176 +354,181 @@ class _PaginaComAbasLateraisState extends State<PaginaComAbasLaterais> {
 
   @override
   void initState() {
-    super.initState();
-    _currentDate = DateFormat('dd/MM/yyyy').format(DateTime.now());
-    _fetchAllControlData();
-    _fetchAllCidades();
-    _fetchAllCargos();
+  super.initState();
+  _currentDate = DateFormat('dd/MM/yyyy').format(DateTime.now());
+  _fetchAllControlData();
+  _fetchAllCidades();
+  _fetchAllCargos();
 
-    _nomeRefComercialController.addListener(() {
-    setState(() {
-      // This setState is crucial to re-evaluate the readOnly status of the '...' field
-    });
-    _checkSubcollectionInputChanges(); // Keep this to update unsaved changes flag
-  });
+  // Mantenha os listeners para os campos de busca que controlam a população/limpeza
+  _campoComum1Controller.addListener(_updateStreams);
+  _campoComum2Controller.addListener(_handleClearCheck);
+  _campoComum3Controller.addListener(_handleClearCheck);
+  _codigoGeradoController.addListener(_handleClearCheck);
 
-    // INICIALIZAÇÃO DOS NOVOS CONTROLADORES PARA REFERÊNCIA COMERCIAL
+  // NOVO: Apenas os campos de subcoleção que precisam da validação de input pendente.
+  // Mantenha APENAS os listeners para `_checkSubcollectionInputChanges()`:
+  _sqController.addListener(() => _checkSubcollectionInputChanges());
+  _paisController.addListener(() => _checkSubcollectionInputChanges());
+  _operadoraController.addListener(() => _checkSubcollectionInputChanges());
+  _dddController.addListener(() => _checkSubcollectionInputChanges());
+  _nroController.addListener(() => _checkSubcollectionInputChanges());
+  _ramalController.addListener(() => _checkSubcollectionInputChanges());
+  _tipoController.addListener(() => _checkSubcollectionInputChanges());
+  _contatoController.addListener(() => _checkSubcollectionInputChanges());
+  _socioController.addListener(() => _checkSubcollectionInputChanges());
+  _nomeController.addListener(() => _checkSubcollectionInputChanges());
+  _cpfController.addListener(() => _checkSubcollectionInputChanges());
+  _cargoController.addListener(() => _checkSubcollectionInputChanges());
+  _resulCargoController.addListener(() => _checkSubcollectionInputChanges());
+  _participacaoController.addListener(() => _checkSubcollectionInputChanges());
+
+  _sequenciaController.addListener(() => _checkSubcollectionInputChanges());
+  _nomeRefBancariaController.addListener(() => _checkSubcollectionInputChanges());
+  _resulNomeController.addListener(() => _checkSubcollectionInputChanges());
+  _enderecoRefBancariaController.addListener(() => _checkSubcollectionInputChanges()); // Este agora chama _checkSubcollectionInputChanges
+  _cidadeRefBancariaController.addListener(() => _checkSubcollectionInputChanges());
+  //_resulEnderecoController.addListener(() => _checkSubcollectionInputChanges());
+  _contatoRefBancariaController.addListener(() => _checkSubcollectionInputChanges());
+  _telefoneRefBancariaController.addListener(() => _checkSubcollectionInputChanges());
+  _emailRefBancariaController.addListener(() => _checkSubcollectionInputChanges());
+  _obsRefBancariaController.addListener(() => _checkSubcollectionInputChanges());
+
   _sequenciaRefComercialController.addListener(() => _checkSubcollectionInputChanges());
   _nomeRefComercialController.addListener(() => _checkSubcollectionInputChanges());
   _resulNomeRefComercialController.addListener(() => _checkSubcollectionInputChanges());
-  _enderecoRefComercialController.addListener(() => _setUnsavedChanges(true)); // Este é um campo principal que precisa de salvamento geral
+  _enderecoRefComercialController.addListener(() => _checkSubcollectionInputChanges()); // Este agora chama _checkSubcollectionInputChanges
   _cidadeRefComercialController.addListener(() => _checkSubcollectionInputChanges());
   _contatoRefComercialController.addListener(() => _checkSubcollectionInputChanges());
   _telefoneRefComercialController.addListener(() => _checkSubcollectionInputChanges());
   _emailRefComercialController.addListener(() => _checkSubcollectionInputChanges());
   _obsRefComercialController.addListener(() => _checkSubcollectionInputChanges());
 
-    // Adicione um listener específico para _nomeRefBancariaController
-    // para forçar a reconstrução da UI e atualizar o estado do campo "..."
-    _nomeRefBancariaController.addListener(() {
-      setState(() {
-        // Apenas para forçar a reconstrução do widget e reavaliar o `readOnly`
-        // da aba de Referência Bancária quando o valor de _nomeRefBancariaController muda.
-      });
-      _setUnsavedChanges(true); // Manter a lógica de alterações não salvas
-    });
+  _sequenciaContatoController.addListener(() => _checkSubcollectionInputChanges());
+  _nomeContatoController.addListener(() => _checkSubcollectionInputChanges());
+  _dataNascimentoContatoController.addListener(() => _checkSubcollectionInputChanges());
+  _emailContatoController.addListener(() => _checkSubcollectionInputChanges());
+  _obsContatoController.addListener(() => _checkSubcollectionInputChanges());
 
-    // Adiciona listeners para os campos de busca para lidar com a limpeza
-    _campoComum1Controller.addListener(_updateStreams);
-    //_campoComum1Controller.addListener(_handleClearCheck);
-    _campoComum2Controller.addListener(_handleClearCheck);
-    _campoComum3Controller.addListener(_handleClearCheck);
-    _codigoGeradoController.addListener(_handleClearCheck);
+  /////////////////////////////////////////////////////////////
+   _cepController.addListener(_updateCounters);
+   _enderecoController.addListener(_updateCounters);
+   _numeroController.addListener(_updateCounters);
+   _complementoController.addListener(_updateCounters);
+   _bairroController.addListener(_updateCounters);
+   _cidadeController.addListener(_updateCounters);
+   _ufController.addListener(_updateCounters);
+   _cxPostalController.addListener(_updateCounters);
+   _comoNosConheceuController.addListener(_updateCounters);
+   _portadorController.addListener(_updateCounters);
+   _tabDescontoController.addListener(_updateCounters);
+   _inscSuframaController.addListener(_updateCounters);
+   _inscProdutorController.addListener(_updateCounters);
+   _inscMunicipalController.addListener(_updateCounters);
+   _vendedorController.addListener(_updateCounters);
+   _atendenteController.addListener(_updateCounters);
+   _areaController.addListener(_updateCounters);
+   _situacaoController.addListener(_updateCounters);
+   _sqController.addListener(_updateCounters);
+   _paisController.addListener(_updateCounters);
+   _operadoraController.addListener(_updateCounters);
+   _dddController.addListener(_updateCounters);
+   _nroController.addListener(_updateCounters);
+   _ramalController.addListener(_updateCounters);
+   _tipoController.addListener(_updateCounters);
+   _contatoController.addListener(_updateCounters);
+   _cnpjController.addListener(_updateCounters);
+   _inscEstadualController.addListener(_updateCounters);
+   _contribIcmsController.addListener(_updateCounters);
+   _revendaController.addListener(_updateCounters);
+   _confidencialController.addListener(_updateCounters);
+   _observacaoController.addListener(_updateCounters);
+   _observacaoNfController.addListener(_updateCounters);
+   _eMailController.addListener(_updateCounters);
+   _eMailCobranController.addListener(_updateCounters);
+   _eMailNfController.addListener(_updateCounters);
+   _socioController.addListener(_updateCounters);
+   _nomeController.addListener(_updateCounters);
+   _cpfController.addListener(_updateCounters);
+   _cargoController.addListener(_updateCounters);
+   _resulCargoController.addListener(_updateCounters);
+   _participacaoController.addListener(_updateCounters);
+   _sequenciaController.addListener(_updateCounters);
+   _nomeRefBancariaController.addListener(_updateCounters);
+   _resulNomeController.addListener(_updateCounters);
+   _enderecoRefBancariaController.addListener(_updateCounters);
+   _resulEnderecoController.addListener(_updateCounters);
+   _cidadeRefBancariaController.addListener(_updateCounters);
+   _contatoRefBancariaController.addListener(_updateCounters);
+   _telefoneRefBancariaController.addListener(_updateCounters);
+   _emailRefBancariaController.addListener(_updateCounters);
+   _obsRefBancariaController.addListener(_updateCounters);
+   _siteController.addListener(_updateCounters);
 
-    _cepController.addListener(() => _setUnsavedChanges(true));
-    _enderecoController.addListener(() => _setUnsavedChanges(true));
-    _numeroController.addListener(() => _setUnsavedChanges(true));
-    _complementoController.addListener(() => _setUnsavedChanges(true));
-    _bairroController.addListener(() => _setUnsavedChanges(true));
-    _cidadeController.addListener(() => _setUnsavedChanges(true));
-    _ufController.addListener(() => _setUnsavedChanges(true));
-    _cxPostalController.addListener(() => _setUnsavedChanges(true));
-    _comoNosConheceuController.addListener(() => _setUnsavedChanges(true));
-    _portadorController.addListener(() => _setUnsavedChanges(true));
-    _tabDescontoController.addListener(() => _setUnsavedChanges(true));
-    _inscSuframaController.addListener(() => _setUnsavedChanges(true));
-    _inscProdutorController.addListener(() => _setUnsavedChanges(true));
-    _inscMunicipalController.addListener(() => _setUnsavedChanges(true));
-    _vendedorController.addListener(() => _setUnsavedChanges(true));
-    _atendenteController.addListener(() => _setUnsavedChanges(true));
-    _areaController.addListener(() => _setUnsavedChanges(true));
-    _situacaoController.addListener(() => _setUnsavedChanges(true));
-    _sqController.addListener(() => _setUnsavedChanges(true));
-    _paisController.addListener(() => _setUnsavedChanges(true));
-    _operadoraController.addListener(() => _setUnsavedChanges(true));
-    _dddController.addListener(() => _setUnsavedChanges(true));
-    _nroController.addListener(() => _setUnsavedChanges(true));
-    _ramalController.addListener(() => _setUnsavedChanges(true));
-    _tipoController.addListener(() => _setUnsavedChanges(true));
-    _contatoController.addListener(() => _setUnsavedChanges(true));
-    _cnpjController.addListener(() => _setUnsavedChanges(true));
-    _inscEstadualController.addListener(() => _setUnsavedChanges(true));
-    _contribIcmsController.addListener(() => _setUnsavedChanges(true));
-    _revendaController.addListener(() => _setUnsavedChanges(true));
-    _confidencialController.addListener(() => _setUnsavedChanges(true));
-    _observacaoController.addListener(() => _setUnsavedChanges(true));
-    _observacaoNfController.addListener(() => _setUnsavedChanges(true));
-    _eMailController.addListener(() => _setUnsavedChanges(true));
-    _eMailCobranController.addListener(() => _setUnsavedChanges(true));
-    _eMailNfController.addListener(() => _setUnsavedChanges(true));
-    _cnpjController.addListener(() => _setUnsavedChanges(true));
-    _socioController.addListener(() => _setUnsavedChanges(true));
-    _nomeController.addListener(() => _setUnsavedChanges(true));
-    _cpfController.addListener(() => _setUnsavedChanges(true));
-    _cargoController.addListener(() => _setUnsavedChanges(true));
-    _resulCargoController.addListener(() => _setUnsavedChanges(true));
-    _participacaoController.addListener(() => _setUnsavedChanges(true));
-    _confidencialController.addListener(() => _setUnsavedChanges(true));
-    _sqController.addListener(() => _setUnsavedChanges(true));
-    _siteController.addListener(() => _setUnsavedChanges(true));
-    _5Controller.addListener(() => _setUnsavedChanges(true));
-    _4Controller.addListener(() => _setUnsavedChanges(true));
-    _3Controller.addListener(() => _setUnsavedChanges(true));
-    _2Controller.addListener(() => _setUnsavedChanges(true));
-    _1Controller.addListener(() => _setUnsavedChanges(true));
+   _1Controller.addListener(_updateCounters);
+   _2Controller.addListener(_updateCounters);
+   _3Controller.addListener(_updateCounters);
+   _4Controller.addListener(_updateCounters);
+   _5Controller.addListener(_updateCounters);
+   _enderecoCobrancaController.addListener(_updateCounters);
+   _numeroCobrancaController.addListener(_updateCounters);
+   _complementoCobrancaController.addListener(_updateCounters);
+   _bairroCobrancaController.addListener(_updateCounters);
+   _cidadeCobrancaController.addListener(_updateCounters);
+   _respCidadeCobrancaController.addListener(_updateCounters);
+   _cepCobrancaController.addListener(_updateCounters);
+   _attController.addListener(_updateCounters);
 
-    _sequenciaController.addListener(() => _setUnsavedChanges(true));
-    _nomeRefBancariaController.addListener(() => _setUnsavedChanges(true));
-    _resulNomeController.addListener(() => _setUnsavedChanges(true));
-    _enderecoRefBancariaController.addListener(() => _setUnsavedChanges(true));
-    _resulEnderecoController.addListener(() => _setUnsavedChanges(true));
-    _cidadeRefBancariaController.addListener(() => _setUnsavedChanges(true));
-    _contatoRefBancariaController.addListener(() => _setUnsavedChanges(true));
-    _telefoneRefBancariaController.addListener(() => _setUnsavedChanges(true));
-    _emailRefBancariaController.addListener(() => _setUnsavedChanges(true));
-    _obsRefBancariaController.addListener(() => _setUnsavedChanges(true));
+   _enderecoCorrespondenciaController.addListener(_updateCounters);
+   _numeroCorrespondenciaController.addListener(_updateCounters);
+   _complementoCorrespondenciaController.addListener(_updateCounters);
+   _bairroCorrespondenciaController.addListener(_updateCounters);
+   _cidadeCorrespondenciaController.addListener(_updateCounters);
+   _respCidadeCorrespondenciaController.addListener(_updateCounters);
+   _cepCorrespondenciaController.addListener(_updateCounters);
+   _attCorrespondenciaController.addListener(_updateCounters);
 
-    _enderecoCobrancaController.addListener(() => _setUnsavedChanges(true));
-    _numeroCobrancaController.addListener(() => _setUnsavedChanges(true));
-    _complementoCobrancaController.addListener(() => _setUnsavedChanges(true));
-    _bairroCobrancaController.addListener(() => _setUnsavedChanges(true));
-    _cidadeCobrancaController.addListener(() => _setUnsavedChanges(true));
-    _respCidadeCobrancaController.addListener(() => _setUnsavedChanges(true));
-    _cepCobrancaController.addListener(() => _setUnsavedChanges(true));
-    _attController.addListener(() => _setUnsavedChanges(true));
+   _enderecoEntregaController.addListener(_updateCounters);
+   _numeroEntregaController.addListener(_updateCounters);
+   _complementoEntregaController.addListener(_updateCounters);
+   _bairroEntregaController.addListener(_updateCounters);
+   _cidadeEntregaController.addListener(_updateCounters);
+   _respCidadeEntregaController.addListener(_updateCounters);
+   _cepEntregaController.addListener(_updateCounters);
+   _attEntregaController.addListener(_updateCounters);
 
-    _enderecoCorrespondenciaController.addListener(() => _setUnsavedChanges(true));
-    _numeroCorrespondenciaController.addListener(() => _setUnsavedChanges(true));
-    _complementoCorrespondenciaController.addListener(() => _setUnsavedChanges(true));
-    _bairroCorrespondenciaController.addListener(() => _setUnsavedChanges(true));
-    _cidadeCorrespondenciaController.addListener(() => _setUnsavedChanges(true));
-    _respCidadeCorrespondenciaController.addListener(() => _setUnsavedChanges(true));
-    _cepCorrespondenciaController.addListener(() => _setUnsavedChanges(true));
-    _attCorrespondenciaController.addListener(() => _setUnsavedChanges(true));
+   _sequenciaContatoController.addListener(_updateCounters);
+   _nomeContatoController.addListener(_updateCounters);
+   _dataNascimentoContatoController.addListener(_updateCounters);
+   _cargoContatoController.addListener(_updateCounters);
+   _resulCargoContatoController.addListener(_updateCounters);
+   _emailContatoController.addListener(_updateCounters);
+   _obsContatoController.addListener(_updateCounters);
 
-    _enderecoEntregaController.addListener(() => _setUnsavedChanges(true));
-    _numeroEntregaController.addListener(() => _setUnsavedChanges(true));
-    _complementoEntregaController.addListener(() => _setUnsavedChanges(true));
-    _bairroEntregaController.addListener(() => _setUnsavedChanges(true));
-    _cidadeEntregaController.addListener(() => _setUnsavedChanges(true));
-    _respCidadeEntregaController.addListener(() => _setUnsavedChanges(true));
-    _cepEntregaController.addListener(() => _setUnsavedChanges(true));
-    _attEntregaController.addListener(() => _setUnsavedChanges(true));
+   _campoComum1Controller.addListener(_updateCounters);
+   _campoComum2Controller.addListener(_updateCounters);
+   _campoComum3Controller.addListener(_updateCounters);
 
-    _sequenciaContatoController.addListener(() => _setUnsavedChanges(true));
-    _nomeContatoController.addListener(() => _setUnsavedChanges(true));
-    _dataNascimentoContatoController.addListener(() => _setUnsavedChanges(true));
-    _cargoContatoController.addListener(() => _setUnsavedChanges(true));
-    _resulCargoContatoController.addListener(() => _setUnsavedChanges(true));
-    _emailContatoController.addListener(() => _setUnsavedChanges(true));
-    _obsContatoController.addListener(() => _setUnsavedChanges(true));
-    // ADICIONAL: Adicione listeners para os campos que acionam a validação por conteúdo
-    // Apenas para os campos de entrada das subcoleções (que não têm botão de salvar por aba)
-    _sqController.addListener(() => _checkSubcollectionInputChanges()); // Telefone e Socios
-    _paisController.addListener(() => _checkSubcollectionInputChanges()); // Telefone
-    _operadoraController.addListener(() => _checkSubcollectionInputChanges()); // Telefone
-    _dddController.addListener(() => _checkSubcollectionInputChanges()); // Telefone
-    _nroController.addListener(() => _checkSubcollectionInputChanges()); // Telefone
-    _ramalController.addListener(() => _checkSubcollectionInputChanges()); // Telefone
-    _tipoController.addListener(() => _checkSubcollectionInputChanges()); // Telefone
-    _contatoController.addListener(() => _checkSubcollectionInputChanges()); // Telefone
-    _socioController.addListener(() => _checkSubcollectionInputChanges()); // Socios
-    _nomeController.addListener(() => _checkSubcollectionInputChanges()); // Socios
-    _cpfController.addListener(() => _checkSubcollectionInputChanges()); // Socios
-    _cargoController.addListener(() => _checkSubcollectionInputChanges()); // Socios e Contatos
-    _resulCargoController.addListener(() => _checkSubcollectionInputChanges()); // Socios e Contatos
-    _participacaoController.addListener(() => _checkSubcollectionInputChanges()); // Socios
+   _codigoGeradoController.addListener(_updateCounters);
+   _dataInclusaoController.addListener(_updateCounters);
 
-    _sequenciaController.addListener(() => _checkSubcollectionInputChanges()); // Referencias Bancarias
-    _nomeRefBancariaController.addListener(() => _checkSubcollectionInputChanges()); // Referencias Bancarias
-    _resulNomeController.addListener(() => _checkSubcollectionInputChanges()); // Referencias Bancarias
-    _enderecoRefBancariaController.addListener(() => _checkSubcollectionInputChanges()); // Referencias Bancarias
-    _cidadeRefBancariaController.addListener(() => _checkSubcollectionInputChanges()); // Referencias Bancarias
-    _contatoRefBancariaController.addListener(() => _checkSubcollectionInputChanges()); // Referencias Bancarias
-    _telefoneRefBancariaController.addListener(() => _checkSubcollectionInputChanges()); // Referencias Bancarias
-    _emailRefBancariaController.addListener(() => _checkSubcollectionInputChanges()); // Referencias Bancarias
-    _obsRefBancariaController.addListener(() => _checkSubcollectionInputChanges()); // Referencias Bancarias
+   _sequenciaRefComercialController.addListener(_updateCounters);
+   _nomeRefComercialController.addListener(_updateCounters);
+   _resulNomeRefComercialController.addListener(_updateCounters);
+   _enderecoRefComercialController.addListener(_updateCounters);
+   _cidadeRefComercialController.addListener(_updateCounters);
+   _resulcidadeRefComercialController.addListener(_updateCounters);
+   _contatoRefComercialController.addListener(_updateCounters);
+   _telefoneRefComercialController.addListener(_updateCounters);
+   _emailRefComercialController.addListener(_updateCounters);
+   _obsRefComercialController.addListener(_updateCounters);
 
-    _sequenciaContatoController.addListener(() => _checkSubcollectionInputChanges()); // Contatos
-    _nomeContatoController.addListener(() => _checkSubcollectionInputChanges()); // Contatos
-    _dataNascimentoContatoController.addListener(() => _checkSubcollectionInputChanges()); // Contatos
-    _emailContatoController.addListener(() => _checkSubcollectionInputChanges()); // Contatos
-    _obsContatoController.addListener(() => _checkSubcollectionInputChanges()); // Contatos
+  // ADICIONAL: Adicione o listener para carregar os estados dos checkboxes de endereço
+  _campoComum1Controller.addListener(_loadCheckboxStates);
+}
+
+void _updateCounters() {
+    setState(() {});
   }
 
   bool _hasSubcollectionInputChanges = false;
@@ -560,12 +559,12 @@ class _PaginaComAbasLateraisState extends State<PaginaComAbasLaterais> {
       anyFieldHasContent = true;
     }
     // Verifique os controllers da aba de Contatos
-    if (_selectedIndex == 10 &&
+    if (_selectedIndex == 11 && // <-- Corrigido o index para a aba de Contatos
         (_sequenciaContatoController.text.isNotEmpty ||
             _nomeContatoController.text.isNotEmpty ||
             _dataNascimentoContatoController.text.isNotEmpty ||
-            _cargoContatoController.text.isNotEmpty || // Cargo é compartilhado
-            _resulCargoContatoController.text.isNotEmpty || // Cargo res é compartilhado
+            _cargoContatoController.text.isNotEmpty || // ADICIONADO: Campo 'cargo' da aba de Contatos
+            _resulCargoContatoController.text.isNotEmpty ||
             _emailContatoController.text.isNotEmpty ||
             _obsContatoController.text.isNotEmpty)) {
       anyFieldHasContent = true;
@@ -577,32 +576,33 @@ class _PaginaComAbasLateraisState extends State<PaginaComAbasLaterais> {
             _resulNomeController.text.isNotEmpty ||
             _enderecoRefBancariaController.text.isNotEmpty ||
             _cidadeRefBancariaController.text.isNotEmpty ||
+            //_resulEnderecoController.text.isNotEmpty ||
             _contatoRefBancariaController.text.isNotEmpty ||
             _telefoneRefBancariaController.text.isNotEmpty ||
             _emailRefBancariaController.text.isNotEmpty ||
             _obsRefBancariaController.text.isNotEmpty)) {
       anyFieldHasContent = true;
     }
+    // NOVO: Verifique os controllers da aba de Referência Comercial
+    if (_selectedIndex == 6 && // <-- NOVO: Index da aba Comercial
+        (_sequenciaRefComercialController.text.isNotEmpty ||
+            _nomeRefComercialController.text.isNotEmpty ||
+            _resulNomeRefComercialController.text.isNotEmpty ||
+            _enderecoRefComercialController.text.isNotEmpty ||
+            _cidadeRefComercialController.text.isNotEmpty ||
+            _contatoRefComercialController.text.isNotEmpty ||
+            _telefoneRefComercialController.text.isNotEmpty ||
+            _emailRefComercialController.text.isNotEmpty ||
+            _obsRefComercialController.text.isNotEmpty)) {
+      anyFieldHasContent = true;
+    }
 
-    if (_selectedIndex == 11 &&
-      (_sequenciaRefComercialController.text.isNotEmpty ||
-          _nomeRefComercialController.text.isNotEmpty ||
-          _resulNomeRefComercialController.text.isNotEmpty ||
-          _enderecoRefComercialController.text.isNotEmpty ||
-          _cidadeRefComercialController.text.isNotEmpty ||
-          _contatoRefComercialController.text.isNotEmpty ||
-          _telefoneRefComercialController.text.isNotEmpty ||
-          _emailRefComercialController.text.isNotEmpty ||
-          _obsRefComercialController.text.isNotEmpty)) {
-    anyFieldHasContent = true;
+    if (_hasSubcollectionInputChanges != anyFieldHasContent) {
+      setState(() {
+        _hasSubcollectionInputChanges = anyFieldHasContent;
+      });
+    }
   }
-
-  if (_hasSubcollectionInputChanges != anyFieldHasContent) {
-    setState(() {
-      _hasSubcollectionInputChanges = anyFieldHasContent;
-    });
-  }
-}
 
   void _setUnsavedChanges(bool hasChanges) {
     if (_hasUnsavedChanges != hasChanges) {
@@ -742,15 +742,7 @@ class _PaginaComAbasLateraisState extends State<PaginaComAbasLaterais> {
         _dataInclusaoController.clear();
       }
 
-      _sequenciaRefComercialController.text = data['sequencia ref comercial'] ?? '';
-      _nomeRefComercialController.text = data['nome ref comercial'] ?? '';
-      _resulNomeRefComercialController.text = data['resul nome ref comercial'] ?? '';
-      _enderecoRefComercialController.text = data['endereco ref comercial'] ?? '';
-      _cidadeRefComercialController.text = data['cidade ref comercial'] ?? '';
-      _contatoRefComercialController.text = data['contato ref comercial'] ?? '';
-      _telefoneRefComercialController.text = data['telefone ref comercial'] ?? '';
-      _emailRefComercialController.text = data['email ref comercial'] ?? '';
-      _obsRefComercialController.text = data['obs ref comercial'] ?? '';
+      
 
       _cepController.text = data['cep'] ?? '';
       _enderecoController.text = data['endereco'] ?? '';
@@ -793,7 +785,7 @@ class _PaginaComAbasLateraisState extends State<PaginaComAbasLaterais> {
       _complementoCobrancaController.text = data['complemento cobranca'] ?? '';
       _bairroCobrancaController.text = data['bairro cobranca'] ?? '';
       _cidadeCobrancaController.text = data['cidade cobranca'] ?? '';
-      _respCidadeCobrancaController.text = data['cidade cobranca'] ?? '';
+      _respCidadeCobrancaController.text = data['resp cidade cobranca'] ?? '';
       _cepCobrancaController.text = data['cep cobranca'] ?? '';
       _attController.text = data['att'] ?? '';
 
@@ -802,7 +794,7 @@ class _PaginaComAbasLateraisState extends State<PaginaComAbasLaterais> {
       _complementoCorrespondenciaController.text = data['complemento correspondencia'] ?? '';
       _bairroCorrespondenciaController.text = data['bairro correspondencia'] ?? '';
       _cidadeCorrespondenciaController.text = data['cidade correspondencia'] ?? '';
-      _respCidadeCorrespondenciaController.text = data['cidade correspondencia'] ?? '';
+      _respCidadeCorrespondenciaController.text = data['resp cidade correspondencia'] ?? '';
       _cepCorrespondenciaController.text = data['cep correspondencia'] ?? '';
       _attCorrespondenciaController.text = data['att correspondencia'] ?? '';
 
@@ -811,7 +803,7 @@ class _PaginaComAbasLateraisState extends State<PaginaComAbasLaterais> {
       _complementoEntregaController.text = data['complemento entrega'] ?? '';
       _bairroEntregaController.text = data['bairro entrega'] ?? '';
       _cidadeEntregaController.text = data['cidade entrega'] ?? '';
-      _respCidadeEntregaController.text = data['cidade entrega'] ?? '';
+      _respCidadeEntregaController.text = data['resp cidade entrega'] ?? '';
       _cepEntregaController.text = data['cep entrega'] ?? '';
       _attEntregaController.text = data['att entrega'] ?? '';
 
@@ -826,14 +818,14 @@ class _PaginaComAbasLateraisState extends State<PaginaComAbasLaterais> {
       _eMailController.text = data['email'] ?? '';
       _eMailCobranController.text = data['email cobranca'] ?? '';
       _eMailNfController.text = data['email Nf'] ?? '';
-      _socioController.text = data['socio'] ?? '';
+      /*_socioController.text = data['socio'] ?? '';
       _nomeController.text = data['nome'] ?? '';
       _cpfController.text = data['cpf'] ?? '';
       _cargoController.text = data['cargo'] ?? '';
       _resulCargoController.text = data['cargo res'] ?? '';
-      _participacaoController.text = data['participacao'] ?? '';
+      _participacaoController.text = data['participacao'] ?? '';*/
 
-      _sequenciaController.text = data['sequencia ref banc'] ?? '';
+      /*_sequenciaController.text = data['sequencia ref banc'] ?? '';
       _nomeRefBancariaController.text = data['nome ref banc'] ?? '';
       _enderecoRefBancariaController.text = data['endereco ref banc'] ?? '';
       _cidadeRefBancariaController.text = data['cidade ref banc'] ?? '';
@@ -842,27 +834,40 @@ class _PaginaComAbasLateraisState extends State<PaginaComAbasLaterais> {
       _emailRefBancariaController.text = data['email ref banc'] ?? '';
       _obsRefBancariaController.text = data['obs ref banc'] ?? '';
 
+      _sequenciaRefComercialController.text = data['sequencia ref comercial'] ?? '';
+      _nomeRefComercialController.text = data['nome ref comercial'] ?? '';
+      //_resulNomeRefComercialController.text = data['resul nome ref comercial'] ?? '';
+      _enderecoRefComercialController.text = data['endereco ref comercial'] ?? '';
+      _cidadeRefComercialController.text = data['cidade ref comercial'] ?? '';
+      _contatoRefComercialController.text = data['contato ref comercial'] ?? '';
+      _telefoneRefComercialController.text = data['telefone ref comercial'] ?? '';
+      _emailRefComercialController.text = data['email ref comercial'] ?? '';
+      _obsRefComercialController.text = data['obs ref comercial'] ?? '';
+
       _sequenciaContatoController.text = data['sequencia contato'] ?? '';
       _nomeContatoController.text = data['nome contato'] ?? '';
       _dataNascimentoContatoController.text = data['data nasc contato'] ?? '';
       _cargoContatoController.text = data['cargo contato'] ?? '';
       _resulCargoContatoController.text = data['cargo res contato'] ?? '';
       _emailContatoController.text = data['email contato'] ?? '';
-      _obsContatoController.text = data['obs contato'] ?? '';
+      _obsContatoController.text = data['obs contato'] ?? '';*/
 
       // ADICIONAR: Atualizar o estado dos checkboxes de endereço ao popular os campos
       _possuiEndCobran = (data['endereco cobranca']?.isNotEmpty ?? false);
       _possuiEndCorrespondencia = (data['endereco correspondencia']?.isNotEmpty ?? false);
       _possuiEndEntrega = (data['endereco entrega']?.isNotEmpty ?? false);
 
-      _setUnsavedChanges(false); // Resetar flag após carregar um item do banco
+      //_setUnsavedChanges(false); // Resetar flag após carregar um item do banco
+      // Resetar flags após o preenchimento programático.
+    _hasUnsavedChanges = false;
+    _hasSubcollectionInputChanges = false;
     });
   }
 
   void _populateCidadeFields(Map<String, dynamic> cidadeData) {
     setState(() {
-      _cidadeController.text = cidadeData['id'] ?? '';
-      _cidadeRefBancariaController.text = cidadeData['cidade'] ?? '';
+      _cidadeRefBancariaController.text = cidadeData['id'] ?? '';
+      _resulEnderecoController.text = cidadeData['cidade'] ?? '';
     });
   }
 
@@ -1014,13 +1019,14 @@ class _PaginaComAbasLateraisState extends State<PaginaComAbasLaterais> {
 
 
     setState(() {
-      _selectedContribIcms = null;
-      _selectedRevenda = null;
-      _possuiEndCobran = false; // Resetar checkbox ao limpar
-      _possuiEndCorrespondencia = false; // Resetar checkbox ao limpar
-      _possuiEndEntrega = false; // Resetar checkbox ao limpar
-      _hasUnsavedChanges = false; // Resetar flag ao limpar tudo
-    });
+    _selectedContribIcms = null;
+    _selectedRevenda = null;
+    _possuiEndCobran = false;
+    _possuiEndCorrespondencia = false;
+    _possuiEndEntrega = false;
+    _hasUnsavedChanges = false; // Resetar flag de campos principais
+    _hasSubcollectionInputChanges = false; // Resetar flag de campos de subcoleção
+  });
   }
 
   // NOVA FUNÇÃO: Limpa apenas os campos de busca
@@ -1033,15 +1039,14 @@ class _PaginaComAbasLateraisState extends State<PaginaComAbasLaterais> {
 
   // Verifica se os campos de busca estão vazios para limpar o formulário
   void _handleClearCheck() {
-    if (_campoComum1Controller.text.isEmpty &&
-        _campoComum2Controller.text.isEmpty &&
-        _campoComum3Controller.text.isEmpty &&
-        _codigoGeradoController.text.isEmpty) {
-      setState(() {
-        _clearDependentFields();
-      });
-    }
+  if (_campoComum1Controller.text.isEmpty &&
+      _campoComum2Controller.text.isEmpty &&
+      _campoComum3Controller.text.isEmpty && _codigoGeradoController.text.isEmpty) {
+    setState(() {
+      _clearDependentFields();
+    });
   }
+}
 
   Future<void> _generateNewCodigo() async {
     if (_codigoGeradoController.text.isNotEmpty) return; // Não gera se já houver um código
@@ -1156,7 +1161,7 @@ class _PaginaComAbasLateraisState extends State<PaginaComAbasLaterais> {
       'nome ref banc': _nomeRefBancariaController.text,
       //'resul nome ref banc' :_resulNomeController.text,
       'endereco ref banc': _enderecoRefBancariaController.text,
-      //'resul endereco ref banc' :_resulEnderecoController.text,
+      'resul endereco ref banc' :_resulEnderecoController.text,
       'cidade ref banc': _cidadeRefBancariaController.text,
       'contato ref banc': _contatoRefBancariaController.text,
       'telefone ref banc': _telefoneRefBancariaController.text,
@@ -1239,6 +1244,7 @@ class _PaginaComAbasLateraisState extends State<PaginaComAbasLaterais> {
       'nome': _nomeController.text,
       'cpf': _cpfController.text,
       'cargo': _cargoController.text,
+      'cargo res': _resulCargoController.text,
       'participacao': _participacaoController.text,
     };
 
@@ -1248,6 +1254,7 @@ class _PaginaComAbasLateraisState extends State<PaginaComAbasLaterais> {
       _nomeController.clear();
       _sqController.clear();
       _cargoController.clear();
+      _resulCargoController.clear();
       _participacaoController.clear();
       _cpfController.clear();
     } catch (e) {
@@ -1342,53 +1349,62 @@ class _PaginaComAbasLateraisState extends State<PaginaComAbasLaterais> {
   }
 
   Future<void> _addReferenciaComercial() async {
-  final docId = _campoComum1Controller.text.trim();
-  if (docId.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Primeiro, busque ou cadastre uma empresa (CPF/CNPJ).')));
-    return;
-  }
+    final docId = _campoComum1Controller.text.trim();
+    if (docId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Primeiro, busque ou cadastre uma empresa (CPF/CNPJ).')),
+      );
+      return;
+    }
 
-  final refData = {
-    'sequencia ref comercial': _sequenciaRefComercialController.text,
-    'nome ref comercial': _nomeRefComercialController.text,
-    'resul nome ref comercial': _resulNomeRefComercialController.text, // Campo "..."
-    'endereco ref comercial': _enderecoRefComercialController.text,
-    'cidade ref comercial': _cidadeRefComercialController.text,
-    'contato ref comercial': _contatoRefComercialController.text,
-    'telefone ref comercial': _telefoneRefComercialController.text,
-    'email ref comercial': _emailRefComercialController.text,
-    'obs ref comercial': _obsRefComercialController.text,
-  };
+    final refData = {
+      'sequencia ref comercial': _sequenciaRefComercialController.text,
+      'nome ref comercial': _nomeRefComercialController.text,
+      'resul nome ref comercial': _resulNomeRefComercialController.text, // Campo "..."
+      'endereco ref comercial': _enderecoRefComercialController.text,
+      'cidade ref comercial': _cidadeRefComercialController.text,
+      'contato ref comercial': _contatoRefComercialController.text,
+      'telefone ref comercial': _telefoneRefComercialController.text,
+      'email ref comercial': _emailRefComercialController.text,
+      'obs ref comercial': _obsRefComercialController.text,
+    };
 
-  try {
-    await _collectionRef.doc(docId).collection('referencias_comerciais').add(refData);
-    // Limpar os campos após adicionar
-    _sequenciaRefComercialController.clear();
-    _nomeRefComercialController.clear();
-    _resulNomeRefComercialController.clear();
-    _enderecoRefComercialController.clear();
-    _cidadeRefComercialController.clear();
-    _contatoRefComercialController.clear();
-    _telefoneRefComercialController.clear();
-    _emailRefComercialController.clear();
-    _obsRefComercialController.clear();
-    _checkSubcollectionInputChanges(); // Recalcula a flag após limpar
-  } catch (e) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text('Erro ao adicionar referência comercial: $e')));
+    try {
+      await _collectionRef.doc(docId).collection('referencias_comerciais').add(refData);
+      // Limpar os campos após adicionar
+      _sequenciaRefComercialController.clear();
+      _nomeRefComercialController.clear();
+      _resulNomeRefComercialController.clear();
+      _enderecoRefComercialController.clear();
+      _cidadeRefComercialController.clear();
+      _contatoRefComercialController.clear();
+      _telefoneRefComercialController.clear();
+      _emailRefComercialController.clear();
+      _obsRefComercialController.clear();
+      _checkSubcollectionInputChanges(); // Recalcula a flag após limpar
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Referência comercial adicionada com sucesso!')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao adicionar referência comercial: $e')),
+      );
+    }
   }
-}
 
 // NOVO MÉTODO: _deleteReferenciaComercial
 Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
-  try {
-    await _collectionRef.doc(itemId).collection('referencias_comerciais').doc(refId).delete();
-  } catch (e) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text('Erro ao deletar referência comercial: $e')));
+    try {
+      await _collectionRef.doc(itemId).collection('referencias_comerciais').doc(refId).delete();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Referência comercial deletada com sucesso!')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao deletar referência comercial: $e')),
+      );
+    }
   }
-}
 
   Future<void> _addReferenciaBancaria() async {
     final docId = _campoComum1Controller.text.trim();
@@ -1411,6 +1427,8 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
       _nomeRefBancariaController.clear();
       _enderecoRefBancariaController.clear();
       _cidadeRefBancariaController.clear();
+      ///_resulEnderecoController.clear();
+      _cidadeController.clear();
       _contatoRefBancariaController.clear();
       _telefoneRefBancariaController.clear();
       _emailRefBancariaController.clear();
@@ -1474,17 +1492,23 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
     return 'O campo CPF/CNPJ é obrigatório.';
   }
 
-  // Remove formatação para validação
-  String cleanValue = value.replaceAll(RegExp(r'\D'), '');
+  String cleanValue = value.replaceAll(RegExp(r'\D'), ''); // Remove all non-digits
+
+  if (cleanValue.length < 11) {
+    return 'O CPF deve ter 11 dígitos ou o CNPJ 14 dígitos.'; // More generic initial message
+  } else if (cleanValue.length > 14) {
+      return 'CPF/CNPJ não pode ter mais de 14 dígitos.';
+  }
 
   if (cleanValue.length == 11) {
-    // Tenta validar como CPF
-    return _cpfValidator(value); // Reutiliza seu validador de CPF existente
+    // It's likely a CPF, perform CPF validation
+    return _cpfValidator(value); // Delegate to your existing CPF validator
   } else if (cleanValue.length == 14) {
-    // Tenta validar como CNPJ
-    return _cnpjValidator(value); // Reutiliza seu validador de CNPJ existente
+    // It's likely a CNPJ, perform CNPJ validation
+    return _cnpjValidator(value); // Delegate to your existing CNPJ validator
   } else {
-    return 'CPF/CNPJ deve ter 11 ou 14 dígitos.';
+    // If length is between 11 and 14 (e.g., 12 or 13), it's invalid
+    return 'CPF deve ter 11 dígitos ou CNPJ 14 dígitos.';
   }
 }
 
@@ -1608,7 +1632,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
           ),
         ),
         Expanded(
-          flex: 3,
+          flex: 4,
           child: Form(
             key: _formKey,
             child: Column(
@@ -1624,7 +1648,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        flex: 4,
+                        flex: 5,
                         child: _buildDynamicCentralArea(),
                       ),
                       Expanded(
@@ -1679,6 +1703,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                         _buildAbaComplemento(),
                         _buildAbaComposicaoAcionaria(),
                         _buildAbaReferenciaBancaria(),
+                        _buildAbaReferenciaComercial(),
                         _buildAbaNomeFantasia(),
                         _buildAbaEnderecoCobranca(),
                         _buildAbaCorrespondencia(),
@@ -1713,7 +1738,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
             _buildTabButton(title: 'Telefone', index: 1),
             _buildTabButton(title: 'Jurídica', index: 2),
             _buildTabButton(title: 'Complemento', index: 3),
-            _buildTabButton(title: 'Adicional', index: 4),
+            _buildTabButton(title: 'Composição Acionária', index: 4),
             _buildTabButton(title: 'Bancária', index: 5),
             _buildTabButton(title: 'Comercial', index: 6), // Novo botão de aba
             _buildTabButton(title: 'Apelido/fantasia', index: 7),
@@ -1737,9 +1762,19 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
         if (_selectedIndex != index) {
           bool shouldProceed = true; // Assume que pode prosseguir por padrão
 
+          // --- NOVO: Verificação e Reset antes de qualquer validação de saída ---
+          // Antes de decidir se há um alerta, resetamos a flag de subcoleção
+          // para a ABA ATUAL se não houver dados nos campos.
+          // Isso evita que o alerta "seja levado" para a próxima aba.
+          if ([1, 4, 11, 6, 5].contains(_selectedIndex)) { // Se a aba atual É uma aba de subcoleção
+             // Reavalia o estado dos campos de entrada da subcoleção para a aba atual
+             _checkSubcollectionInputChanges(); // Isso pode setar _hasSubcollectionInputChanges para false se os campos estiverem vazios
+          }
+          // --- FIM DO NOVO BLOCO ---
+
+
           // Lógica para abas com o botão SALVAR (Dados Gerais, Jurídica, Complemento, Nome Fantasia, Endereços, Referencia Bancaria)
-          // ATENÇÃO: Ajustei os índices novamente. Referência Comercial (6) foi removida deste grupo.
-          if ([0, 2, 3, 7, 8, 9, 5].contains(_selectedIndex) && _hasUnsavedChanges) { // Referência Bancária é 5
+          if ([0, 2, 3, 7, 8, 9, 10].contains(_selectedIndex) && _hasUnsavedChanges) {
             final result = await _showUnsavedChangesDialog();
             if (result == true) { // Usuário quer salvar
               await _saveData();
@@ -1752,12 +1787,11 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
             }
           }
           // Lógica para abas SEM o botão SALVAR (Telefone, Composição Acionária, Contatos, Referência Comercial)
-          // ATENÇÃO: Referência Comercial (6) foi adicionada a este grupo.
-          else if ([1, 4, 10, 6].contains(_selectedIndex) && _hasSubcollectionInputChanges) { // Telefone (1), Composição Acionária (4), Contatos (10), Referência Comercial (6)
+          else if ([1, 4, 11, 6, 5].contains(_selectedIndex) && _hasSubcollectionInputChanges) {
             final result = await _showUnsavedSubcollectionChangesDialog();
             if (result == false) { // Usuário quer descartar
               _clearSubcollectionInputFields(_selectedIndex); // Limpa os campos da aba atual
-              _hasSubcollectionInputChanges = false; // Reseta a flag
+              // _hasSubcollectionInputChanges = false; // Já é feito dentro de _clearSubcollectionInputFields
               shouldProceed = true;
             } else if (result == null) { // Usuário cancelou
               shouldProceed = false;
@@ -1767,8 +1801,11 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
           if (shouldProceed) {
             setState(() {
               _selectedIndex = index;
-              _pageTitle = title; // NOVO: Atualiza o título da página
+              _pageTitle = title;
             });
+            // Após mudar a aba, reavalie os campos da NOVA aba.
+            // Isso é especialmente importante se a nova aba também for de subcoleção.
+            _checkSubcollectionInputChanges();
           }
         }
       },
@@ -1838,13 +1875,14 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
           _nomeRefBancariaController.clear();
           _resulNomeController.clear();
           _enderecoRefBancariaController.clear();
+          //_resulEnderecoController.clear();
           _cidadeRefBancariaController.clear();
           _contatoRefBancariaController.clear();
           _telefoneRefBancariaController.clear();
           _emailRefBancariaController.clear();
           _obsRefBancariaController.clear();
           break;
-        case 10: // Contatos
+        case 11: // Contatos // ALTERADO: Index para Contatos
           _sequenciaContatoController.clear();
           _nomeContatoController.clear();
           _dataNascimentoContatoController.clear();
@@ -1853,7 +1891,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
           _emailContatoController.clear();
           _obsContatoController.clear();
           break;
-        case 11: // Referência Comercial (NOVA ABA)
+        case 6: // Referência Comercial (NOVA ABA) // ADICIONADO: Nova aba Comercial
           _sequenciaRefComercialController.clear();
           _nomeRefComercialController.clear();
           _resulNomeRefComercialController.clear();
@@ -1977,42 +2015,54 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
   }*/
 
   // Widget reutilizável para criar um campo Autocomplete
-  Widget _buildAutocompleteField(TextEditingController controller, String label, String fieldKey,
-      {bool isRequired = false,
-      String? Function(String?)? validator, // ADD THIS PARAMETER
-  List<TextInputFormatter>? inputFormatters, // ADD THIS PARAMETER
-  }) {
-    return Autocomplete<Map<String, dynamic>>(
-      displayStringForOption: (option) => option[fieldKey] as String,
-      optionsBuilder: (textEditingValue) {
-        if (textEditingValue.text.isEmpty) return const Iterable.empty();
-        return _allControlData.where((option) {
-          final fieldValue = option[fieldKey]?.toString().toLowerCase() ?? '';
-          return fieldValue.contains(textEditingValue.text.toLowerCase());
-        });
-      },
-      onSelected: (selection) {
-        _populateAllFields(selection);
-        FocusScope.of(context).unfocus();
-      },
-      fieldViewBuilder: (context, fieldController, focusNode, onFieldSubmitted) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (controller.text != fieldController.text) fieldController.text = controller.text;
-        });
-        return CustomInputField(
-          controller: fieldController,
-          focusNode: focusNode,
-          label: label,
-          //validator: isRequired ? (v) => v!.isEmpty ? 'Obrigatório' : null : null,
-          validator: validator, // PASS IT DOWN HERE
-        inputFormatters: inputFormatters, // PASS IT DOWN HERE
-          onChanged: (value) {
-            controller.text = value;
-          },
-        );
-      },
-    );
-  }
+  Widget _buildAutocompleteField(
+  TextEditingController controller,
+  String label,
+  String fieldKey, {
+  bool isRequired = false,
+  String? Function(String?)? validator,
+  List<TextInputFormatter>? inputFormatters,
+  int? maxLength, // ADD THIS PARAMETER HERE
+  VoidCallback? onUserInteraction,
+}) {
+  return Autocomplete<Map<String, dynamic>>(
+    displayStringForOption: (option) => option[fieldKey] as String,
+    optionsBuilder: (textEditingValue) {
+      if (textEditingValue.text.isEmpty) return const Iterable.empty();
+      return _allControlData.where((option) {
+        final fieldValue = option[fieldKey]?.toString().toLowerCase() ?? '';
+        return fieldValue.contains(textEditingValue.text.toLowerCase());
+      });
+    },
+    onSelected: (selection) {
+      _populateAllFields(selection);
+      FocusScope.of(context).unfocus();
+    },
+    fieldViewBuilder: (context, fieldController, focusNode, onFieldSubmitted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (controller.text != fieldController.text) fieldController.text = controller.text;
+      });
+      return CustomInputField(
+        controller: fieldController,
+        
+        focusNode: focusNode,
+        label: label,
+        validator: validator,
+        inputFormatters: inputFormatters,
+        maxLength: maxLength, // PASS IT DOWN HERE
+        onUserInteraction: onUserInteraction,
+        onChanged: (value) {
+          controller.text = value;
+          // Trigger validation when text changes
+          // You might need to call setState to re-evaluate the form
+          if (_formKey.currentState?.validate() == false) {
+             // Do nothing, the validator will show the error
+          }
+        },
+      );
+    },
+  );
+}
 
   Widget _buildAbaDadosGerais({Key? key}) {
     return Padding(
@@ -2041,8 +2091,10 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                               "CPF/CNPJ",
                               'campoComum1',
                               isRequired: true,
-                              validator: _cpfCnpjValidator, // NOVO: Aplica o validador unificado
-                              inputFormatters: [FilteringTextInputFormatter.digitsOnly, CpfCnpjFormatter()], // NOVO: Aplica o formatador unificado
+                              validator: _cpfCnpjValidator, // Use the unified validator
+                              inputFormatters: [FilteringTextInputFormatter.digitsOnly, CpfCnpjFormatter()], // Use the unified formatter
+                              maxLength: 18, 
+                              onUserInteraction: () => _setUnsavedChanges(true),
                           )),
                                 
                         const SizedBox(width: 10),
@@ -2070,7 +2122,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                 Expanded(
                     flex: 1,
                     child:
-                        CustomInputField(controller: _codigoGeradoController, label: "Código Gerado", readOnly: true)),
+                        CustomInputField(controller: _codigoGeradoController, label: "Código Gerado", readOnly: true,)),
                 const SizedBox(width: 10),
                 Expanded(
                   flex: 1,
@@ -2104,28 +2156,57 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                       child: CustomInputField(
                           controller: _cepController,
                           label: "CEP",
-                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null)),
+                          suffixText: '${_cepController.text.length}/9',
+                  maxLength: 9,
+                  // NOVO: readOnly baseado no checkbox
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    CepInputFormatter(),
+                  ],
+                  validator: (value) {
+                    if (_possuiEndCobran) { // Só valida se o checkbox estiver marcado
+                      if (value == null || value.isEmpty) {
+                        return 'Campo obrigatório';
+                      }
+                      if (!RegExp(r'^\d{5}-\d{3}$').hasMatch(value) || value.length != 9) {
+                        return 'Formato de CEP inválido (#####-###)';
+                      }
+                    }
+                    return null;
+                  },
+                          onUserInteraction: () => _setUnsavedChanges(true), 
+                          )),
+                          
                   const SizedBox(width: 10),
                   Expanded(
                       flex: 3,
                       child: CustomInputField(
                           controller: _enderecoController,
                           label: "Endereço",
-                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null)),
+                          maxLength: 45,
+                          suffixText: '${_enderecoController.text.length}/45',
+                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,onUserInteraction: () => _setUnsavedChanges(true), )),
                   const SizedBox(width: 10),
                   Expanded(
                       flex: 1,
                       child: CustomInputField(
                           controller: _numeroController,
                           label: "Número",
-                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null)),
+                          inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                  ],
+                          maxLength: 5,
+                           suffixText: '${_numeroController.text.length}/5',
+                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,onUserInteraction: () => _setUnsavedChanges(true),)),
                   const SizedBox(width: 10),
                   Expanded(
                       flex: 1,
                       child: CustomInputField(
                           controller: _complementoController,
                           label: "Complemento",
-                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null)),
+                          suffixText: '${_numeroController.text.length}/20',
+                          maxLength: 20,
+                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,onUserInteraction: () => _setUnsavedChanges(true),)),
                 ],
               ),
               //const SizedBox(height: 20),
@@ -2137,28 +2218,38 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                       child: CustomInputField(
                           controller: _bairroController,
                           label: "Bairro",
-                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null)),
+                          suffixText: '${_bairroController.text.length}/25',
+                          maxLength: 25,
+                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,onUserInteraction: () => _setUnsavedChanges(true),)),
                   const SizedBox(width: 10),
                   Expanded(
                       flex: 3,
                       child: CustomInputField(
                           controller: _cidadeController,
+                          suffixText: '${_cidadeController.text.length}/5',
+                          maxLength: 5,
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                           label: "Cidade",
-                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null)),
+                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,onUserInteraction: () => _setUnsavedChanges(true),)),
                   const SizedBox(width: 10),
                   Expanded(
                       flex: 1,
                       child: CustomInputField(
                           controller: _ufController,
+                          suffixText: '${_ufController.text.length}/2',
+                          maxLength: 2,
                           label: "UF",
-                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null)),
+                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,onUserInteraction: () => _setUnsavedChanges(true),)),
                   const SizedBox(width: 10),
                   Expanded(
                       flex: 1,
                       child: CustomInputField(
                           controller: _cxPostalController,
+                          suffixText: '${_cxPostalController.text.length}/6',
+                          maxLength: 6,
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                           label: "Cx. Postal",
-                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null)),
+                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,onUserInteraction: () => _setUnsavedChanges(true),)),
                 ],
               ),
               const SizedBox(height: 20), 
@@ -2171,21 +2262,30 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                       child: CustomInputField(
                           controller: _comoNosConheceuController,
                           label: "Como nos conheceu",
-                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null)),
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          maxLength: 5,
+                          suffixText: '${_comoNosConheceuController.text.length}/5',
+                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,onUserInteraction: () => _setUnsavedChanges(true),)),
                   Expanded(flex: 1, child: SizedBox()),
                   Expanded(
                       flex: 1,
                       child: CustomInputField(
                           controller: _portadorController,
                           label: "Portador",
-                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null)),
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          suffixText: '${_portadorController.text.length}/3',
+                          maxLength: 3,
+                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,onUserInteraction: () => _setUnsavedChanges(true),)),
                   Expanded(flex: 1, child: SizedBox()),
                   Expanded(
                       flex: 2,
                       child: CustomInputField(
                           controller: _tabDescontoController,
                           label: "Tab Desconto",
-                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null)),
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          maxLength: 5,
+                          suffixText: '${_tabDescontoController.text.length}/5',
+                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,onUserInteraction: () => _setUnsavedChanges(true),)),
                 ],
               ),
               Row(
@@ -2196,21 +2296,30 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                       child: CustomInputField(
                           controller: _inscSuframaController,
                           label: "Inscr. Suframa",
-                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null)),
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          maxLength: 16,
+                          suffixText: '${_inscSuframaController.text.length}/16',
+                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,onUserInteraction: () => _setUnsavedChanges(true),)),
                   Expanded(flex: 1, child: SizedBox()),
                   Expanded(
                       flex: 3,
                       child: CustomInputField(
                           controller: _inscProdutorController,
                           label: "Inscr. Produtor.",
-                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null)),
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          maxLength: 16,
+                          suffixText: '${_inscProdutorController.text.length}/16',
+                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,onUserInteraction: () => _setUnsavedChanges(true),)),
                   Expanded(flex: 1, child: SizedBox()),
                   Expanded(
                       flex: 3,
                       child: CustomInputField(
                           controller: _inscMunicipalController,
                           label: "Inscr. Municipal",
-                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null)),
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          maxLength: 16,
+                          suffixText: '${_inscMunicipalController.text.length}/16',
+                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,onUserInteraction: () => _setUnsavedChanges(true),)),
                 ],
               ),
               const SizedBox(height: 20), 
@@ -2223,28 +2332,40 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                       child: CustomInputField(
                           controller: _vendedorController,
                           label: "Vendedor",
-                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null)),
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          maxLength: 5,
+                          suffixText: '${_vendedorController.text.length}/5',
+                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,onUserInteraction: () => _setUnsavedChanges(true),)),
                   Expanded(flex: 1, child: SizedBox()),
                   Expanded(
                       flex: 3,
                       child: CustomInputField(
                           controller: _atendenteController,
                           label: "Atendente",
-                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null)),
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          maxLength: 5,
+                          suffixText: '${_atendenteController.text.length}/5',
+                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,onUserInteraction: () => _setUnsavedChanges(true),)),
                   Expanded(flex: 1, child: SizedBox()),
                   Expanded(
                       flex: 3,
                       child: CustomInputField(
                           controller: _areaController,
                           label: "Área",
-                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null)),
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          maxLength: 5,
+                          suffixText: '${_areaController.text.length}/5',
+                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,onUserInteraction: () => _setUnsavedChanges(true),)),
                   Expanded(flex: 1, child: SizedBox()),
                   Expanded(
                       flex: 3,
                       child: CustomInputField(
                           controller: _situacaoController,
                           label: "Situação",
-                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null)),
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          maxLength: 5,
+                          suffixText: '${_situacaoController.text.length}/5',
+                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,onUserInteraction: () => _setUnsavedChanges(true),)),
                 ],
               ),
               Padding(
@@ -2269,130 +2390,133 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
 
   // Modificado para aceitar maxLengh e inputFormatters
   DataCell _buildEditableCell(
-      String subcollection, DocumentSnapshot doc, String field, String initialValue,
-      {int? maxLength, List<TextInputFormatter>? inputFormatters}) {
-    final docId = doc.id;
-    final parentItemId = _campoComum1Controller.text.trim();
-    final isEditing = _editingCell != null &&
-        _editingCell!['docId'] == docId &&
-        _editingCell!['field'] == field;
+    String subcollection, DocumentSnapshot doc, String field, String initialValue,
+    {int? maxLength, List<TextInputFormatter>? inputFormatters}) {
+  final docId = doc.id;
+  final parentItemId = _campoComum1Controller.text.trim();
+  final isEditing =
+      _editingCell != null && _editingCell!['docId'] == docId && _editingCell!['field'] == field;
 
-    return DataCell(
-      isEditing
-          ? TextField(
-              controller: _cellEditController,
-              focusNode: _cellFocusNode,
-              autofocus: true,
-              maxLength: maxLength,
-              inputFormatters: inputFormatters,
-              onSubmitted: (newValue) {
-                _updateSubcollectionField(subcollection, parentItemId, docId, field, newValue);
+  return DataCell(
+    isEditing
+        ? TextField(
+            controller: _cellEditController,
+            focusNode: _cellFocusNode,
+            autofocus: true,
+            maxLength: maxLength,
+            inputFormatters: inputFormatters,
+            onSubmitted: (newValue) {
+              _updateSubcollectionField(subcollection, parentItemId, docId, field, newValue);
+              setState(() {
+                _editingCell = null;
+              });
+            },
+            onTapOutside: (_) {
+              _updateSubcollectionField(subcollection, parentItemId, docId, field, _cellEditController.text);
+              if (mounted) {
                 setState(() {
                   _editingCell = null;
                 });
-              },
-              onTapOutside: (_) {
-                _updateSubcollectionField(subcollection, parentItemId, docId, field, _cellEditController.text);
-                if (mounted) {
-                  setState(() {
-                    _editingCell = null;
-                  });
-                }
-              },
-            )
-          : SizedBox(
-              // Usar SizedBox para dar um tamanho fixo à célula quando não está em edição
-              width: _getColumnWidth(field), // Função auxiliar para definir largura
-              child: Text(initialValue, overflow: TextOverflow.ellipsis),
-            ),
-      onTap: () {
-        setState(() {
-          _editingCell = {'docId': docId, 'field': field};
-          _cellEditController.text = initialValue;
-          _cellFocusNode.requestFocus();
-        });
-      },
-    );
-  }
+              }
+            },
+          )
+        : SizedBox(
+            // Manter SizedBox com largura fixa aqui
+            width: _getColumnWidth(field),
+            child: Text(initialValue, overflow: TextOverflow.ellipsis)), // Adicionado overflow: TextOverflow.ellipsis
+    onTap: () {
+      setState(() {
+        _editingCell = {'docId': docId, 'field': field};
+        _cellEditController.text = initialValue;
+        _cellFocusNode.requestFocus();
+      });
+    },
+  );
+}
 
   // Função auxiliar para definir larguras de coluna
   double _getColumnWidth(String field) {
-    switch (field) {
-      case 'sq':
-        return 50.0; // Largura para 'SQ'
-      case 'pais':
-        return 80.0; // Largura para 'País'
-      case 'ddd':
-        return 60.0; // Largura para 'DDD'
-      case 'nro':
-        return 120.0; // Largura para 'Número'
-      case 'contato':
-        return 150.0; // Largura para 'Contato'
-      case 'socio':
-        return 80.0; // Largura para 'Sócio'
-      case 'nome':
-        return 200.0; // Largura para 'Nome'
-      case 'cpf':
-        return 150.0; // Largura para 'CPF'
-      case 'cargo':
-        return 100.0; // Largura para 'Cargo'
-      case 'cargo res':
-        return 150.0; // Largura para 'Cargo res'
-      case 'participacao':
-        return 100.0; // Largura para 'Participação'
-      case 'sequencia ref banc':
-        return 70.0; // Largura para 'Seq. Bancaria'
-      case 'nome ref banc':
-        return 150.0; // Largura para 'Nome Ref Banc'
-      case 'endereco ref banc':
-        return 200.0; // Largura para 'Endereco Ref Banc'
-      case 'cidade ref banc':
-        return 150.0; // Largura para 'Cidade Ref Banc'
-      case 'contato ref banc':
-        return 150.0; // Largura para 'Contato Ref Banc'
-      case 'telefone ref banc':
-        return 150.0; // Largura para 'Telefone Ref Banc'
-      case 'email ref banc':
-        return 200.0; // Largura para 'Email Ref Banc'
-      case 'obs ref banc':
-        return 200.0; // Largura para 'Obs Ref Banc'
-      case 'sequencia contato':
-        return 70.0; // Largura para 'Seq. Contato'
-      case 'nome contato':
-        return 150.0; // Largura para 'Nome Contato'
-      case 'data nasc contato':
-        return 120.0; // Largura para 'Data Nasc Contato'
-      case 'cargo contato':
-        return 100.0; // Largura para 'Cargo Contato'
-      case 'cargo res contato':
-        return 150.0; // Largura para 'Cargo Res Contato'
-      case 'email contato':
-        return 200.0; // Largura para 'Email Contato'
-      case 'obs contato':
-        return 200.0; // Largura para 'Obs Contato'
-      case 'sequencia ref comercial':
-      return 70.0;
+  switch (field) {
+    case 'sq':
+      return 25.0;
+    case 'pais':
+      return 40.0; // Aumentado um pouco
+    case 'ddd':
+      return 40.0;
+    case 'nro':
+      return 40.0;
+    case 'operadora':
+      return 40.0;
+    case 'ramal':
+      return 40.0;
+    case 'tipo':
+      return 40.0;
+    case 'contato':
+      return 40.0;
+    case 'socio':
+      return 50.0;
+    case 'nome':
+      return 50.0;
+    case 'cpf':
+      return 50.0; // Considerando a formatação
+    case 'cargo':
+      return 50.0;
+    case 'cargo res':
+      return 50.0; // Aumentado para nomes de cargo mais longos
+    case 'participacao':
+      return 50.0;
+    case 'sequencia ref banc':
+      return 25.0;
+    case 'nome ref banc':
+      return 40.0;
+    case 'endereco ref banc':
+      return 40.0;
+    case 'cidade ref banc':
+      return 40.0;
+    case 'contato ref banc':
+      return 40.0;
+    case 'telefone ref banc':
+      return 40.0;
+    case 'email ref banc':
+      return 40.0;
+    case 'obs ref banc':
+      return 40.0;
+    case 'sequencia ref comercial':
+      return 25.0;
     case 'nome ref comercial':
-      return 150.0;
-    case 'resul nome ref comercial': // Largura para o campo "..."
-      return 150.0;
+      return 40.0;
+    case 'resul nome ref comercial': // Campo "..." na aba comercial
+      return 40.0;
     case 'endereco ref comercial':
-      return 200.0;
+      return 40.0;
     case 'cidade ref comercial':
-      return 150.0;
+      return 40.0;
     case 'contato ref comercial':
-      return 150.0;
+      return 40.0;
     case 'telefone ref comercial':
-      return 150.0;
+      return 40.0;
     case 'email ref comercial':
-      return 200.0;
+      return 40.0;
     case 'obs ref comercial':
-      return 200.0;
+      return 40.0;
+    case 'sequencia contato':
+      return 30.0;
+    case 'nome contato':
+      return 50.0;
+    case 'data nasc contato':
+      return 50.0;
+    case 'cargo contato':
+      return 50.0;
+    case 'cargo res contato':
+      return 50.0;
+    case 'email contato':
+      return 50.0;
+    case 'obs contato':
+      return 50.0;
     default:
-      return 100.0;
+      return 50.0; // Largura padrão
   }
 }
-
   Widget _buildAbaTelefone({Key? key}) {
     return Form(
       child: Padding(
@@ -2449,28 +2573,40 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                         flex: 1,
                         child: CustomInputField(
                             controller: _sqController,
-                            label: "SQ",
+                            label: "SQ",onUserInteraction: () => _checkSubcollectionInputChanges(), 
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          maxLength: 1,
+                          suffixText: '${_sqController.text.length}/1',
                             validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null)),
                     const SizedBox(width: 10),
                     Expanded(
                         flex: 3,
                         child: CustomInputField(
                             controller: _paisController,
-                            label: "País",
+                            label: "País",onUserInteraction: () => _checkSubcollectionInputChanges(), 
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          maxLength: 2,
+                          suffixText: '${_paisController.text.length}/2',
                             validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null)),
                     const SizedBox(width: 10),
                     Expanded(
                         flex: 1,
                         child: CustomInputField(
                             controller: _operadoraController,
-                            label: "Operadora",
+                            label: "Operadora",onUserInteraction: () => _checkSubcollectionInputChanges(), 
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          maxLength: 2,
+                          suffixText: '${_operadoraController.text.length}/2',
                             validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null)),
                     const SizedBox(width: 10),
                     Expanded(
                         flex: 1,
                         child: CustomInputField(
                             controller: _dddController,
-                            label: "DDD",
+                            label: "DDD",onUserInteraction: () => _checkSubcollectionInputChanges(), 
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          maxLength: 3,
+                          suffixText: '${_dddController.text.length}/3',
                             validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null)),
                   ],
                 ),
@@ -2482,28 +2618,40 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                         flex: 3,
                         child: CustomInputField(
                             controller: _nroController,
-                            label: "Nro",
+                            label: "Nro",onUserInteraction: () => _checkSubcollectionInputChanges(), 
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          maxLength: 12,
+                          suffixText: '${_nroController.text.length}/12',
                             validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null)),
                     const SizedBox(width: 10),
                     Expanded(
                         flex: 3,
                         child: CustomInputField(
                             controller: _ramalController,
-                            label: "Ramal",
+                            label: "Ramal",onUserInteraction: () => _checkSubcollectionInputChanges(), 
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          maxLength: 4,
+                          suffixText: '${_ramalController.text.length}/4',
                             validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null)),
                     const SizedBox(width: 10),
                     Expanded(
                         flex: 1,
                         child: CustomInputField(
                             controller: _tipoController,
-                            label: "Tipo",
+                            label: "Tipo",onUserInteraction: () => _checkSubcollectionInputChanges(),
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          maxLength: 1,
+                          suffixText: '${_tipoController.text.length}/1', 
                             validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null)),
                     const SizedBox(width: 10),
                     Expanded(
                         flex: 1,
                         child: CustomInputField(
                             controller: _contatoController,
-                            label: "Contato",
+                            label: "Contato",onUserInteraction: () => _checkSubcollectionInputChanges(), 
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          maxLength: 15,
+                          suffixText: '${_contatoController.text.length}/15',
                             validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null)),
                   ],
                 ),
@@ -2531,39 +2679,59 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                     if (snapshot.hasError) {
                       return Center(child: Text("Erro: ${snapshot.error}"));
                     }
-
+                
                     final telefones = snapshot.data!.docs;
-
+                
                     return SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
-                      child: DataTable(
-                        columns: [
-                          DataColumn(label: SizedBox(width: _getColumnWidth('sq'), child: Text('SQ'))),
-                          DataColumn(label: SizedBox(width: _getColumnWidth('pais'), child: Text('País'))),
-                          DataColumn(label: SizedBox(width: _getColumnWidth('ddd'), child: Text('DDD'))),
-                          DataColumn(label: SizedBox(width: _getColumnWidth('nro'), child: Text('Número'))),
-                          DataColumn(label: SizedBox(width: _getColumnWidth('contato'), child: Text('Contato'))),
-                          DataColumn(label: Text('Ação')),
-                        ],
-                        rows: telefones.map((doc) {
-                          final data = doc.data() as Map<String, dynamic>;
-                          return DataRow(cells: [
-                            _buildEditableCell('telefones', doc, 'sq', data['sq'] ?? '',
-                                maxLength: 2, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
-                            _buildEditableCell('telefones', doc, 'pais', data['pais'] ?? '', maxLength: 30),
-                            _buildEditableCell('telefones', doc, 'ddd', data['ddd'] ?? '',
-                                maxLength: 3, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
-                            _buildEditableCell('telefones', doc, 'nro', data['nro'] ?? '',
-                                maxLength: 10, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
-                            _buildEditableCell('telefones', doc, 'contato', data['contato'] ?? '',
-                                maxLength: 30),
-                            DataCell(IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
-                              onPressed: () =>
-                                  _deleteTelefone(_campoComum1Controller.text.trim(), doc.id),
-                            )),
-                          ]);
-                        }).toList(),
+                      
+                      child: Align(alignment: Alignment.center,
+                        child: DataTable(
+                          headingRowColor: WidgetStateProperty.all<Color>(Colors.blue[200]!), // Cor do cabeçalho
+                          dataRowColor: WidgetStateProperty.all<Color>(Colors.white),       // Cor do corpo da tabela
+                          // --- FIM DAS MODIFICAÇÕES ---
+                          border: TableBorder(
+                            top: BorderSide(color: Colors.black),
+                            right: BorderSide(color: Colors.black),
+                            left: BorderSide(color: Colors.black),
+                            bottom: BorderSide(color: Colors.black),
+                            horizontalInside: BorderSide(color: Colors.blue)),
+                          columns: [
+                            DataColumn(label: SizedBox(width: _getColumnWidth('sq'), child: Text('SQ', overflow: TextOverflow.ellipsis,))),
+                            DataColumn(label: SizedBox(width: _getColumnWidth('pais'), child: Text('País', overflow: TextOverflow.ellipsis,))),
+                            DataColumn(label: SizedBox(width: _getColumnWidth('operadora'), child: Text('Operadora', overflow: TextOverflow.ellipsis,))),
+                            DataColumn(label: SizedBox(width: _getColumnWidth('ddd'), child: Text('DDD', overflow: TextOverflow.ellipsis,))),
+                            DataColumn(label: SizedBox(width: _getColumnWidth('nro'), child: Text('Número', overflow: TextOverflow.ellipsis,))),
+                            DataColumn(label: SizedBox(width: _getColumnWidth('ramal'), child: Text('Ramal', overflow: TextOverflow.ellipsis,))),
+                            DataColumn(label: SizedBox(width: _getColumnWidth('tipo'), child: Text('Tipo', overflow: TextOverflow.ellipsis,))),
+                            DataColumn(label: SizedBox(width: _getColumnWidth('contato'), child: Text('Contato', overflow: TextOverflow.ellipsis,))),
+                            DataColumn(label: Text('Ação')),
+                          ],
+                          rows: telefones.map((doc) {
+                            final data = doc.data() as Map<String, dynamic>;
+                            return DataRow(cells: [
+                              _buildEditableCell('telefones', doc, 'sq', data['sq'] ?? '',
+                                  maxLength: 2, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
+                              _buildEditableCell('telefones', doc, 'pais', data['pais'] ?? '', maxLength: 30),
+                              _buildEditableCell('telefones', doc, 'operadora', data['operadora'] ?? '', maxLength: 30),
+                              _buildEditableCell('telefones', doc, 'ddd', data['ddd'] ?? '',
+                                  maxLength: 3, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
+                              _buildEditableCell('telefones', doc, 'nro', data['nro'] ?? '',
+                                  maxLength: 10, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
+                              _buildEditableCell('telefones', doc, 'ramal', data['ramal'] ?? '',
+                                  maxLength: 10, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
+                              _buildEditableCell('telefones', doc, 'tipo', data['tipo'] ?? '',
+                                  maxLength: 30),
+                              _buildEditableCell('telefones', doc, 'contato', data['contato'] ?? '',
+                                  maxLength: 30),
+                              DataCell(IconButton(
+                                icon: const Icon(Icons.delete, color: Colors.red),
+                                onPressed: () =>
+                                    _deleteTelefone(_campoComum1Controller.text.trim(), doc.id),
+                              )),
+                            ]);
+                          }).toList(),
+                        ),
                       ),
                     );
                   },
@@ -2630,12 +2798,14 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                       flex: 3,
                       child: CustomInputField(
                           controller: _cnpjController,
+                          maxLength: 18,
+                          suffixText: '${_cnpjController.text.length}/18',
                           inputFormatters: [
                             FilteringTextInputFormatter.digitsOnly, // Aceita apenas dígitos
                             CnpjInputFormatter(), // Adiciona pontos, barra e hífen automaticamente
                           ],
                           label: "CNPJ",
-                          validator: _cnpjValidator)),
+                          validator: _cnpjValidator,onUserInteraction: () => _setUnsavedChanges(true),)),
                 ],
               ),
               Row(
@@ -2645,7 +2815,8 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                       child: CustomInputField(
                         controller: _inscEstadualController,
                         label: "Insc. Estadual",
-                        maxLength: 16,
+                        suffixText: '${_inscEstadualController.text.length}/16',
+                        maxLength: 16,onUserInteraction: () => _setUnsavedChanges(true),
                         //validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null
                       )),
                 ],
@@ -2764,7 +2935,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                         controller: _confidencialController,
                         label: "Confidencial",
                         maxLength: 60,
-                        suffixText: '${_confidencialController.text.length}/60',
+                        suffixText: '${_confidencialController.text.length}/60',onUserInteraction: () => _setUnsavedChanges(true),
 
                         //validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null
                       )),
@@ -2778,7 +2949,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                         controller: _observacaoController,
                         label: "Observação",
                         maxLength: 60,
-                        suffixText: '${_observacaoController.text.length}/60',
+                        suffixText: '${_observacaoController.text.length}/60',onUserInteraction: () => _setUnsavedChanges(true),
                         //validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null
                       )),
                 ],
@@ -2790,8 +2961,8 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                       child: CustomInputField(
                         controller: _observacaoNfController,
                         label: "ObservacaoNf",
-                        maxLength: 60,
-                        suffixText: '${_observacaoNfController.text.length}/60',
+                        maxLength: 180,
+                        suffixText: '${_observacaoNfController.text.length}/180',onUserInteraction: () => _setUnsavedChanges(true),
                         //validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null
                       )),
                 ],
@@ -2804,7 +2975,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                         controller: _eMailController,
                         label: "E-mail",
                         maxLength: 60,
-                        suffixText: '${_eMailController.text.length}/60',
+                        suffixText: '${_eMailController.text.length}/60',onUserInteraction: () => _setUnsavedChanges(true),
                         //validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null
                       )),
                 ],
@@ -2817,7 +2988,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                         controller: _eMailCobranController,
                         label: "E-mail Cobran",
                         maxLength: 60,
-                        suffixText: '${_eMailCobranController.text.length}/60',
+                        suffixText: '${_eMailCobranController.text.length}/60',onUserInteraction: () => _setUnsavedChanges(true),
                         //validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null
                       )),
                 ],
@@ -2829,8 +3000,8 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                       child: CustomInputField(
                         controller: _eMailNfController,
                         label: "E-mail Nf-e",
-                        maxLength: 60,
-                        suffixText: '${_eMailNfController.text.length}/60',
+                        maxLength: 180,
+                        suffixText: '${_eMailNfController.text.length}/180',onUserInteraction: () => _setUnsavedChanges(true),
                         //validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null
                       )),
                 ],
@@ -2843,7 +3014,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                         controller: _siteController,
                         label: "Site",
                         maxLength: 60,
-                        suffixText: '${_eMailNfController.text.length}/60',
+                        suffixText: '${_siteController.text.length}/60',onUserInteraction: () => _setUnsavedChanges(true),
                         //validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null
                       )),
                 ],
@@ -2881,7 +3052,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                 flex: 1,
                 child: CustomInputField(
                     controller: _sqController,
-                    label: "SQ",
+                    label: "SQ",onUserInteraction: () => _checkSubcollectionInputChanges(), 
                     maxLength: 1,
                     inputFormatters: [
                       FilteringTextInputFormatter.digitsOnly,
@@ -2894,7 +3065,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                 child: CustomInputField(
                     controller: _socioController,
                     maxLength: 5,
-                    label: "Sócio",
+                    label: "Sócio",onUserInteraction: () => _checkSubcollectionInputChanges(), 
                     suffixText: '${_socioController.text.length}/5',
                     validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null)),
             const SizedBox(width: 10),
@@ -2902,7 +3073,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                 flex: 1,
                 child: CustomInputField(
                     controller: _nomeController,
-                    label: "Nome",
+                    label: "Nome",onUserInteraction: () => _checkSubcollectionInputChanges(), 
                     maxLength: 60,
                     suffixText: '${_nomeController.text.length}/60',
                     validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null)),
@@ -2916,18 +3087,20 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                 flex: 2,
                 child: CustomInputField(
                     controller: _cpfController,
-                    label: "CPF",
+                    maxLength: 14,
+                    label: "CPF",onUserInteraction: () => _checkSubcollectionInputChanges(), 
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly, CpfInputFormatter()], // Remova o CpfCnpjFormatter se estiver aqui
                     suffixText: '${_cpfController.text.length}/14',
                     validator: _cpfValidator)),
             const SizedBox(width: 10),
-            Expanded(flex: 1, child: _buildCargoAutocomplete2()),
+            Expanded(flex: 1, child: _buildCargoAutocomplete2(onUserInteraction: () => _checkSubcollectionInputChanges())),
             const SizedBox(width: 10),
             Expanded(
                 flex: 3,
                 child: CustomInputField(
                     controller: _resulCargoController,
                     //suffixText: '${_participacaoController.text.length}/60',
-                    label: "...",
+                    label: "...",onUserInteraction: () => _checkSubcollectionInputChanges(), 
                     readOnly: true,
                     //maxLength: 35,
                     //suffixText: '${_participacaoController.text.length}/35',
@@ -2938,7 +3111,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                 child: CustomInputField(
                     controller: _participacaoController,
                     suffixText: '${_participacaoController.text.length}/5',
-                    label: "Particpação",
+                    label: "Particpação",onUserInteraction: () => _checkSubcollectionInputChanges(), 
                     inputFormatters: [PercentageInputFormatter()],
                     maxLength: 5,
                     //suffixText: '${_participacaoController.text.length}/35',
@@ -2978,11 +3151,16 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
             return SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: DataTable(
-                border: TableBorder(
-                    top: BorderSide(color: Colors.black),
-                    bottom: BorderSide(color: Colors.black),
-                    horizontalInside: BorderSide(color: Colors.blue)),
-                columns: [
+                              headingRowColor: WidgetStateProperty.all<Color>(Colors.blue[200]!), // Cor do cabeçalho
+                              dataRowColor: WidgetStateProperty.all<Color>(Colors.white),       // Cor do corpo da tabela
+                              // --- FIM DAS MODIFICAÇÕES ---
+                              border: TableBorder(
+                                top: BorderSide(color: Colors.black),
+                                right: BorderSide(color: Colors.black),
+                                left: BorderSide(color: Colors.black),
+                                bottom: BorderSide(color: Colors.black),
+                                horizontalInside: BorderSide(color: Colors.blue)),
+                              columns: [
                   DataColumn(label: SizedBox(width: _getColumnWidth('sq'), child: Text('Sq'))),
                   DataColumn(label: SizedBox(width: _getColumnWidth('socio'), child: Text('Sócio'))),
                   DataColumn(label: SizedBox(width: _getColumnWidth('nome'), child: Text('Nome'))),
@@ -3094,27 +3272,40 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
   // MODIFICAR MÉTODO: _buildInputField (para ler o estado de readOnly)
   // Certifique-se que o CustomInputField suporte a propriedade readOnly.
   // Assumi que já suporta, mas adicionei a lógica para desabilitar base nos checkboxes.
-  Widget _buildInputField(TextEditingController controller, String label, int maxLength,
-      {String? Function(String?)? validator,
-      bool isNumeric = false,
-      bool isRequired = false,
-      bool readOnly = false, // Este é o readOnly padrão
-      bool forceReadOnly = false, // NOVO: Para desabilitar com base no checkbox
-      TextCapitalization textCapitalization = TextCapitalization.none}) {
-    return CustomInputField(
-      controller: controller,
-      label: label,
-      maxLength: maxLength,
-      validator: validator ?? (isRequired ? (v) => v!.isEmpty ? 'Obrigatório' : null : null),
-      keyboardType: isNumeric ? TextInputType.number : TextInputType.text,
-      suffixText: '${controller.text.length}/$maxLength',
-      inputFormatters: isNumeric ? [FilteringTextInputFormatter.digitsOnly] : [],
-      // MODIFICAÇÃO AQUI: Prioriza forceReadOnly sobre o readOnly padrão
-      readOnly: readOnly || forceReadOnly,
-      fillColor: (readOnly || forceReadOnly) ? Colors.grey[300] : Colors.white,
-      textCapitalization: textCapitalization,
-    );
-  }
+  /*Widget _buildInputField(TextEditingController controller, String label, int maxLength,
+    {String? Function(String?)? validator,
+    bool isNumeric = false,
+    bool isRequired = false,
+    bool readOnly = false,
+    bool forceReadOnly = false,
+    TextCapitalization textCapitalization = TextCapitalization.none,
+    bool isMainFormInput = false, // NOVO: Flag para identificar campos que disparam _hasUnsavedChanges
+    bool isSubcollectionInput = false, // NOVO: Flag para identificar campos que disparam _hasSubcollectionInputChanges
+    }) {
+  return CustomInputField(
+    controller: controller,
+    label: label,
+    maxLength: maxLength,
+    validator: validator ?? (isRequired ? (v) => v!.isEmpty ? 'Obrigatório' : null : null),
+    keyboardType: isNumeric ? TextInputType.number : TextInputType.text,
+    suffixText: '${controller.text.length}/$maxLength',
+    inputFormatters: isNumeric ? [FilteringTextInputFormatter.digitsOnly] : [],
+    readOnly: readOnly || forceReadOnly,
+    fillColor: (readOnly || forceReadOnly) ? Colors.grey[300] : Colors.white,
+    textCapitalization: textCapitalization,
+    onChanged: (value) {
+      // Dispara _hasUnsavedChanges para campos principais
+      if (isMainFormInput && !readOnly && !forceReadOnly) {
+        _setUnsavedChanges(true);
+      }
+      // Dispara _hasSubcollectionInputChanges para campos de subcoleção
+      if (isSubcollectionInput) {
+        // Redundante se o listener já estiver no initState, mas garante
+        _checkSubcollectionInputChanges();
+      }
+    },
+  );
+}*/
 
   Widget _buildSimNaoDropdown({
     required String label,
@@ -3154,7 +3345,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                 flex: 1,
                 child: CustomInputField(
                     controller: _sequenciaController,
-                    label: "Sequencia",
+                    label: "Sequencia",onUserInteraction: () => _checkSubcollectionInputChanges(), 
                     maxLength: 1,
                     suffixText: '${_sequenciaController.text.length}/1',
                     inputFormatters: [
@@ -3169,7 +3360,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                 inputFormatters: [DigitsOnlyInputFormatter()], // Permite apenas dígitos
                 maxLength: 5,
                 suffixText: '${_nomeRefBancariaController.text.length}/5',
-                label: "nome",
+                label: "nome",onUserInteraction: () => _checkSubcollectionInputChanges(), 
                 validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,
               ),
             ),
@@ -3179,7 +3370,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
               child: CustomInputField(
                 controller: _resulNomeController,
                 readOnly: !isResulNomeEditable, // Campo "..." editável APENAS se _nomeRefBancariaController.text for '0'
-                label: "...",
+                label: "...",onUserInteraction: () => _checkSubcollectionInputChanges(), 
                 validator: (v) => isResulNomeEditable && v!.isEmpty ? 'Campo obrigatório' : null, // Valida apenas se for editável
                 fillColor: isResulNomeEditable ? Colors.white : Colors.grey[300], // Cor de fundo para indicar editabilidade
               ),
@@ -3194,7 +3385,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                 flex: 1,
                 child: CustomInputField(
                     controller: _enderecoRefBancariaController,
-                    label: "Endereço",
+                    label: "Endereço",onUserInteraction: () => _checkSubcollectionInputChanges(), 
                     suffixText: '${_enderecoRefBancariaController.text.length}/45',
                     maxLength: 45,
                     //inputFormatters: [FilteringTextInputFormatter.digitsOnly,],
@@ -3205,16 +3396,16 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Expanded(flex: 1, child: _buildCidadeAutocomplete()),
+            Expanded(flex: 1, child: _buildCidadeAutocomplete(onUserInteraction: () => _checkSubcollectionInputChanges())),
             const SizedBox(width: 10),
             Expanded(
                 flex: 5,
                 child: CustomInputField(
-                    controller: _cidadeRefBancariaController,
+                    controller: _resulEnderecoController,
                     //inputFormatters: [FilteringTextInputFormatter.digitsOnly,],
                     //maxLength: 5,
                     readOnly: true,
-                    label: "...",
+                    label: "...",onUserInteraction: () => _checkSubcollectionInputChanges(), 
                     validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null)),
             const SizedBox(width: 10),
           ],
@@ -3226,7 +3417,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                 flex: 1,
                 child: CustomInputField(
                     controller: _contatoRefBancariaController,
-                    label: "Contato",
+                    label: "Contato",onUserInteraction: () => _checkSubcollectionInputChanges(), 
                     suffixText: '${_contatoRefBancariaController.text.length}/20',
                     maxLength: 20,
                     //inputFormatters: [FilteringTextInputFormatter.digitsOnly,],
@@ -3239,7 +3430,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                     //inputFormatters: [FilteringTextInputFormatter.digitsOnly,],
                     maxLength: 20,
                     suffixText: '${_telefoneRefBancariaController.text.length}/20',
-                    label: 'Telefone',
+                    label: 'Telefone',onUserInteraction: () => _checkSubcollectionInputChanges(), 
                     validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null)),
             const SizedBox(width: 10),
           ],
@@ -3251,7 +3442,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                 flex: 1,
                 child: CustomInputField(
                     controller: _emailRefBancariaController,
-                    label: "e-mail",
+                    label: "e-mail",onUserInteraction: () => _checkSubcollectionInputChanges(), 
                     suffixText: '${_emailRefBancariaController.text.length}/40',
                     maxLength: 40,
                     //inputFormatters: [FilteringTextInputFormatter.digitsOnly,],
@@ -3263,7 +3454,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                     controller: _obsRefBancariaController,
                     //inputFormatters: [FilteringTextInputFormatter.digitsOnly,],
                     maxLength: 40,
-                    label: 'Obs',
+                    label: 'Obs',onUserInteraction: () => _checkSubcollectionInputChanges(), 
                     suffixText: '${_obsRefBancariaController.text.length}/40',
                     validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null)),
             const SizedBox(width: 10),
@@ -3304,6 +3495,15 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
             return SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: DataTable(
+                headingRowColor: WidgetStateProperty.all<Color>(Colors.blue[200]!), // Cor do cabeçalho
+                dataRowColor: WidgetStateProperty.all<Color>(Colors.white),       // Cor do corpo da tabela
+                // --- FIM DAS MODIFICAÇÕES ---
+                border: TableBorder(
+                  top: BorderSide(color: Colors.black),
+                  right: BorderSide(color: Colors.black),
+                  left: BorderSide(color: Colors.black),
+                  bottom: BorderSide(color: Colors.black),
+                  horizontalInside: BorderSide(color: Colors.blue)),
                 columns: [
                   DataColumn(
                       label: SizedBox(width: _getColumnWidth('sequencia ref banc'), child: Text('Seq.'))),
@@ -3370,239 +3570,236 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
 
   // NOVO MÉTODO: _buildAbaReferenciaComercial
 Widget _buildAbaReferenciaComercial({Key? key}) {
-  // NEW: Determine if the '...' field should be editable based on the 'nome' field
-  final bool isResulNomeRefComercialEditable = _nomeRefComercialController.text == '0';
+    final bool isResulNomeRefComercialEditable = _nomeRefComercialController.text == '0';
 
-  return _buildAbaContainer(
-    key: key,
-    color: Colors.blue[100]!,
-    title: "Referência Comercial",
-    children: [
-      Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            flex: 1,
-            child: CustomInputField(
-              controller: _sequenciaRefComercialController,
-              label: "Sequencia",
-              maxLength: 1,
-              suffixText: '${_sequenciaRefComercialController.text.length}/1',
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,
+    return _buildAbaContainer(
+      key: key,
+      color: Colors.blue[100]!,
+      title: "Referência Comercial",
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              flex: 1,
+              child: CustomInputField(
+                controller: _sequenciaRefComercialController,
+                label: "Sequencia",
+                onUserInteraction: () => _checkSubcollectionInputChanges(),
+                maxLength: 1,
+                suffixText: '${_sequenciaRefComercialController.text.length}/1',
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,
+              ),
             ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            flex: 1,
-            child: CustomInputField(
-              controller: _nomeRefComercialController,
-              inputFormatters: [DigitsOnlyInputFormatter()], // Ensure this is applied
-              maxLength: 5,
-              suffixText: '${_nomeRefComercialController.text.length}/5',
-              label: "nome",
-              validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,
+            const SizedBox(width: 10),
+            Expanded(
+              flex: 1,
+              child: CustomInputField(
+                controller: _nomeRefComercialController,
+                inputFormatters: [DigitsOnlyInputFormatter()],
+                maxLength: 5,
+                suffixText: '${_nomeRefComercialController.text.length}/5',
+                label: "nome",
+                onUserInteraction: () => _checkSubcollectionInputChanges(),
+                validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,
+              ),
             ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            flex: 5,
-            child: CustomInputField(
-              controller: _resulNomeRefComercialController,
-              // MODIFICATION: Set readOnly based on the condition
-              readOnly: !isResulNomeRefComercialEditable,
-              label: "...",
-              // MODIFICATION: Validator only fires if the field is editable
-              validator: (v) => isResulNomeRefComercialEditable && v!.isEmpty ? 'Campo obrigatório' : null,
-              // MODIFICATION: Visual feedback for editability
-              fillColor: isResulNomeRefComercialEditable ? Colors.white : Colors.grey[300],
+            const SizedBox(width: 10),
+            Expanded(
+              flex: 5,
+              child: CustomInputField(
+                controller: _resulNomeRefComercialController,
+                readOnly: !isResulNomeRefComercialEditable,
+                label: "...",
+                onUserInteraction: () => _checkSubcollectionInputChanges(),
+                validator: (v) => isResulNomeRefComercialEditable && v!.isEmpty ? 'Campo obrigatório' : null,
+                fillColor: isResulNomeRefComercialEditable ? Colors.white : Colors.grey[300],
+              ),
             ),
-          ),
-          const SizedBox(width: 10),
-        ],
-      ),
-      // ... (rest of the _buildAbaReferenciaComercial method, including the table)
-      Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            flex: 1,
-            child: CustomInputField(
-              controller: _enderecoRefComercialController,
-              label: "Endereço",
-              suffixText: '${_enderecoRefComercialController.text.length}/45',
-              maxLength: 45,
-              validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,
-            ),
-          ),
-          const SizedBox(width: 10),
-        ],
-      ),
-      Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(flex: 1, child: _buildCidadeAutocompleteRefComercial()), // NOVO Autocomplete para esta aba
-          const SizedBox(width: 10),
-          Expanded(
-            flex: 5,
-            child: CustomInputField(
-              controller: _cidadeRefComercialController,
-              readOnly: true,
-              label: "...",
-              validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,
-            ),
-          ),
-          const SizedBox(width: 10),
-        ],
-      ),
-      Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            flex: 1,
-            child: CustomInputField(
-              controller: _contatoRefComercialController,
-              label: "Contato",
-              suffixText: '${_contatoRefComercialController.text.length}/20',
-              maxLength: 20,
-              validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            flex: 1,
-            child: CustomInputField(
-              controller: _telefoneRefComercialController,
-              maxLength: 20,
-              suffixText: '${_telefoneRefComercialController.text.length}/20',
-              label: 'Telefone',
-              validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,
-            ),
-          ),
-          const SizedBox(width: 10),
-        ],
-      ),
-      Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            flex: 1,
-            child: CustomInputField(
-              controller: _emailRefComercialController,
-              label: "e-mail",
-              suffixText: '${_emailRefComercialController.text.length}/40',
-              maxLength: 40,
-              validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            flex: 1,
-            child: CustomInputField(
-              controller: _obsRefComercialController,
-              maxLength: 40,
-              label: 'Obs',
-              suffixText: '${_obsRefComercialController.text.length}/40',
-              validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,
-            ),
-          ),
-          const SizedBox(width: 10),
-        ],
-      ),
-      const SizedBox(height: 10),
-      ElevatedButton(style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.green,
-          foregroundColor: Colors.white,
-          minimumSize: const Size(200, 50),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            const SizedBox(width: 10),
+          ],
         ),
-        onPressed: _addReferenciaComercial, child: const Text("Adicionar Referência Comercial")),
-      Divider(thickness: 2, color: Colors.blue, height: 10, indent: 40, endIndent: 40),
-
-      // Tabela de dados
-      StreamBuilder<QuerySnapshot>(
-        stream: _referenciasComerciaisStream,
-        builder: (context, snapshot) {
-          if (_campoComum1Controller.text.trim().isEmpty) {
-            return const Center(child: Text("Busque por um CPF/CNPJ para ver as referências comerciais."));
-          }
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(child: Text("Nenhuma referência comercial cadastrada."));
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text("Erro: ${snapshot.error}"));
-          }
-
-          final referencias = snapshot.data!.docs;
-
-          return SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              columns: [
-                DataColumn(label: SizedBox(width: _getColumnWidth('sequencia ref comercial'), child: Text('Seq.'))),
-                DataColumn(label: SizedBox(width: _getColumnWidth('nome ref comercial'), child: Text('Nome'))),
-                DataColumn(label: SizedBox(width: _getColumnWidth('resul nome ref comercial'), child: Text('...'))),
-                DataColumn(label: SizedBox(width: _getColumnWidth('endereco ref comercial'), child: Text('Endereço.'))),
-                DataColumn(label: SizedBox(width: _getColumnWidth('cidade ref comercial'), child: Text('Cidade'))),
-                DataColumn(label: SizedBox(width: _getColumnWidth('contato ref comercial'), child: Text('Contato'))),
-                DataColumn(label: SizedBox(width: _getColumnWidth('telefone ref comercial'), child: Text('Telefone'))),
-                DataColumn(label: SizedBox(width: _getColumnWidth('email ref comercial'), child: Text('E-mail'))),
-                DataColumn(label: SizedBox(width: _getColumnWidth('obs ref comercial'), child: Text('Obs.'))),
-                DataColumn(label: Text('Ação')),
-              ],
-              rows: referencias.map((doc) {
-                final data = doc.data() as Map<String, dynamic>;
-                return DataRow(cells: [
-                  _buildEditableCell('referencias_comerciais', doc, 'sequencia ref comercial', data['sequencia ref comercial'] ?? '',
-                      maxLength: 2, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
-                  _buildEditableCell('referencias_comerciais', doc, 'nome ref comercial', data['nome ref comercial'] ?? '',
-                      maxLength: 60),
-                  _buildEditableCell('referencias_comerciais', doc, 'resul nome ref comercial', data['resul nome ref comercial'] ?? '',
-                      maxLength: 60), // Keep this editable in the table
-                  _buildEditableCell('referencias_comerciais', doc, 'endereco ref comercial', data['endereco ref comercial'] ?? '',
-                      maxLength: 45),
-                  _buildEditableCell('referencias_comerciais', doc, 'cidade ref comercial', data['cidade ref comercial'] ?? '',
-                      maxLength: 5, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
-                  _buildEditableCell('referencias_comerciais', doc, 'contato ref comercial', data['contato ref comercial'] ?? '',
-                      maxLength: 20),
-                  _buildEditableCell('referencias_comerciais', doc, 'telefone ref comercial', data['telefone ref comercial'] ?? '',
-                      maxLength: 20),
-                  _buildEditableCell('referencias_comerciais', doc, 'email ref comercial', data['email ref comercial'] ?? '',
-                      maxLength: 40),
-                  _buildEditableCell('referencias_comerciais', doc, 'obs ref comercial', data['obs ref comercial'] ?? '',
-                      maxLength: 40),
-                  DataCell(IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () => _deleteReferenciaComercial(_campoComum1Controller.text.trim(), doc.id),
-                  )),
-                ]);
-              }).toList(),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              flex: 1,
+              child: CustomInputField(
+                controller: _enderecoRefComercialController,
+                label: "Endereço",
+                onUserInteraction: () => _checkSubcollectionInputChanges(),
+                suffixText: '${_enderecoRefComercialController.text.length}/45',
+                maxLength: 45,
+                validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,
+              ),
             ),
-          );
-        },
-      ),
-      // NEW: Add the Save button here, as this is a "main data" tab
-      /*Padding(
-        padding: const EdgeInsets.symmetric(vertical: 20.0),
-        child: ElevatedButton(
-          onPressed: _saveData,
+            const SizedBox(width: 10),
+          ],
+        ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(flex: 1, child: _buildCidadeAutocompleteRefComercial(onUserInteraction: () => _checkSubcollectionInputChanges())),
+            const SizedBox(width: 10),
+            Expanded(
+              flex: 5,
+              child: CustomInputField(
+                controller: _resulcidadeRefComercialController,
+                readOnly: true,
+                label: "...",
+                onUserInteraction: () => _checkSubcollectionInputChanges(),
+                validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,
+              ),
+            ),
+            const SizedBox(width: 10),
+          ],
+        ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              flex: 1,
+              child: CustomInputField(
+                controller: _contatoRefComercialController,
+                label: "Contato",
+                onUserInteraction: () => _checkSubcollectionInputChanges(),
+                suffixText: '${_contatoRefComercialController.text.length}/20',
+                maxLength: 20,
+                validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              flex: 1,
+              child: CustomInputField(
+                controller: _telefoneRefComercialController,
+                maxLength: 20,
+                suffixText: '${_telefoneRefComercialController.text.length}/20',
+                label: 'Telefone',
+                onUserInteraction: () => _checkSubcollectionInputChanges(),
+                validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,
+              ),
+            ),
+            const SizedBox(width: 10),
+          ],
+        ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              flex: 1,
+              child: CustomInputField(
+                controller: _emailRefComercialController,
+                label: "e-mail",
+                onUserInteraction: () => _checkSubcollectionInputChanges(),
+                suffixText: '${_emailRefComercialController.text.length}/40',
+                maxLength: 40,
+                validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              flex: 1,
+              child: CustomInputField(
+                controller: _obsRefComercialController,
+                maxLength: 40,
+                label: 'Obs',
+                onUserInteraction: () => _checkSubcollectionInputChanges(),
+                suffixText: '${_obsRefComercialController.text.length}/40',
+                validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,
+              ),
+            ),
+            const SizedBox(width: 10),
+          ],
+        ),
+        const SizedBox(height: 10),
+        ElevatedButton(
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.green,
             foregroundColor: Colors.white,
             minimumSize: const Size(200, 50),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
-          child: const Text('SALVAR', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          onPressed: _addReferenciaComercial,
+          child: const Text("Adicionar Referência Comercial"),
         ),
-      ),*/
-    ],
-  );
-}
+        Divider(thickness: 2, color: Colors.blue, height: 10, indent: 40, endIndent: 40),
 
-  Widget _buildCidadeAutocomplete({bool readOnly = false}) { 
+        StreamBuilder<QuerySnapshot>(
+          stream: _referenciasComerciaisStream,
+          builder: (context, snapshot) {
+            if (_campoComum1Controller.text.trim().isEmpty) {
+              return const Center(child: Text("Busque por um CPF/CNPJ para ver as referências comerciais."));
+            }
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+              return const Center(child: Text("Nenhuma referência comercial cadastrada."));
+            }
+            if (snapshot.hasError) {
+              return Center(child: Text("Erro: ${snapshot.error}"));
+            }
+
+            final referencias = snapshot.data!.docs;
+
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                headingRowColor: WidgetStateProperty.all<Color>(Colors.blue[200]!),
+                dataRowColor: WidgetStateProperty.all<Color>(Colors.white),
+                border: const TableBorder(
+                    top: BorderSide(color: Colors.black),
+                    right: BorderSide(color: Colors.black),
+                    left: BorderSide(color: Colors.black),
+                    bottom: BorderSide(color: Colors.black),
+                    horizontalInside: BorderSide(color: Colors.blue)),
+                columns: [
+                  DataColumn(label: SizedBox(width: _getColumnWidth('sequencia ref comercial'), child: Text('Seq.'))),
+                  DataColumn(label: SizedBox(width: _getColumnWidth('resul nome ref comercial'), child: Text('Nome'))),
+                  DataColumn(label: SizedBox(width: _getColumnWidth('endereco ref comercial'), child: Text('Endereço.'))),
+                  DataColumn(label: SizedBox(width: _getColumnWidth('cidade ref comercial'), child: Text('Cidade'))),
+                  DataColumn(label: SizedBox(width: _getColumnWidth('contato ref comercial'), child: Text('Contato'))),
+                  DataColumn(label: SizedBox(width: _getColumnWidth('telefone ref comercial'), child: Text('Telefone'))),
+                  DataColumn(label: SizedBox(width: _getColumnWidth('email ref comercial'), child: Text('E-mail'))),
+                  DataColumn(label: SizedBox(width: _getColumnWidth('obs ref comercial'), child: Text('Obs.'))),
+                  const DataColumn(label: Text('Ação')),
+                ],
+                rows: referencias.map((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  return DataRow(cells: [
+                    _buildEditableCell('referencias_comerciais', doc, 'sequencia ref comercial', data['sequencia ref comercial'] ?? '',
+                        maxLength: 2, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
+                    _buildEditableCell('referencias_comerciais', doc, 'resul nome ref comercial', data['resul nome ref comercial'] ?? '',
+                        maxLength: 60),
+                    _buildEditableCell('referencias_comerciais', doc, 'endereco ref comercial', data['endereco ref comercial'] ?? '',
+                        maxLength: 45),
+                    _buildEditableCell('referencias_comerciais', doc, 'cidade ref comercial', data['cidade ref comercial'] ?? '',
+                        maxLength: 5, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
+                    _buildEditableCell('referencias_comerciais', doc, 'contato ref comercial', data['contato ref comercial'] ?? '',
+                        maxLength: 20),
+                    _buildEditableCell('referencias_comerciais', doc, 'telefone ref comercial', data['telefone ref comercial'] ?? '',
+                        maxLength: 20),
+                    _buildEditableCell('referencias_comerciais', doc, 'email ref comercial', data['email ref comercial'] ?? '',
+                        maxLength: 40),
+                    _buildEditableCell('referencias_comerciais', doc, 'obs ref comercial', data['obs ref comercial'] ?? '',
+                        maxLength: 40),
+                    DataCell(IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: () => _deleteReferenciaComercial(_campoComum1Controller.text.trim(), doc.id),
+                    )),
+                  ]);
+                }).toList(),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCidadeAutocomplete({bool readOnly = false,VoidCallback? onUserInteraction}) { 
     return Autocomplete<Map<String, dynamic>>(
       displayStringForOption: (option) => option['id'] as String,
       optionsBuilder: (textEditingValue) {
@@ -3616,20 +3813,25 @@ Widget _buildAbaReferenciaComercial({Key? key}) {
       },
       onSelected: (selection) {
         _populateCidadeFields(selection);
+        _checkSubcollectionInputChanges(); // Adicionado para detectar mudanças na subcoleção
       },
       fieldViewBuilder: (context, fieldController, focusNode, onFieldSubmitted) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_cidadeController.text != fieldController.text) {
-            fieldController.text = _cidadeController.text;
+          if (_cidadeRefBancariaController.text != fieldController.text) {
+            fieldController.text = _cidadeRefBancariaController.text;
           }
         });
         return CustomInputField(
+          maxLength: 5,
+          suffixText: '${_cidadeRefBancariaController.text.length}/5',
           controller: fieldController,
           focusNode: focusNode,
           label: "Cidade",
           readOnly: readOnly,
+          onUserInteraction: onUserInteraction,
           onChanged: (value) {
-            _cidadeController.text = value;
+            _cidadeRefBancariaController.text = value;
+            _checkSubcollectionInputChanges(); // Adicionado para detectar mudanças na subcoleção
             final exactMatches = _allCidades
                 .where((item) => (item['id'] as String?)?.toLowerCase() == value.toLowerCase())
                 .toList();
@@ -3643,57 +3845,60 @@ Widget _buildAbaReferenciaComercial({Key? key}) {
   }
 
   // NOVO MÉTODO: _buildCidadeAutocompleteRefComercial (cópia de _buildCidadeAutocomplete)
-Widget _buildCidadeAutocompleteRefComercial() {
-  return Autocomplete<Map<String, dynamic>>(
-    displayStringForOption: (option) => option['id'] as String,
-    optionsBuilder: (textEditingValue) {
-      if (textEditingValue.text.isEmpty) return const Iterable.empty();
-      return _allCidades.where((option) {
-        final id = option['id']?.toString().toLowerCase() ?? '';
-        final cidade = option['cidade']?.toString().toLowerCase() ?? '';
-        final input = textEditingValue.text.toLowerCase();
-        return id.contains(input) || cidade.contains(input);
-      });
-    },
-    onSelected: (selection) {
-      _populateCidadeRefComercialFields(selection); // NOVO método de população
-      _setUnsavedChanges(true); // Marcar como alterado
-    },
-    fieldViewBuilder: (context, fieldController, focusNode, onFieldSubmitted) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_cidadeRefComercialController.text != fieldController.text) {
-          fieldController.text = _cidadeRefComercialController.text;
-        }
-      });
-      return CustomInputField(
-        controller: fieldController,
-        focusNode: focusNode,
-        label: "Cidade",
-        onChanged: (value) {
-          _cidadeRefComercialController.text = value;
-          _setUnsavedChanges(true); // Marcar como alterado
-          final exactMatches = _allCidades
-              .where((item) => (item['id'] as String?)?.toLowerCase() == value.toLowerCase())
-              .toList();
-          if (exactMatches.length == 1) {
-            _populateCidadeRefComercialFields(exactMatches.first);
+Widget _buildCidadeAutocompleteRefComercial({VoidCallback? onUserInteraction}) {
+    return Autocomplete<Map<String, dynamic>>(
+      displayStringForOption: (option) => option['id'] as String,
+      optionsBuilder: (textEditingValue) {
+        if (textEditingValue.text.isEmpty) return const Iterable.empty();
+        return _allCidades.where((option) {
+          final id = option['id']?.toString().toLowerCase() ?? '';
+          final cidade = option['cidade']?.toString().toLowerCase() ?? '';
+          final input = textEditingValue.text.toLowerCase();
+          return id.contains(input) || cidade.contains(input);
+        });
+      },
+      onSelected: (selection) {
+        _populateCidadeRefComercialFields(selection); // NOVO método de população
+        _checkSubcollectionInputChanges(); // Adicionado para detectar mudanças na subcoleção
+      },
+      fieldViewBuilder: (context, fieldController, focusNode, onFieldSubmitted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_cidadeRefComercialController.text != fieldController.text) {
+            fieldController.text = _cidadeRefComercialController.text;
           }
-        },
-      );
-    },
-  );
-}
+        });
+        return CustomInputField(
+          controller: fieldController,
+          maxLength: 5,
+          suffixText: '${_cidadeRefComercialController.text.length}/5',
+          focusNode: focusNode,
+          label: "Cidade",
+          onUserInteraction: onUserInteraction,
+          onChanged: (value) {
+            _cidadeRefComercialController.text = value;
+            _checkSubcollectionInputChanges(); // Adicionado para detectar mudanças na subcoleção
+            final exactMatches = _allCidades
+                .where((item) => (item['id'] as String?)?.toLowerCase() == value.toLowerCase())
+                .toList();
+            if (exactMatches.length == 1) {
+              _populateCidadeRefComercialFields(exactMatches.first);
+            }
+          },
+        );
+      },
+    );
+  }
 
 // NOVO MÉTODO: _populateCidadeRefComercialFields
 void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
-  setState(() {
-    _cidadeRefComercialController.text = cidadeData['id'] ?? '';
-    _cidadeRefComercialController.text = cidadeData['cidade'] ?? ''; // Pode ser o nome da cidade aqui
-  });
-}
+    setState(() {
+      _cidadeRefComercialController.text = cidadeData['id'] ?? '';
+      _resulcidadeRefComercialController.text = cidadeData['cidade'] ?? ''; // Pode ser o nome da cidade aqui
+    });
+  }
 
   // MODIFICAR MÉTODO: _buildCidadeAutocompleteEnderecoCobranca (Adicionar readOnly)
-  Widget _buildCidadeAutocompleteEnderecoCobranca({bool readOnly = false}) { // Adicionar readOnly aqui
+  Widget _buildCidadeAutocompleteEnderecoCobranca({bool readOnly = false,VoidCallback? onUserInteraction}) { // Adicionar readOnly aqui
     return Autocomplete<Map<String, dynamic>>(
       displayStringForOption: (option) => option['id'] as String,
       optionsBuilder: (textEditingValue) {
@@ -3717,10 +3922,13 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
         });
         return CustomInputField(
           controller: fieldController,
+          maxLength: 5,
+          suffixText: '${_cidadeCobrancaController.text.length}/5',
           focusNode: focusNode,
           label: "Cidade",
           readOnly: readOnly, // Passar o readOnly para o CustomInputField
           fillColor: readOnly ? Colors.grey[300] : Colors.white,
+          onUserInteraction: onUserInteraction,
           onChanged: (value) {
             _cidadeCobrancaController.text = value;
             _setUnsavedChanges(true); // Marcar como alterado
@@ -3737,7 +3945,7 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
   }
 
   // MODIFICAR MÉTODO: _buildCidadeAutocompleteCorrespondencia (Adicionar readOnly)
-  Widget _buildCidadeAutocompleteCorrespondencia({bool readOnly = false}) { // Adicionar readOnly aqui
+  Widget _buildCidadeAutocompleteCorrespondencia({bool readOnly = false,VoidCallback? onUserInteraction}) { // Adicionar readOnly aqui
     return Autocomplete<Map<String, dynamic>>(
       displayStringForOption: (option) => option['id'] as String,
       optionsBuilder: (textEditingValue) {
@@ -3760,11 +3968,14 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
           }
         });
         return CustomInputField(
+          maxLength: 5,
+          suffixText: '${_cidadeCorrespondenciaController.text.length}/5',
           controller: fieldController,
           focusNode: focusNode,
           label: "Cidade",
           readOnly: readOnly, // Passar o readOnly para o CustomInputField
           fillColor: readOnly ? Colors.grey[300] : Colors.white,
+          onUserInteraction: onUserInteraction,
           onChanged: (value) {
             _cidadeCorrespondenciaController.text = value;
             _setUnsavedChanges(true); // Marcar como alterado
@@ -3782,7 +3993,7 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
 
 
   // MODIFICAR MÉTODO: _buildCidadeAutocompleteEntrega (Adicionar readOnly)
-  Widget _buildCidadeAutocompleteEntrega({bool readOnly = false}) { // Adicionar readOnly aqui
+  Widget _buildCidadeAutocompleteEntrega({bool readOnly = false,VoidCallback? onUserInteraction}) { // Adicionar readOnly aqui
     return Autocomplete<Map<String, dynamic>>(
       displayStringForOption: (option) => option['id'] as String,
       optionsBuilder: (textEditingValue) {
@@ -3806,10 +4017,13 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
         });
         return CustomInputField(
           controller: fieldController,
+          maxLength: 5,
+          suffixText: '${_cidadeEntregaController.text.length}/5',
           focusNode: focusNode,
           label: "Cidade",
           readOnly: readOnly, // Passar o readOnly para o CustomInputField
           fillColor: readOnly ? Colors.grey[300] : Colors.white,
+          onUserInteraction: onUserInteraction,
           onChanged: (value) {
             _cidadeEntregaController.text = value;
             _setUnsavedChanges(true); // Marcar como alterado
@@ -3826,7 +4040,7 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
   }
 
 
-  Widget _buildCargoAutocomplete() {
+  Widget _buildCargoAutocomplete({VoidCallback? onUserInteraction}) {
     return Autocomplete<Map<String, dynamic>>(
       displayStringForOption: (option) => option['id'] as String, // Mostra o código no campo
       //displayStringForOption: (option) => option['descricao'] as String, // Mostra a descrição
@@ -3850,9 +4064,12 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
           }
         });
         return CustomInputField(
+          maxLength: 5,
+          suffixText: '${_cargoContatoController.text.length}/5',
           controller: fieldController,
           focusNode: focusNode,
           label: "Cargo",
+          onUserInteraction: onUserInteraction,
           onChanged: (value) {
             _cargoContatoController.text = value;
             final exactMatches = _allCargos
@@ -3871,7 +4088,7 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
     );
   }
 
-  Widget _buildCargoAutocomplete2() {
+  Widget _buildCargoAutocomplete2({VoidCallback? onUserInteraction}) {
     return Autocomplete<Map<String, dynamic>>(
       displayStringForOption: (option) => option['id'] as String,
       optionsBuilder: (textEditingValue) {
@@ -3894,11 +4111,14 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
           }
         });
         return CustomInputField(
+          maxLength: 5,
+          suffixText: '${_cargoController.text.length}/5',
           controller: fieldController,
           focusNode: focusNode,
           label: "Cargo",
           keyboardType: TextInputType.number,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          onUserInteraction: onUserInteraction,
           onChanged: (value) {
             _cargoController.text = value;
             final exactMatches = _allCargos
@@ -3971,8 +4191,8 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                       flex: 3,
                       child: CustomInputField(
                         controller: _1Controller,
-                        label: "1",
-                        maxLength: 35,
+                        label: "1",onUserInteraction: () => _setUnsavedChanges(true),
+                        maxLength: 60,
                         suffixText: '${_1Controller.text.length}/60',
 
                         //validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null
@@ -3985,8 +4205,8 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                       flex: 3,
                       child: CustomInputField(
                         controller: _2Controller,
-                        label: "2",
-                        maxLength: 35,
+                        label: "2",onUserInteraction: () => _setUnsavedChanges(true),
+                        maxLength: 60,
                         suffixText: '${_2Controller.text.length}/60',
 
                         //validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null
@@ -3999,8 +4219,8 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                       flex: 3,
                       child: CustomInputField(
                         controller: _3Controller,
-                        label: "3",
-                        maxLength: 35,
+                        label: "3",onUserInteraction: () => _setUnsavedChanges(true),
+                        maxLength: 60,
                         suffixText: '${_3Controller.text.length}/60',
 
                         //validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null
@@ -4013,8 +4233,8 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                       flex: 3,
                       child: CustomInputField(
                         controller: _4Controller,
-                        label: "4",
-                        maxLength: 35,
+                        label: "4",onUserInteraction: () => _setUnsavedChanges(true),
+                        maxLength: 60,
                         suffixText: '${_4Controller.text.length}/60',
 
                         //validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null
@@ -4027,8 +4247,8 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                       flex: 3,
                       child: CustomInputField(
                         controller: _5Controller,
-                        label: "5",
-                        maxLength: 35,
+                        label: "5",onUserInteraction: () => _setUnsavedChanges(true),
+                        maxLength: 60,
                         suffixText: '${_5Controller.text.length}/60',
 
                         //validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null
@@ -4157,7 +4377,7 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                 flex: 1,
                 child: CustomInputField(
                     controller: _enderecoCobrancaController,
-                    label: "Endereço",
+                    label: "Endereço",onUserInteraction: () => _setUnsavedChanges(true),
                     suffixText: '${_enderecoCobrancaController.text.length}/45',
                     maxLength: 45,
                     readOnly: !_possuiEndCobran, // NOVO: readOnly baseado no checkbox
@@ -4172,7 +4392,7 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                 flex: 1,
                 child: CustomInputField(
                     controller: _numeroCobrancaController,
-                    label: "Numero",
+                    label: "Numero",onUserInteraction: () => _setUnsavedChanges(true),
                     suffixText: '${_numeroCobrancaController.text.length}/10',
                     maxLength: 10,
                     readOnly: !_possuiEndCobran, // NOVO: readOnly baseado no checkbox
@@ -4185,11 +4405,12 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                 flex: 1,
                 child: CustomInputField(
                     controller: _complementoCobrancaController,
-                    label: "Complemento",
+                    label: "Complemento",onUserInteraction: () => _setUnsavedChanges(true),
                     suffixText: '${_complementoCobrancaController.text.length}/20',
                     maxLength: 20,
                     readOnly: !_possuiEndCobran, // NOVO: readOnly baseado no checkbox
                     validator: (v) => (_possuiEndCobran && v!.isEmpty) ? 'Campo obrigatório' : null)),
+                    SizedBox(width: 10,),
           ],
         ),
         Row(
@@ -4199,7 +4420,7 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                 flex: 1,
                 child: CustomInputField(
                     controller: _bairroCobrancaController,
-                    label: "Bairro",
+                    label: "Bairro",onUserInteraction: () => _setUnsavedChanges(true),
                     suffixText: '${_bairroCobrancaController.text.length}/25',
                     maxLength: 25,
                     readOnly: !_possuiEndCobran, // NOVO: readOnly baseado no checkbox
@@ -4212,14 +4433,14 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
           children: [
             Expanded(flex: 1,
                 child: _buildCidadeAutocompleteEnderecoCobranca(
-                    readOnly: !_possuiEndCobran)), // NOVO: readOnly no autocomplete
+                    readOnly: !_possuiEndCobran,onUserInteraction: () => _setUnsavedChanges(true))), // NOVO: readOnly no autocomplete
             const SizedBox(width: 10),
             Expanded(
                 flex: 5,
                 child: CustomInputField(
                     controller: _respCidadeCobrancaController,
                     readOnly: true, // Sempre readOnly, mas o autocomplete só funciona se a cidade principal for editável
-                    label: "...",
+                    label: "...",onUserInteraction: () => _setUnsavedChanges(true),
                     validator: (v) => (_possuiEndCobran && v!.isEmpty) ? 'Campo obrigatório' : null)),
             const SizedBox(width: 10),
           ],
@@ -4231,7 +4452,7 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                 flex: 1,
                 child: CustomInputField(
                   controller: _cepCobrancaController,
-                  label: "CEP",
+                  label: "CEP",onUserInteraction: () => _setUnsavedChanges(true),
                   suffixText: '${_cepCobrancaController.text.length}/9',
                   maxLength: 9,
                   readOnly: !_possuiEndCobran, // NOVO: readOnly baseado no checkbox
@@ -4260,7 +4481,7 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                     suffixText: '${_attController.text.length}/30',
                     maxLength: 30,
                     readOnly: !_possuiEndCobran, // NOVO: readOnly baseado no checkbox
-                    label: 'Att',
+                    label: 'Att',onUserInteraction: () => _setUnsavedChanges(true),
                     validator: (v) => (_possuiEndCobran && v!.isEmpty) ? 'Campo obrigatório' : null)),
             const SizedBox(width: 10),
           ],
@@ -4385,7 +4606,7 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                 flex: 1,
                 child: CustomInputField(
                     controller: _enderecoCorrespondenciaController,
-                    label: "Endereço",
+                    label: "Endereço",onUserInteraction: () => _setUnsavedChanges(true),
                     maxLength: 45,
                     suffixText: '${_enderecoCorrespondenciaController.text.length}/45',
                     readOnly: !_possuiEndCorrespondencia, // NOVO: readOnly baseado no checkbox
@@ -4400,7 +4621,7 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                 flex: 1,
                 child: CustomInputField(
                     controller: _numeroCorrespondenciaController,
-                    label: "Numero",
+                    label: "Numero",onUserInteraction: () => _setUnsavedChanges(true),
                     maxLength: 10,
                     suffixText: '${_numeroCorrespondenciaController.text.length}/10',
                     readOnly: !_possuiEndCorrespondencia, // NOVO: readOnly baseado no checkbox
@@ -4413,11 +4634,13 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                 flex: 1,
                 child: CustomInputField(
                     controller: _complementoCorrespondenciaController,
-                    label: "Complemento",
+                    label: "Complemento",onUserInteraction: () => _setUnsavedChanges(true),
                     suffixText: '${_complementoCorrespondenciaController.text.length}/20',
                     maxLength: 20,
                     readOnly: !_possuiEndCorrespondencia, // NOVO: readOnly baseado no checkbox
                     validator: (v) => (_possuiEndCorrespondencia && v!.isEmpty) ? 'Campo obrigatório' : null)),
+            SizedBox(width: 10,),
+
           ],
         ),
         Row(
@@ -4427,7 +4650,7 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                 flex: 1,
                 child: CustomInputField(
                     controller: _bairroCorrespondenciaController,
-                    label: "Bairro",
+                    label: "Bairro",onUserInteraction: () => _setUnsavedChanges(true),
                     suffixText: '${_bairroCorrespondenciaController.text.length}/25',
                     maxLength: 25,
                     readOnly: !_possuiEndCorrespondencia, // NOVO: readOnly baseado no checkbox
@@ -4440,14 +4663,14 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
           children: [
             Expanded(flex: 1,
                 child: _buildCidadeAutocompleteCorrespondencia(
-                    readOnly: !_possuiEndCorrespondencia)), // NOVO: readOnly no autocomplete
+                    readOnly: !_possuiEndCorrespondencia,onUserInteraction: () => _setUnsavedChanges(true))), // NOVO: readOnly no autocomplete
             const SizedBox(width: 10),
             Expanded(
                 flex: 5,
                 child: CustomInputField(
                     controller: _respCidadeCorrespondenciaController,
                     readOnly: true, // Sempre readOnly
-                    label: "...",
+                    label: "...",onUserInteraction: () => _setUnsavedChanges(true),
                     validator: (v) => (_possuiEndCorrespondencia && v!.isEmpty) ? 'Campo obrigatório' : null)),
             const SizedBox(width: 10),
           ],
@@ -4459,7 +4682,7 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                 flex: 1,
                 child: CustomInputField(
                   controller: _cepCorrespondenciaController,
-                  label: "CEP",
+                  label: "CEP",onUserInteraction: () => _setUnsavedChanges(true),
                   maxLength: 20,
                   suffixText: '${_cepCorrespondenciaController.text.length}/9',
                   readOnly: !_possuiEndCorrespondencia, // NOVO: readOnly baseado no checkbox
@@ -4488,7 +4711,7 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                     maxLength: 30,
                     suffixText: '${_attCorrespondenciaController.text.length}/30',
                     readOnly: !_possuiEndCorrespondencia, // NOVO: readOnly baseado no checkbox
-                    label: 'Att',
+                    label: 'Att',onUserInteraction: () => _setUnsavedChanges(true),
                     validator: (v) => (_possuiEndCorrespondencia && v!.isEmpty) ? 'Campo obrigatório' : null)),
             const SizedBox(width: 10),
           ],
@@ -4616,7 +4839,7 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                 flex: 1,
                 child: CustomInputField(
                     controller: _enderecoEntregaController,
-                    label: "Endereço",
+                    label: "Endereço",onUserInteraction: () => _setUnsavedChanges(true),
                     suffixText: '${_enderecoEntregaController.text.length}/45',
                     maxLength: 45,
                     readOnly: !_possuiEndEntrega, // NOVO: readOnly baseado no checkbox
@@ -4631,7 +4854,7 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                 flex: 1,
                 child: CustomInputField(
                     controller: _numeroEntregaController,
-                    label: "Numero",
+                    label: "Numero",onUserInteraction: () => _setUnsavedChanges(true),
                     suffixText: '${_numeroEntregaController.text.length}/10',
                     maxLength: 10,
                     readOnly: !_possuiEndEntrega, // NOVO: readOnly baseado no checkbox
@@ -4644,11 +4867,12 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                 flex: 1,
                 child: CustomInputField(
                     controller: _complementoEntregaController,
-                    label: "Complemento",
+                    label: "Complemento",onUserInteraction: () => _setUnsavedChanges(true),
                     suffixText: '${_complementoEntregaController.text.length}/20',
                     maxLength: 20,
                     readOnly: !_possuiEndEntrega, // NOVO: readOnly baseado no checkbox
                     validator: (v) => (_possuiEndEntrega && v!.isEmpty) ? 'Campo obrigatório' : null)),
+            SizedBox(width: 10,),
           ],
         ),
         Row(
@@ -4658,7 +4882,7 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                 flex: 1,
                 child: CustomInputField(
                     controller: _bairroEntregaController,
-                    label: "Bairro",
+                    label: "Bairro",onUserInteraction: () => _setUnsavedChanges(true),
                     suffixText: '${_bairroEntregaController.text.length}/25',
                     maxLength: 25,
                     readOnly: !_possuiEndEntrega, // NOVO: readOnly baseado no checkbox
@@ -4671,14 +4895,14 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
           children: [
             Expanded(flex: 1,
                 child: _buildCidadeAutocompleteEntrega(
-                    readOnly: !_possuiEndEntrega)), // NOVO: readOnly no autocomplete
+                    readOnly: !_possuiEndEntrega,onUserInteraction: () => _setUnsavedChanges(true))), // NOVO: readOnly no autocomplete
             const SizedBox(width: 10),
             Expanded(
                 flex: 5,
                 child: CustomInputField(
                     controller: _respCidadeEntregaController,
                     readOnly: true, // Sempre readOnly
-                    label: "...",
+                    label: "...",onUserInteraction: () => _setUnsavedChanges(true),
                     validator: (v) => (_possuiEndEntrega && v!.isEmpty) ? 'Campo obrigatório' : null)),
             const SizedBox(width: 10),
           ],
@@ -4690,7 +4914,7 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                 flex: 1,
                 child: CustomInputField(
                   controller: _cepEntregaController,
-                  label: "CEP",
+                  label: "CEP",onUserInteraction: () => _setUnsavedChanges(true),
                   maxLength: 20,
                   suffixText: '${_cepEntregaController.text.length}/9',
                   readOnly: !_possuiEndEntrega, // NOVO: readOnly baseado no checkbox
@@ -4719,7 +4943,7 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                     maxLength: 30,
                     suffixText: '${_attEntregaController.text.length}/30',
                     readOnly: !_possuiEndEntrega, // NOVO: readOnly baseado no checkbox
-                    label: 'Att',
+                    label: 'Att',onUserInteraction: () => _setUnsavedChanges(true),
                     validator: (v) => (_possuiEndEntrega && v!.isEmpty) ? 'Campo obrigatório' : null)),
             const SizedBox(width: 10),
           ],
@@ -4756,7 +4980,7 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                 flex: 1,
                 child: CustomInputField(
                     controller: _sequenciaContatoController,
-                    label: "Sequencia",
+                    label: "Sequencia",onUserInteraction: () => _checkSubcollectionInputChanges(), 
                     maxLength: 1,
                     suffixText: '${_sequenciaContatoController.text.length}/1',
                     inputFormatters: [
@@ -4770,7 +4994,7 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                     controller: _nomeContatoController,
                     //inputFormatters: [FilteringTextInputFormatter.digitsOnly,],
                     maxLength: 40,
-                    label: "Nome",
+                    label: "Nome",onUserInteraction: () => _checkSubcollectionInputChanges(), 
                     suffixText: '${_nomeContatoController.text.length}/40',
                     validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null)),
             const SizedBox(width: 10),
@@ -4779,7 +5003,7 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                 child: CustomInputField(
                     controller: _dataNascimentoContatoController,
                     //readOnly: true,
-                    label: "Dt Nasc D/M",
+                    label: "Dt Nasc D/M",onUserInteraction: () => _checkSubcollectionInputChanges(), 
                     suffixText: '${_dataNascimentoContatoController.text.length}/5',
                     maxLength: 5,
                     inputFormatters: [DateInputFormatter()], // Aplicar DateInputFormatter
@@ -4790,7 +5014,7 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Expanded(flex: 1, child: _buildCargoAutocomplete()),
+            Expanded(flex: 1, child: _buildCargoAutocomplete(onUserInteraction: () => _checkSubcollectionInputChanges())),
             const SizedBox(width: 10),
             Expanded(
                 flex: 5,
@@ -4799,7 +5023,7 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                     //inputFormatters: [FilteringTextInputFormatter.digitsOnly,],
                     //maxLength: 5,
                     readOnly: true,
-                    label: "...",
+                    label: "...",onUserInteraction: () => _checkSubcollectionInputChanges(), 
                     validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null)),
             const SizedBox(width: 10),
           ],
@@ -4811,7 +5035,7 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                 flex: 1,
                 child: CustomInputField(
                     controller: _emailContatoController,
-                    label: "E-mail",
+                    label: "E-mail",onUserInteraction: () => _checkSubcollectionInputChanges(), 
                     suffixText: '${_emailContatoController.text.length}/40',
                     maxLength: 40,
                     //inputFormatters: [FilteringTextInputFormatter.digitsOnly,],
@@ -4826,7 +5050,7 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                 flex: 1,
                 child: CustomInputField(
                     controller: _obsContatoController,
-                    label: "Obs",
+                    label: "Obs",onUserInteraction: () => _checkSubcollectionInputChanges(), 
                     suffixText: '${_obsContatoController.text.length}/40',
                     maxLength: 40,
                     //inputFormatters: [FilteringTextInputFormatter.digitsOnly,],
@@ -4866,7 +5090,16 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
             return SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: DataTable(
-                columns: [
+              headingRowColor: WidgetStateProperty.all<Color>(Colors.blue[200]!), // Cor do cabeçalho
+              dataRowColor: WidgetStateProperty.all<Color>(Colors.white),       // Cor do corpo da tabela
+              // --- FIM DAS MODIFICAÇÕES ---
+              border: TableBorder(
+                top: BorderSide(color: Colors.black),
+                right: BorderSide(color: Colors.black),
+                left: BorderSide(color: Colors.black),
+                bottom: BorderSide(color: Colors.black),
+                horizontalInside: BorderSide(color: Colors.blue)),
+              columns: [
                   DataColumn(
                       label: SizedBox(width: _getColumnWidth('sequencia contato'), child: Text('Seq.'))),
                   DataColumn(
@@ -4935,6 +5168,9 @@ class CpfCnpjFormatter extends TextInputFormatter {
       return CpfInputFormatter().formatEditUpdate(oldValue, newValue);
     } else { // Assume CNPJ
       return CnpjInputFormatter().formatEditUpdate(oldValue, newValue);
+
     }
   }
+
+  
 }
