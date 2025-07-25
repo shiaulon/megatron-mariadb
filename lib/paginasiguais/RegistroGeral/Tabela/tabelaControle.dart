@@ -440,8 +440,8 @@ class _TabelaControleState extends State<TabelaControle> {
                           breakpoint: 700.0,
                           mainCompanyId: widget.mainCompanyId, // Passa
                           secondaryCompanyId: widget.secondaryCompanyId, // Passa
-                          userRole: widget.userRole, // Passa
-                        ),
+                          //userRole: widget.userRole,
+                          ),
                             ),
                             // Área Central: Agora com o retângulo de informações E o título
                             Expanded( // <-- ONDE A MUDANÇA OCORRE: Este Expanded é o pai do título e do container azul
@@ -496,7 +496,8 @@ class _TabelaControleState extends State<TabelaControle> {
                           breakpoint: 700.0,
                           mainCompanyId: widget.mainCompanyId, // Passa
                           secondaryCompanyId: widget.secondaryCompanyId, // Passa
-                          userRole: widget.userRole,),
+                          //userRole: widget.userRole,
+                          ),
                         _buildCentralInputArea(), // Área de entrada de dados abaixo do menu
                       ],
                     ),

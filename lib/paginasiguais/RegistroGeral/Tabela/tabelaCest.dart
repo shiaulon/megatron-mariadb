@@ -178,7 +178,8 @@ class _TabelaCestState extends State<TabelaCest> {
                           breakpoint: 700.0,
                           mainCompanyId: widget.mainCompanyId, // Passa
                           secondaryCompanyId: widget.secondaryCompanyId, // Passa
-                          userRole: widget.userRole,),
+                          //userRole: widget.userRole,
+                          ),
                             ),
                             // Área Central: Agora com o retângulo de informações E o título
                             Expanded(
@@ -240,7 +241,8 @@ class _TabelaCestState extends State<TabelaCest> {
                           breakpoint: 700.0,
                           mainCompanyId: widget.mainCompanyId, // Passa
                           secondaryCompanyId: widget.secondaryCompanyId, // Passa
-                          userRole: widget.userRole,),
+                          //userRole: widget.userRole,
+                          ),
                         _buildCentralInputArea(), // Área de entrada de dados abaixo do menu
                       ],
                     ),

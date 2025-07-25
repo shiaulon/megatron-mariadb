@@ -19,7 +19,9 @@ import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaS
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaTipoBemCredito.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaTipoHistorico.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tipoTelefone.dart';
+import 'package:flutter_application_1/providers/permission_provider.dart';
 import 'package:flutter_application_1/registroGeral/manut_rg.dart';
+import 'package:provider/provider.dart';
 
 // NOVO WIDGET: Item de menu com efeito de hover
 class HoverMenuItem extends StatefulWidget {
@@ -170,7 +172,7 @@ class AppDrawer extends StatelessWidget {
   final double breakpoint; // Adicione o breakpoint como parâmetro
   final String mainCompanyId;
   final String secondaryCompanyId;
-  final String? userRole;
+  //final String? userRole;
 
   const AppDrawer({
     Key? key,
@@ -178,7 +180,7 @@ class AppDrawer extends StatelessWidget {
     required this.breakpoint,
     required this.mainCompanyId,
     required this.secondaryCompanyId,
-    this.userRole,
+    //this.userRole,
   }) : super(key: key);
 
   // Widget auxiliar para construir itens de menu individuais
@@ -212,6 +214,7 @@ class AppDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final permissionProvider = Provider.of<PermissionProvider>(context); // Acessa o provider
     return Container(
       margin: parentMaxWidth > breakpoint
           ? const EdgeInsets.only(right: 10.0, top: 10.0, bottom: 10.0)
@@ -224,7 +227,94 @@ class AppDrawer extends StatelessWidget {
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
-          const Padding(
+          if (permissionProvider.hasAccess(['registro_geral', 'acesso']))
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16.0, horizontal: 12.0),
+                  child: Text(
+                    'REGISTRO GERAL',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black),
+                  ),
+                ),
+                // Submenu "Tabelas"
+                if (permissionProvider.hasAccess(['registro_geral', 'tabelas', 'acesso']))
+                  _buildMenuItemWithSubitems(context, 'Tabelas', Icons.table_chart, [
+                    if (permissionProvider.hasAccess(['registro_geral', 'tabelas', 'controle']))
+                      _buildSubMenuItem(context, 'Controle', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => TabelaControle(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId)))),
+                    if (permissionProvider.hasAccess(['registro_geral', 'tabelas', 'pais']))
+                      _buildSubMenuItem(context, 'País', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => TabelaPais(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId)))),
+                    if (permissionProvider.hasAccess(['registro_geral', 'tabelas', 'estado']))
+                      _buildSubMenuItem(context, 'Estado', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => TabelaEstado(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId)))),
+                    if (permissionProvider.hasAccess(['registro_geral', 'tabelas', 'estado_x_imposto']))
+                      _buildSubMenuItem(context, 'Estado x Imposto', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => TabelaEstadoXImposto(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId)))),
+                    if (permissionProvider.hasAccess(['registro_geral', 'tabelas', 'cidade']))
+                      _buildSubMenuItem(context, 'Cidade', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => TabelaCidade(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId)))),
+                    if (permissionProvider.hasAccess(['registro_geral', 'tabelas', 'natureza']))
+                      _buildSubMenuItem(context, 'Natureza', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => NaturezaTela(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId)))),
+                    if (permissionProvider.hasAccess(['registro_geral', 'tabelas', 'situacao']))
+                      _buildSubMenuItem(context, 'Situação', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => TabelaSituacao(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId)))),
+                    if (permissionProvider.hasAccess(['registro_geral', 'tabelas', 'cargo']))
+                      _buildSubMenuItem(context, 'Cargo', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => TabelaCargo(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId)))),
+                    if (permissionProvider.hasAccess(['registro_geral', 'tabelas', 'tipo_telefone']))
+                      _buildSubMenuItem(context, 'Tipo Telefone', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => TabelaTipoTelefone(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId)))),
+                    if (permissionProvider.hasAccess(['registro_geral', 'tabelas', 'tipo_historico']))
+                      _buildSubMenuItem(context, 'Tipo Histórico', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => TabelaTipoHistorico(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId)))),
+                    if (permissionProvider.hasAccess(['registro_geral', 'tabelas', 'tipo_bem_credito']))
+                      _buildSubMenuItem(context, 'Tipo Bem Crédito', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => TabelaTipoBemCredito(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId)))),
+                    if (permissionProvider.hasAccess(['registro_geral', 'tabelas', 'condicao_pagamento']))
+                      _buildSubMenuItem(context, 'Condição Pagamento', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => TabelaCondicaoPagamento(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId)))),
+                    if (permissionProvider.hasAccess(['registro_geral', 'tabelas', 'ibge_x_cidade']))
+                      _buildSubMenuItem(context, 'IBGE x Cidade', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => TabelaIBGEXCidade(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId)))),
+                    if (permissionProvider.hasAccess(['registro_geral', 'tabelas', 'como_nos_conheceu']))
+                      _buildSubMenuItem(context, 'Como nos Conheceu', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => TabelaComoNosConheceu(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId)))),
+                    if (permissionProvider.hasAccess(['registro_geral', 'tabelas', 'atividade_empresa']))
+                      _buildSubMenuItem(context, 'Atividade Empresa', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => TabelaAtividadeEmpresas(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId)))),
+                    if (permissionProvider.hasAccess(['registro_geral', 'tabelas', 'tabela_cest']))
+                      _buildSubMenuItem(context, 'Tabela CEST', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => TabelaCest(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId)))),
+                    if (permissionProvider.hasAccess(['registro_geral', 'tabelas', 'manut_tab_governo_ncm_imposto']))
+                      _buildSubMenuItem(context, 'Manut Tab Governo NCM Imposto', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => TabelaManutTabGovNcmImposto(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId)))),
+                    if (permissionProvider.hasAccess(['registro_geral', 'tabelas', 'fazenda']))
+                      _buildSubMenuItem(context, 'Fazenda', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => TabelaFazenda(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId)))),
+                    if (permissionProvider.hasAccess(['registro_geral', 'tabelas', 'natureza_rendimento']))
+                      _buildSubMenuItem(context, 'Natureza Rendimento', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => TabelaNaturezaRendimento(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId)))),
+                  ]),
+                // Submenu "Registro Geral" (manut RG)
+                if (permissionProvider.hasAccess(['registro_geral', 'registro_geral_manut', 'acesso']))
+                  _buildMenuItemWithSubitems(context, 'Registro Geral', Icons.app_registration, [
+                    if (permissionProvider.hasAccess(['registro_geral', 'registro_geral_manut', 'manut_rg']))
+                      _buildSubMenuItem(context, 'Manut RG', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => PaginaComAbasLaterais(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId)))),
+                  ]),
+              ],
+            ),
+          // OUTROS BLOCOS DO MENU PRINCIPAL
+          if (permissionProvider.hasAccess(['credito', 'acesso']))
+            _buildMenuItem(context, 'Crédito', Icons.credit_card, () => print('Clicou em Crédito')),
+          if (permissionProvider.hasAccess(['relatorio', 'acesso']))
+            _buildMenuItem(context, 'Relatório', Icons.bar_chart, () => print('Clicou em Relatório')),
+          if (permissionProvider.hasAccess(['relatorio_de_critica', 'acesso']))
+            _buildMenuItem(context, 'Relatório de Crítica', Icons.error_outline, () => print('Clicou em Relatório de Crítica')),
+          if (permissionProvider.hasAccess(['etiqueta', 'acesso']))
+            _buildMenuItem(context, 'Etiqueta', Icons.label_outline, () => print('Clicou em Etiqueta')),
+          if (permissionProvider.hasAccess(['contatos_geral', 'acesso']))
+            _buildMenuItem(context, 'Contatos Geral', Icons.contacts, () => print('Clicou em Contatos Geral')),
+          if (permissionProvider.hasAccess(['portaria', 'acesso']))
+            _buildMenuItem(context, 'Portaria', Icons.security, () => print('Clicou em Portaria')),
+          if (permissionProvider.hasAccess(['qualificacao_rg', 'acesso']))
+            _buildMenuItem(context, 'Qualificação RG', Icons.verified_user, () => print('Clicou em Qualificação RG')),
+          if (permissionProvider.hasAccess(['area_rg', 'acesso']))
+            _buildMenuItem(context, 'Área RG', Icons.area_chart, () => print('Clicou em Área RG')),
+          if (permissionProvider.hasAccess(['tabela_preco_x_rg', 'acesso']))
+            _buildMenuItem(context, 'Tabela Preço X RG', Icons.price_change, () => print('Clicou em Tabela Preço X RG')),
+          if (permissionProvider.hasAccess(['modulo_especial', 'acesso']))
+            _buildMenuItem(context, 'Módulo Especial', Icons.extension, () => print('Clicou em Módulo Especial')),
+          if (permissionProvider.hasAccess(['crm', 'acesso']))
+            _buildMenuItem(context, 'CRM', Icons.support_agent, () => print('Clicou em CRM')),
+          if (permissionProvider.hasAccess(['follow_up', 'acesso']))
+            _buildMenuItem(context, 'Follow-up', Icons.follow_the_signs, () => print('Clicou em Follow-up')),
+        ],
+          /*const Padding(
             padding: EdgeInsets.symmetric(vertical: 16.0, horizontal: 12.0),
             child: Text(
               'REGISTRO GERAL',
@@ -254,9 +344,9 @@ class AppDrawer extends StatelessWidget {
 
           ]),
           _buildMenuItemWithSubitems(context, 'Registro Geral', Icons.app_registration, [
-            _buildSubMenuItem(context, 'Manut RG', () => print('Clicou em Manut RG')),
-            _buildSubMenuItem(context, 'TEXTO', () => print('Clicou em TEXTO do submenu')),
-            _buildSubMenuItem(context, 'Teste', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  PaginaComAbasLaterais(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
+            _buildSubMenuItem(context, 'Manut RG', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  PaginaComAbasLaterais(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
+            //_buildSubMenuItem(context, 'TEXTO', () => print('Clicou em TEXTO do submenu')),
+           // _buildSubMenuItem(context, 'Teste', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  PaginaComAbasLaterais(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
 
           ]),
           _buildMenuItem(context, 'Crédito', Icons.credit_card, () => print('Clicou em Crédito')),
@@ -271,7 +361,7 @@ class AppDrawer extends StatelessWidget {
           _buildMenuItem(context, 'Módulo Especial', Icons.extension, () => print('Clicou em Módulo Especial')),
           _buildMenuItem(context, 'CRM', Icons.support_agent, () => print('Clicou em CRM')),
           _buildMenuItem(context, 'Follow-up', Icons.follow_the_signs, () => print('Clicou em Follow-up')),
-        ],
+        ],*/
       ),
     );
   }

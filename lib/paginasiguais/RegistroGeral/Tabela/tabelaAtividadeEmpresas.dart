@@ -152,7 +152,7 @@ Navigator.pushReplacement(
                           breakpoint: 700.0,
                           mainCompanyId: widget.mainCompanyId, // Passa
                           secondaryCompanyId: widget.secondaryCompanyId, // Passa
-                          userRole: widget.userRole,
+                          //userRole: widget.userRole,
                               ),
                             ),
                             Expanded(
@@ -206,7 +206,8 @@ Navigator.pushReplacement(
                           breakpoint: 700.0,
                           mainCompanyId: widget.mainCompanyId, // Passa
                           secondaryCompanyId: widget.secondaryCompanyId, // Passa
-                          userRole: widget.userRole,),
+                          //userRole: widget.userRole,
+                          ),
                         _buildCentralInputArea(),
                       ],
                     ),

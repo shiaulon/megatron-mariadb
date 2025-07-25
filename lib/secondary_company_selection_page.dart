@@ -3,18 +3,20 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_application_1/login_page.dart'; // Para logout
 import 'package:flutter_application_1/menu.dart'; // Sua TelaPrincipal
+import 'package:provider/provider.dart'; // Importe o Provider
+import 'package:flutter_application_1/providers/permission_provider.dart'; // Importe o PermissionProvider
 
 class SecondaryCompanySelectionPage extends StatefulWidget {
   final String mainCompanyId;
   // REMOVER allowedSecondaryCompanies do construtor
   // final List<String> allowedSecondaryCompanies; // <--- REMOVER ESTA LINHA
-  final String? userRole;
+  // final String? userRole; // REMOVER: Não é mais passado
 
   const SecondaryCompanySelectionPage({
     super.key,
     required this.mainCompanyId,
     // required this.allowedSecondaryCompanies, // <--- REMOVER ESTA LINHA
-    this.userRole,
+    // this.userRole, // REMOVER
   });
 
   @override
@@ -159,14 +161,17 @@ class _SecondaryCompanySelectionPageState extends State<SecondaryCompanySelectio
                           ),
                           subtitle: Text('ID: $companyId'),
                           trailing: const Icon(Icons.arrow_forward_ios, size: 18),
-                          onTap: () {
+                          onTap: () async{
+                            // NOVO: Carregar as permissões para a filial selecionada ANTES de navegar
+                            final permissionProvider = Provider.of<PermissionProvider>(context, listen: false);
+                            await permissionProvider.loadUserPermissions(FirebaseAuth.instance.currentUser!.uid); // <-- SEM activeSecondaryCompanyId aqui
+
                             Navigator.pushReplacement(
                               context,
                               MaterialPageRoute(
                                 builder: (context) => TelaPrincipal(
                                   mainCompanyId: widget.mainCompanyId,
                                   secondaryCompanyId: companyId,
-                                  userRole: widget.userRole,
                                 ),
                               ),
                             );

@@ -8,6 +8,10 @@ import 'package:flutter_application_1/registroGeral/manut_rg.dart';
 import 'package:flutter_application_1/submenus.dart';
 import 'login_page.dart';
 import 'menu.dart'; // Certifique-se de que TelaPrincipal está importada
+import 'package:flutter_application_1/models/permission_model.dart';
+import 'package:flutter_application_1/providers/permission_provider.dart';
+import 'package:provider/provider.dart'; // Importe o Provider
+
 
 void main() async {
   // Garante que os widgets do Flutter estejam inicializados antes de qualquer coisa
@@ -19,7 +23,15 @@ void main() async {
   );
   //await FirestoreInitializer().initializeFirestoreData();
 
-  runApp(const MyApp());
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => PermissionProvider()),
+        // ... outros providers
+      ],
+      child: MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget { // <--- Voltou a ser StatelessWidget

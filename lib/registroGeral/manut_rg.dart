@@ -11,6 +11,7 @@ import 'package:flutter_application_1/submenus.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:collection/collection.dart';
 
 // --- FORMATTERS E VALIDATORS (Copiados do seu código original) ---
 
@@ -67,18 +68,46 @@ class DateInputFormatter extends TextInputFormatter {
   TextEditingValue formatEditUpdate(
       TextEditingValue oldValue, TextEditingValue newValue) {
     var text = newValue.text;
-    if (newValue.selection.baseOffset == 0) return newValue;
+
+    // Se o valor estiver vazio ou a seleção for no início, apenas retorne o novo valor
+    if (newValue.selection.baseOffset == 0) {
+      return newValue;
+    }
+
+    // Remove todos os caracteres não-dígitos
+    String cleanText = text.replaceAll(RegExp(r'\D'), '');
     var buffer = StringBuffer();
-    for (int i = 0; i < text.length; i++) {
-      buffer.write(text[i]);
-      var nonZeroIndex = i + 1;
-      if (nonZeroIndex % 2 == 0 && nonZeroIndex != text.length) {
-        if (nonZeroIndex <= 4) buffer.write('/');
+
+    // Adiciona a primeira barra após os dois primeiros dígitos (dia)
+    if (cleanText.length >= 1) {
+      buffer.write(cleanText.substring(0, 1));
+    }
+    if (cleanText.length >= 2) {
+      buffer.write(cleanText.substring(1, 2));
+      // Se houver pelo menos 2 dígitos e ainda não for a string final, adicione '/'
+      if (cleanText.length > 2) {
+        buffer.write('/');
       }
     }
+    // Adiciona o mês
+    if (cleanText.length >= 3) {
+      buffer.write(cleanText.substring(2, 3));
+    }
+    if (cleanText.length >= 4) {
+      buffer.write(cleanText.substring(3, 4));
+    }
+
     var string = buffer.toString();
+
+    // Garante que o comprimento máximo seja respeitado (DD/MM = 5 caracteres)
+    if (string.length > 5) {
+      string = string.substring(0, 5);
+    }
+
     return newValue.copyWith(
-        text: string, selection: TextSelection.collapsed(offset: string.length));
+      text: string,
+      selection: TextSelection.collapsed(offset: string.length),
+    );
   }
 }
 
@@ -218,6 +247,8 @@ class _PaginaComAbasLateraisState extends State<PaginaComAbasLaterais> {
   List<Map<String, dynamic>> _allControlData = [];
   List<Map<String, dynamic>> _allCidades = [];
   List<Map<String, dynamic>> _allCargos = [];
+  List<Map<String, dynamic>> _allSituacoes = [];
+  Map<String, bool> _isFieldSelectedFromDropdown = {};
 
   // --- Controllers para todos os campos ---
   final TextEditingController _cepController = TextEditingController();
@@ -359,6 +390,13 @@ class _PaginaComAbasLateraisState extends State<PaginaComAbasLaterais> {
   _fetchAllControlData();
   _fetchAllCidades();
   _fetchAllCargos();
+  _fetchAllSituacoes(); 
+
+  _isFieldSelectedFromDropdown = {
+        'campoComum1': false,
+        'campoComum2': false,
+        'campoComum3': false,
+    };
 
   // Mantenha os listeners para os campos de busca que controlam a população/limpeza
   _campoComum1Controller.addListener(_updateStreams);
@@ -682,6 +720,15 @@ void _updateCounters() {
       .doc('cargos')
       .collection('items');
 
+  CollectionReference get _situacoesCollectionRef => FirebaseFirestore.instance
+    .collection('companies')
+    .doc(widget.mainCompanyId)
+    .collection('secondaryCompanies')
+    .doc(widget.secondaryCompanyId)
+    .collection('data')
+    .doc('situacoes') // Assumindo 'situacoes' como nome do documento pai
+    .collection('items');
+
   // Busca todos os dados para popular os dropdowns
   Future<void> _fetchAllControlData() async {
     setState(() => _isLoading = true);
@@ -728,6 +775,20 @@ void _updateCounters() {
     }
   }
 
+  Future<void> _fetchAllSituacoes() async {
+  try {
+    final querySnapshot = await _situacoesCollectionRef.get();
+    _allSituacoes = querySnapshot.docs.map((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      // Ajuste os campos 'id' e 'descricao' conforme a sua estrutura real de "situacoes"
+      return {'id': doc.id, 'descricao': data['descricao'] ?? 'Situação sem descrição'};
+    }).toList();
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao carregar situações: $e')));
+  }
+}
+
   // Preenche todos os campos com base no item selecionado no dropdown
   void _populateAllFields(Map<String, dynamic> data) {
     setState(() {
@@ -741,6 +802,14 @@ void _updateCounters() {
       } else {
         _dataInclusaoController.clear();
       }
+
+      _isFieldSelectedFromDropdown['campoComum1'] = true;
+      _isFieldSelectedFromDropdown['campoComum2'] = true;
+      _isFieldSelectedFromDropdown['campoComum3'] = true;
+
+      // Resetar flags de alteração, pois os dados foram carregados (estado "limpo").
+      _hasUnsavedChanges = false;
+      _hasSubcollectionInputChanges = false;
 
       
 
@@ -861,6 +930,22 @@ void _updateCounters() {
       // Resetar flags após o preenchimento programático.
     _hasUnsavedChanges = false;
     _hasSubcollectionInputChanges = false;
+    });
+  }
+
+  void _populateCidadeGeralFields(Map<String, dynamic> cidadeData) {
+    setState(() {
+      _cidadeController.text = cidadeData['id'] ?? ''; // Ou cidadeData['cidade'] se você quiser o nome completo
+      // Se você tiver um campo de "descrição" para a cidade, pode ser preenchido aqui.
+      // Por exemplo: _resulCidadeController.text = cidadeData['cidade'] ?? '';
+    });
+  }
+
+  void _populateSituacaoFields(Map<String, dynamic> situacaoData) {
+    setState(() {
+      _situacaoController.text = situacaoData['id'] ?? ''; // Assumindo que o ID é o valor que vai no campo de entrada
+      // Se houver um campo de 'descrição' adicional para situação, preencha-o aqui.
+      // Ex: _resulSituacaoController.text = situacaoData['descricao'] ?? '';
     });
   }
 
@@ -1035,7 +1120,13 @@ void _updateCounters() {
     _campoComum2Controller.clear();
     _campoComum3Controller.clear();
     _codigoGeradoController.clear();
-  }
+    // NEW: Clear selection status for search fields
+    setState(() {
+        _isFieldSelectedFromDropdown['campoComum1'] = false;
+        _isFieldSelectedFromDropdown['campoComum2'] = false;
+        _isFieldSelectedFromDropdown['campoComum3'] = false;
+    });
+}
 
   // Verifica se os campos de busca estão vazios para limpar o formulário
   void _handleClearCheck() {
@@ -1104,7 +1195,7 @@ void _updateCounters() {
       'campoComum3': _campoComum3Controller.text,
       'codigoGerado': _codigoGeradoController.text,
 
-      'sequencia ref comercial': _sequenciaRefComercialController.text,
+      /*'sequencia ref comercial': _sequenciaRefComercialController.text,
       'nome ref comercial': _nomeRefComercialController.text,
       'resul nome ref comercial': _resulNomeRefComercialController.text,
       'endereco ref comercial': _enderecoRefComercialController.text,
@@ -1112,7 +1203,7 @@ void _updateCounters() {
       'contato ref comercial': _contatoRefComercialController.text,
       'telefone ref comercial': _telefoneRefComercialController.text,
       'email ref comercial': _emailRefComercialController.text,
-      'obs ref comercial': _obsRefComercialController.text,
+      'obs ref comercial': _obsRefComercialController.text,*/
 
       'cep': _cepController.text,
       'endereco': _enderecoController.text,
@@ -1121,11 +1212,11 @@ void _updateCounters() {
       'bairro': _bairroController.text,
       'cidade': _cidadeController.text,
       'uf': _ufController.text,
-      'cx postal': _cxPostalController.text,
+      'cx. Postal': _cxPostalController.text,
       'como nos conheceu': _comoNosConheceuController.text,
       'portador': _portadorController.text,
       'tab desconto': _tabDescontoController.text,
-      'isnc suframa': _inscSuframaController.text,
+      'insc suframa': _inscSuframaController.text,
       'insc produtor': _inscProdutorController.text,
       'insc municipal': _inscMunicipalController.text,
       'vendedor': _vendedorController.text,
@@ -1362,7 +1453,7 @@ void _updateCounters() {
       'nome ref comercial': _nomeRefComercialController.text,
       'resul nome ref comercial': _resulNomeRefComercialController.text, // Campo "..."
       'endereco ref comercial': _enderecoRefComercialController.text,
-      'cidade ref comercial': _cidadeRefComercialController.text,
+      'cidade ref comercial': _resulcidadeRefComercialController.text,
       'contato ref comercial': _contatoRefComercialController.text,
       'telefone ref comercial': _telefoneRefComercialController.text,
       'email ref comercial': _emailRefComercialController.text,
@@ -1377,6 +1468,7 @@ void _updateCounters() {
       _resulNomeRefComercialController.clear();
       _enderecoRefComercialController.clear();
       _cidadeRefComercialController.clear();
+      _resulcidadeRefComercialController.clear();
       _contatoRefComercialController.clear();
       _telefoneRefComercialController.clear();
       _emailRefComercialController.clear();
@@ -1416,7 +1508,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
 
     final refData = {
       'sequencia ref banc': _sequenciaController.text, 'nome ref banc': _nomeRefBancariaController.text,
-      'endereco ref banc': _enderecoRefBancariaController.text, 'cidade ref banc': _cidadeRefBancariaController.text,
+      'endereco ref banc': _enderecoRefBancariaController.text, 'resul endereco ref banc': _resulEnderecoController.text,
       'contato ref banc': _contatoRefBancariaController.text, 'telefone ref banc': _telefoneRefBancariaController.text,
       'email ref banc': _emailRefBancariaController.text, 'obs ref banc': _obsRefBancariaController.text,
     };
@@ -1427,7 +1519,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
       _nomeRefBancariaController.clear();
       _enderecoRefBancariaController.clear();
       _cidadeRefBancariaController.clear();
-      ///_resulEnderecoController.clear();
+      _resulEnderecoController.clear();
       _cidadeController.clear();
       _contatoRefBancariaController.clear();
       _telefoneRefBancariaController.clear();
@@ -1628,8 +1720,8 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
             breakpoint: _breakpoint,
             mainCompanyId: widget.mainCompanyId,
             secondaryCompanyId: widget.secondaryCompanyId,
-            userRole: widget.userRole,
-          ),
+            //userRole: widget.userRole,
+                          ),
         ),
         Expanded(
           flex: 4,
@@ -2016,53 +2108,111 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
 
   // Widget reutilizável para criar um campo Autocomplete
   Widget _buildAutocompleteField(
-  TextEditingController controller,
-  String label,
-  String fieldKey, {
-  bool isRequired = false,
-  String? Function(String?)? validator,
-  List<TextInputFormatter>? inputFormatters,
-  int? maxLength, // ADD THIS PARAMETER HERE
-  VoidCallback? onUserInteraction,
+    TextEditingController controller,
+    String label,
+    String fieldKey, {
+    bool isRequired = false,
+    String? Function(String?)? validator,
+    List<TextInputFormatter>? inputFormatters,
+    int? maxLength,
+    VoidCallback? onUserInteraction,
 }) {
-  return Autocomplete<Map<String, dynamic>>(
-    displayStringForOption: (option) => option[fieldKey] as String,
-    optionsBuilder: (textEditingValue) {
-      if (textEditingValue.text.isEmpty) return const Iterable.empty();
-      return _allControlData.where((option) {
-        final fieldValue = option[fieldKey]?.toString().toLowerCase() ?? '';
-        return fieldValue.contains(textEditingValue.text.toLowerCase());
-      });
-    },
-    onSelected: (selection) {
-      _populateAllFields(selection);
-      FocusScope.of(context).unfocus();
-    },
-    fieldViewBuilder: (context, fieldController, focusNode, onFieldSubmitted) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (controller.text != fieldController.text) fieldController.text = controller.text;
-      });
-      return CustomInputField(
-        controller: fieldController,
-        
-        focusNode: focusNode,
-        label: label,
-        validator: validator,
-        inputFormatters: inputFormatters,
-        maxLength: maxLength, // PASS IT DOWN HERE
-        onUserInteraction: onUserInteraction,
-        onChanged: (value) {
-          controller.text = value;
-          // Trigger validation when text changes
-          // You might need to call setState to re-evaluate the form
-          if (_formKey.currentState?.validate() == false) {
-             // Do nothing, the validator will show the error
-          }
+    return Autocomplete<Map<String, dynamic>>(
+        displayStringForOption: (option) => option[fieldKey] as String,
+        optionsBuilder: (textEditingValue) {
+            if (textEditingValue.text.isEmpty) {
+                // Reset selection status if the field is cleared
+                _isFieldSelectedFromDropdown[fieldKey] = false; // NEW
+                return const Iterable.empty();
+            }
+            return _allControlData.where((option) {
+                final fieldValue = option[fieldKey]?.toString().toLowerCase() ?? '';
+                return fieldValue.contains(textEditingValue.text.toLowerCase());
+            });
         },
-      );
-    },
-  );
-}
+        onSelected: (selection) {
+          _populateAllFields(selection);
+          FocusScope.of(context).unfocus();
+          setState(() {
+            // NOVO: Quando uma opção é selecionada em QUALQUER campo de busca,
+            // consideramos que TODO o registro foi carregado e os campos de busca
+            // devem ser tratados como "selecionados" para evitar a validação de duplicidade.
+            _isFieldSelectedFromDropdown['campoComum1'] = true;
+            _isFieldSelectedFromDropdown['campoComum2'] = true;
+            _isFieldSelectedFromDropdown['campoComum3'] = true;
+
+            // Resetar flags de alterações para um estado "limpo" após carregar um registro.
+            _hasUnsavedChanges = false;
+            _hasSubcollectionInputChanges = false;
+          });
+        },
+        fieldViewBuilder: (context, fieldController, focusNode, onFieldSubmitted) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (controller.text != fieldController.text) {
+                    fieldController.text = controller.text;
+                }
+            });
+            return CustomInputField(
+                controller: fieldController,
+                focusNode: focusNode,
+                label: label,
+                validator: (value) {
+                    // Combine existing validator with new duplicate check
+                    final existingValidationError = validator?.call(value);
+                    if (existingValidationError != null) {
+                        return existingValidationError;
+                    }
+
+                    // NEW VALIDATION LOGIC
+                    if (value != null && value.isNotEmpty) {
+                        final lowerCaseValue = value.toLowerCase();
+                        final isDuplicate = _allControlData.any((option) =>
+                            (option[fieldKey]?.toString().toLowerCase() == lowerCaseValue));
+
+                        final isSelected = _isFieldSelectedFromDropdown[fieldKey] ?? false;
+
+                        if (isDuplicate && !isSelected) {
+                            // Clear the selection status if user types over an existing value
+                            // without selecting from dropdown again.
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                                setState(() {
+                                    _isFieldSelectedFromDropdown[fieldKey] = false;
+                                });
+                            });
+                            return 'Este registro já existe. Selecione do dropdown ou mude o valor.';
+                        }
+                    }
+                    return null; // No validation error
+                },
+                inputFormatters: inputFormatters,
+                maxLength: maxLength,
+                onUserInteraction: onUserInteraction,
+                onChanged: (value) {
+                  controller.text = value;
+                  // REMOVIDO: A lógica abaixo, pois queremos que _isFieldSelectedFromDropdown seja true
+                  // apenas se houver uma seleção explícita, e false caso contrário (se o usuário digitar).
+                  /*
+                  if (_isFieldSelectedFromDropdown[fieldKey] == true) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      setState(() {
+                        _isFieldSelectedFromDropdown[fieldKey] = false; // Remova esta linha
+                      });
+                    });
+                  }
+                  */
+                  // ADICIONADO: Se o usuário digita, a "seleção" se perde, então marque como false.
+                  // Isso é crucial para que a validação dispare se o valor digitado corresponder a um existente
+                  // E o usuário não selecionar do dropdown.
+                  setState(() {
+                      _isFieldSelectedFromDropdown[fieldKey] = false;
+                  });
+
+                  _formKey.currentState?.validate(); // Force validation check
+                },
+            );
+        },
+    );
+  }
 
   Widget _buildAbaDadosGerais({Key? key}) {
     return Padding(
@@ -2224,13 +2374,9 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                   const SizedBox(width: 10),
                   Expanded(
                       flex: 3,
-                      child: CustomInputField(
-                          controller: _cidadeController,
-                          suffixText: '${_cidadeController.text.length}/5',
-                          maxLength: 5,
-                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                          label: "Cidade",
-                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,onUserInteraction: () => _setUnsavedChanges(true),)),
+                      child: _buildCidadeAutocompleteGeral(
+                    onUserInteraction: () => _setUnsavedChanges(true),
+                  ),),
                   const SizedBox(width: 10),
                   Expanded(
                       flex: 1,
@@ -2359,13 +2505,9 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                   Expanded(flex: 1, child: SizedBox()),
                   Expanded(
                       flex: 3,
-                      child: CustomInputField(
-                          controller: _situacaoController,
-                          label: "Situação",
-                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                          maxLength: 5,
-                          suffixText: '${_situacaoController.text.length}/5',
-                          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,onUserInteraction: () => _setUnsavedChanges(true),)),
+                      child: _buildSituacaoAutocomplete(
+                    onUserInteraction: () => _setUnsavedChanges(true),
+                  ),),
                 ],
               ),
               Padding(
@@ -2471,7 +2613,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
       return 40.0;
     case 'endereco ref banc':
       return 40.0;
-    case 'cidade ref banc':
+    case 'resul endereco ref banc':
       return 40.0;
     case 'contato ref banc':
       return 40.0;
@@ -3512,7 +3654,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                   DataColumn(
                       label: SizedBox(width: _getColumnWidth('endereco ref banc'), child: Text('Endereço.'))),
                   DataColumn(
-                      label: SizedBox(width: _getColumnWidth('cidade ref banc'), child: Text('Cidade'))),
+                      label: SizedBox(width: _getColumnWidth('resul endereco ref banc'), child: Text('Cidade'))),
                   DataColumn(
                       label: SizedBox(width: _getColumnWidth('contato ref banc'), child: Text('Contato'))),
                   DataColumn(
@@ -3534,8 +3676,8 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                     _buildEditableCell('referencias_bancarias', doc, 'endereco ref banc',
                         data['endereco ref banc'] ?? '',
                         maxLength: 45),
-                    _buildEditableCell('referencias_bancarias', doc, 'cidade ref banc',
-                        data['cidade ref banc'] ?? '',
+                    _buildEditableCell('referencias_bancarias', doc, 'resul endereco ref banc',
+                        data['resul endereco ref banc'] ?? '',
                         maxLength: 5, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
                     _buildEditableCell('referencias_bancarias', doc, 'contato ref banc',
                         data['contato ref banc'] ?? '',
@@ -3796,6 +3938,107 @@ Widget _buildAbaReferenciaComercial({Key? key}) {
           },
         ),
       ],
+    );
+  }
+
+  Widget _buildCidadeAutocompleteGeral({VoidCallback? onUserInteraction}) {
+    return Autocomplete<Map<String, dynamic>>(
+      displayStringForOption: (option) => option['cidade'] as String, // EXIBE O NOME DA CIDADE
+      optionsBuilder: (textEditingValue) {
+        if (textEditingValue.text.isEmpty) return const Iterable.empty();
+        return _allCidades.where((option) {
+          final id = option['id']?.toString().toLowerCase() ?? '';
+          final cidade = option['cidade']?.toString().toLowerCase() ?? '';
+          final input = textEditingValue.text.toLowerCase();
+          return id.contains(input) || cidade.contains(input);
+        });
+      },
+      onSelected: (selection) {
+        _populateCidadeGeralFields(selection); // Usa o novo método de população
+        FocusScope.of(context).unfocus();
+        _setUnsavedChanges(true); // Indica que houve interação e alteração
+      },
+      fieldViewBuilder: (context, fieldController, focusNode, onFieldSubmitted) {
+        // Garante que o controller do campo Autocomplete reflita o estado do _cidadeController
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_cidadeController.text != fieldController.text) {
+            // Verifica se a cidade no controller principal corresponde a um nome de cidade no allCidades
+            // Se sim, preenche com o nome completo, caso contrário, usa o ID ou o que estiver no controller
+            final matchedCity = _allCidades.firstWhereOrNull(
+                (element) => element['id'] == _cidadeController.text);
+            fieldController.text = matchedCity != null ? matchedCity['cidade'] : _cidadeController.text;
+          }
+        });
+        return CustomInputField(
+          controller: fieldController,
+          focusNode: focusNode,
+          label: "Cidade",
+          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,
+          onUserInteraction: onUserInteraction, // Passa o listener de interação
+          onChanged: (value) {
+            // Ao digitar, atualiza o controller principal (id)
+            // E tenta encontrar uma cidade exata para preencher o nome completo
+            final exactMatch = _allCidades.firstWhereOrNull(
+                (item) => (item['cidade'] as String?)?.toLowerCase() == value.toLowerCase());
+
+            if (exactMatch != null) {
+              _cidadeController.text = exactMatch['id'] ?? ''; // Salva o ID no controller principal
+            } else {
+              _cidadeController.text = value; // Se não houver match exato, salva o que foi digitado
+            }
+            _setUnsavedChanges(true); // Indica que houve interação e alteração
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildSituacaoAutocomplete({VoidCallback? onUserInteraction}) {
+    return Autocomplete<Map<String, dynamic>>(
+      displayStringForOption: (option) => option['descricao'] as String, // EXIBE A DESCRIÇÃO DA SITUAÇÃO
+      optionsBuilder: (textEditingValue) {
+        if (textEditingValue.text.isEmpty) return const Iterable.empty();
+        return _allSituacoes.where((option) {
+          final id = option['id']?.toString().toLowerCase() ?? '';
+          final descricao = option['descricao']?.toString().toLowerCase() ?? '';
+          final input = textEditingValue.text.toLowerCase();
+          return id.contains(input) || descricao.contains(input);
+        });
+      },
+      onSelected: (selection) {
+        _populateSituacaoFields(selection);
+        FocusScope.of(context).unfocus();
+        _setUnsavedChanges(true); // Indica que houve interação e alteração
+      },
+      fieldViewBuilder: (context, fieldController, focusNode, onFieldSubmitted) {
+        // Garante que o controller do campo Autocomplete reflita o estado do _situacaoController
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_situacaoController.text != fieldController.text) {
+            final matchedSituacao = _allSituacoes.firstWhereOrNull(
+                (element) => element['id'] == _situacaoController.text);
+            fieldController.text = matchedSituacao != null ? matchedSituacao['descricao'] : _situacaoController.text;
+          }
+        });
+        return CustomInputField(
+          controller: fieldController,
+          focusNode: focusNode,
+          label: "Situação",
+          validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null,
+          onUserInteraction: onUserInteraction, // Passa o listener de interação
+          onChanged: (value) {
+            // Ao digitar, atualiza o controller principal (id)
+            final exactMatch = _allSituacoes.firstWhereOrNull(
+                (item) => (item['descricao'] as String?)?.toLowerCase() == value.toLowerCase());
+
+            if (exactMatch != null) {
+              _situacaoController.text = exactMatch['id'] ?? ''; // Salva o ID no controller principal
+            } else {
+              _situacaoController.text = value; // Se não houver match exato, salva o que foi digitado
+            }
+            _setUnsavedChanges(true); // Indica que houve interação e alteração
+          },
+        );
+      },
     );
   }
 

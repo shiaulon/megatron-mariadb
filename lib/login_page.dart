@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // Importe o Firestore
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_application_1/reutilizaveis/tela_base.dart';
-import 'package:flutter_application_1/menu.dart'; // Sua TelaPrincipal
-import 'package:flutter_application_1/secondary_company_selection_page.dart'; // Importe a nova página
+import 'package:flutter_application_1/menu.dart';
+import 'package:flutter_application_1/secondary_company_selection_page.dart';
+import 'package:provider/provider.dart'; // Importe o Provider
+import 'package:flutter_application_1/providers/permission_provider.dart'; // Importe o PermissionProvider
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -49,10 +51,13 @@ class _LoginPageState extends State<LoginPage> {
         if (userDoc.exists) {
           String? mainCompanyId = userDoc['mainCompanyId'];
           List<dynamic>? allowedSecondaryCompaniesRaw = userDoc['allowedSecondaryCompanies'];
-          String? userRole = userDoc['role'];
+          // String? userRole = userDoc['role']; // Este campo não será mais usado diretamente para permissões
 
-          // Converter List<dynamic> para List<String> de forma segura
           List<String> allowedSecondaryCompanies = allowedSecondaryCompaniesRaw?.map((item) => item.toString()).toList() ?? [];
+
+          // NOVO: Carregar as permissões do usuário (sem activeSecondaryCompanyId)
+          final permissionProvider = Provider.of<PermissionProvider>(context, listen: false);
+          await permissionProvider.loadUserPermissions(userId); // <-- SEM activeSecondaryCompanyId
 
           if (mainCompanyId != null && mainCompanyId.isNotEmpty) {
             if (allowedSecondaryCompanies.isNotEmpty) {
@@ -64,22 +69,19 @@ class _LoginPageState extends State<LoginPage> {
                     builder: (context) => TelaPrincipal(
                       mainCompanyId: mainCompanyId,
                       secondaryCompanyId: allowedSecondaryCompanies.first, // Usa a única empresa
-                      userRole: userRole,
                     ),
                   ),
                 );
               } else {
                 // Se houver MÚLTIPLAS empresas secundárias, navega para a tela de seleção
                 Navigator.pushReplacement(
-  context,
-  MaterialPageRoute(
-    builder: (context) => SecondaryCompanySelectionPage(
-      mainCompanyId: mainCompanyId,
-      // allowedSecondaryCompanies: allowedSecondaryCompanies, // Esta linha agora é opcional, mas pode permanecer se não causar erro
-      userRole: userRole,
-    ),
-  ),
-);
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => SecondaryCompanySelectionPage(
+                      mainCompanyId: mainCompanyId,
+                    ),
+                  ),
+                );
               }
             } else {
               // Caso o allowedSecondaryCompanies seja nulo ou vazio
@@ -134,7 +136,6 @@ class _LoginPageState extends State<LoginPage> {
           title: const Text('Esqueceu sua senha?'),
           content: Text('Entre em contato com o gerenciador do sistema por meio dos números na parte inferior da pagina'),
           actions: <Widget>[
-            
             TextButton(
               child: const Text('Ok'),
               onPressed: () {

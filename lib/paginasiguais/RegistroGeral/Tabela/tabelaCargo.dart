@@ -267,7 +267,7 @@ class _TabelaCargoState extends State<TabelaCargo> {
             breakpoint: _breakpoint,
             mainCompanyId: widget.mainCompanyId,
             secondaryCompanyId: widget.secondaryCompanyId,
-            userRole: widget.userRole,
+            //userRole: widget.userRole,
           ),
         ),
         Expanded(
@@ -299,7 +299,7 @@ class _TabelaCargoState extends State<TabelaCargo> {
             breakpoint: _breakpoint,
             mainCompanyId: widget.mainCompanyId,
             secondaryCompanyId: widget.secondaryCompanyId,
-            userRole: widget.userRole,
+            //userRole: widget.userRole,
           ),
           _buildCentralInputArea(),
         ],

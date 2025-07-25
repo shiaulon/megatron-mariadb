@@ -372,7 +372,10 @@ class _TabelaEstadoState extends State<TabelaEstado> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(flex: 1, child: AppDrawer(parentMaxWidth: constraints.maxWidth, breakpoint: _breakpoint, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, userRole: widget.userRole)),
+        Expanded(flex: 1, child: AppDrawer(parentMaxWidth: constraints.maxWidth, breakpoint: _breakpoint, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, 
+        //userRole: widget.userRole,
+                          ),
+        ),
         Expanded(
           flex: 3,
           child: Column(
@@ -397,7 +400,10 @@ class _TabelaEstadoState extends State<TabelaEstado> {
             padding: EdgeInsets.only(top: 15.0, bottom: 8.0),
             child: Text('Estado', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
           ),
-          AppDrawer(parentMaxWidth: 0, breakpoint: _breakpoint, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, userRole: widget.userRole),
+          AppDrawer(parentMaxWidth: 0, breakpoint: _breakpoint, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, 
+          //userRole: widget.userRole,
+                          )
+          ,
           _buildCentralInputArea(),
         ],
       ),

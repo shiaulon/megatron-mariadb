@@ -386,8 +386,8 @@ class _TelaSubPrincipalState extends State<TelaSubPrincipal> {
                   builder: (context) => TelaPrincipal(
                     mainCompanyId: widget.mainCompanyId,
                     secondaryCompanyId: widget.secondaryCompanyId,
-                    userRole: widget.userRole,
-                  ),
+                    //userRole: widget.userRole,
+                          ),
                 ),
               );
                       },
@@ -431,7 +431,8 @@ class _TelaSubPrincipalState extends State<TelaSubPrincipal> {
                           breakpoint: 700.0,
                           mainCompanyId: widget.mainCompanyId, // Passa
                           secondaryCompanyId: widget.secondaryCompanyId, // Passa
-                          userRole: widget.userRole,),
+                          //userRole: widget.userRole,
+                          ),
                             ),
                       // Área Central (agora flex 3) - ocupará 3/5 do total
                       Expanded(
@@ -454,7 +455,8 @@ class _TelaSubPrincipalState extends State<TelaSubPrincipal> {
                           breakpoint: 700.0,
                           mainCompanyId: widget.mainCompanyId, // Passa
                           secondaryCompanyId: widget.secondaryCompanyId, // Passa
-                          userRole: widget.userRole,),
+                          //userRole: widget.userRole,
+                          ),
                         const SizedBox(height: 20),
                         _buildAnnotationSection(), // Seção de anotações abaixo da área de informações
                       ],
