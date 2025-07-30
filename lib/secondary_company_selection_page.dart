@@ -164,7 +164,7 @@ class _SecondaryCompanySelectionPageState extends State<SecondaryCompanySelectio
                           onTap: () async{
                             // NOVO: Carregar as permissões para a filial selecionada ANTES de navegar
                             final permissionProvider = Provider.of<PermissionProvider>(context, listen: false);
-                            await permissionProvider.loadUserPermissions(FirebaseAuth.instance.currentUser!.uid); // <-- SEM activeSecondaryCompanyId aqui
+                            await permissionProvider.loadUserPermissions(FirebaseAuth.instance.currentUser!.uid, companyId);
 
                             Navigator.pushReplacement(
                               context,

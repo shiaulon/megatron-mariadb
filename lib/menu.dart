@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Para FilteringTextInputFormatter
 import 'package:flutter_application_1/ajuda/ajuda.dart';
+import 'package:flutter_application_1/paginasiguais/RegistroGeral/admin/logs_page.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/admin/user_management_page.dart';
 import 'package:flutter_application_1/providers/permission_provider.dart';
 import 'package:flutter_application_1/secondary_company_selection_page.dart';
@@ -98,18 +99,13 @@ class ChecklistItem {
 class _TelaPrincipalState extends State<TelaPrincipal> {
   static const double _breakpoint = 700.0;
   final TextEditingController _textEditingController = TextEditingController();
-  late final String _currentDate = DateFormat('dd/MM/yyyy').format(DateTime.now());
-  List<ButtonData> _buildButtonsData(PermissionProvider permissionProvider) {
-    List<ButtonData> buttons = []; // Inicia com uma lista vazia
-  
+  late final String _currentDate = DateFormat('dd/MM/yyyy').format(DateTime.now()); // Inicialização direta
 
   String _userName = 'Usuário';
 
   @override
   void initState() {
     super.initState();
-    //_currentDate = DateFormat('dd/MM/yyyy').format(DateTime.now());
-
     _userName = FirebaseAuth.instance.currentUser?.displayName ??
         FirebaseAuth.instance.currentUser?.email?.split('@').first.toUpperCase() ??
         'Usuário';
@@ -125,7 +121,9 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
 
   // NOVO MÉTODO: Constrói a lista de botões com base nas permissões
   // Recebe o PermissionProvider como parâmetro
-  
+  List<ButtonData> _buildButtonsData(PermissionProvider permissionProvider) {
+    List<ButtonData> buttons = []; // Inicia com uma lista vazia
+
     // Adiciona os botões fixos que sempre aparecem ou que têm lógica de permissão
     buttons.addAll([
       ButtonData(text: 'Home', iconData: Icons.home, onPressed: () => print('Clicou em Home')),
@@ -187,78 +185,138 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
     if (permissionProvider.hasAccess(['notifications', 'acesso'])) {
       buttons.add(ButtonData(text: 'Notifications', iconData: Icons.notifications, onPressed: () => print('Clicou em Notificações')));
     }
-    // ... continue para todos os outros botões
+    
     if (permissionProvider.hasAccess(['calendar', 'acesso'])) {
       buttons.add(ButtonData(text: 'Calendar', iconData: Icons.calendar_today, onPressed: () => print('Clicou em Calendário')));
     }
+    
     if (permissionProvider.hasAccess(['camera', 'acesso'])) {
       buttons.add(ButtonData(text: 'Camera', iconData: Icons.camera_alt, onPressed: () => print('Clicou na Câmera')));
     }
+    
     if (permissionProvider.hasAccess(['gallery', 'acesso'])) {
       buttons.add(ButtonData(text: 'Gallery', iconData: Icons.photo_library, onPressed: () => print('Clicou em Galeria')));
     }
+    
     if (permissionProvider.hasAccess(['location', 'acesso'])) {
       buttons.add(ButtonData(text: 'Location', iconData: Icons.location_on, onPressed: () => print('Clicou em Localização')));
     }
+    
     if (permissionProvider.hasAccess(['mail', 'acesso'])) {
       buttons.add(ButtonData(text: 'Mail', iconData: Icons.mail, onPressed: () => print('Clicou em Email')));
     }
+    
     if (permissionProvider.hasAccess(['phone', 'acesso'])) {
       buttons.add(ButtonData(text: 'Phone', iconData: Icons.phone, onPressed: () => print('Clicou em Telefone')));
     }
+    
     if (permissionProvider.hasAccess(['cloud', 'acesso'])) {
       buttons.add(ButtonData(text: 'Cloud', iconData: Icons.cloud, onPressed: () => print('Clicou em Nuvem')));
     }
+    
     if (permissionProvider.hasAccess(['info', 'acesso'])) {
       buttons.add(ButtonData(text: 'Info', iconData: Icons.info, onPressed: () => print('Clicou em Info')));
     }
+    
     if (permissionProvider.hasAccess(['star', 'acesso'])) {
       buttons.add(ButtonData(text: 'Star', iconData: Icons.star, onPressed: () => print('Clicou em Estrela')));
     }
+    
     if (permissionProvider.hasAccess(['add', 'acesso'])) {
       buttons.add(ButtonData(text: 'Add', iconData: Icons.add, onPressed: () => print('Clicou em Adicionar')));
     }
+    
     if (permissionProvider.hasAccess(['delete', 'acesso'])) {
       buttons.add(ButtonData(text: 'Delete', iconData: Icons.delete, onPressed: () => print('Clicou em Deletar')));
     }
+    
     if (permissionProvider.hasAccess(['edit', 'acesso'])) {
       buttons.add(ButtonData(text: 'Edit', iconData: Icons.edit, onPressed: () => print('Clicou em Editar')));
     }
+    
+    // AGORA, O BOTÃO SÓ É ADICIONADO À LISTA SE A PERMISSÃO FOR VERDADEIRA
     if (permissionProvider.hasAccess(['credito', 'acesso'])) {
-      buttons.add(ButtonData(text: 'Crédito', iconData: Icons.credit_card, onPressed: () => print('Clicou em Crédito')));
+      buttons.add(
+        ButtonData(
+          text: 'Crédito',
+          iconData: Icons.credit_card,
+          onPressed: () {
+            // Ação de navegar para a tela de submenus de crédito
+            // (Vamos assumir que a tela de submenus é a TelaSubPrincipal por enquanto)
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => TelaSubPrincipal(
+                  mainCompanyId: widget.mainCompanyId,
+                  secondaryCompanyId: widget.secondaryCompanyId,
+                ),
+              ),
+            );
+          },
+        ),
+      );
     }
+    
     if (permissionProvider.hasAccess(['relatorio', 'acesso'])) {
       buttons.add(ButtonData(text: 'Relatório', iconData: Icons.bar_chart, onPressed: () => print('Clicou em Relatório')));
     }
+    
     if (permissionProvider.hasAccess(['relatorio_de_critica', 'acesso'])) {
       buttons.add(ButtonData(text: 'Relatório de Crítica', iconData: Icons.error_outline, onPressed: () => print('Clicou em Relatório de Crítica')));
     }
+    
     if (permissionProvider.hasAccess(['etiqueta', 'acesso'])) {
       buttons.add(ButtonData(text: 'Etiqueta', iconData: Icons.label_outline, onPressed: () => print('Clicou em Etiqueta')));
     }
+    
     if (permissionProvider.hasAccess(['contatos_geral', 'acesso'])) {
       buttons.add(ButtonData(text: 'Contatos Geral', iconData: Icons.contacts, onPressed: () => print('Clicou em Contatos Geral')));
     }
+    
     if (permissionProvider.hasAccess(['portaria', 'acesso'])) {
       buttons.add(ButtonData(text: 'Portaria', iconData: Icons.security, onPressed: () => print('Clicou em Portaria')));
     }
+    
     if (permissionProvider.hasAccess(['qualificacao_rg', 'acesso'])) {
       buttons.add(ButtonData(text: 'Qualificação RG', iconData: Icons.verified_user, onPressed: () => print('Clicou em Qualificação RG')));
     }
+    
     if (permissionProvider.hasAccess(['area_rg', 'acesso'])) {
       buttons.add(ButtonData(text: 'Área RG', iconData: Icons.area_chart, onPressed: () => print('Clicou em Área RG')));
     }
+    
     if (permissionProvider.hasAccess(['tabela_preco_x_rg', 'acesso'])) {
       buttons.add(ButtonData(text: 'Tabela Preço X RG', iconData: Icons.price_change, onPressed: () => print('Clicou em Tabela Preço X RG')));
     }
+    
     if (permissionProvider.hasAccess(['modulo_especial', 'acesso'])) {
       buttons.add(ButtonData(text: 'Módulo Especial', iconData: Icons.extension, onPressed: () => print('Clicou em Módulo Especial')));
     }
+    
     if (permissionProvider.hasAccess(['crm', 'acesso'])) {
       buttons.add(ButtonData(text: 'CRM', iconData: Icons.support_agent, onPressed: () => print('Clicou em CRM')));
     }
+    
     if (permissionProvider.hasAccess(['follow_up', 'acesso'])) {
       buttons.add(ButtonData(text: 'Follow-up', iconData: Icons.follow_the_signs, onPressed: () => print('Clicou em Follow-up')));
+    }
+    if (permissionProvider.hasAccess(['administracao_usuarios', 'acesso'])) {
+      buttons.add(
+        ButtonData(
+          text: 'Visualizar Logs',
+          iconData: Icons.history,
+          onPressed: () {
+            Navigator.push( // Usamos push para poder voltar
+              context,
+              MaterialPageRoute(
+                builder: (context) => LogsPage( // A página que vamos criar
+                  mainCompanyId: widget.mainCompanyId,
+                ),
+              ),
+            );
+          },
+        ),
+      );
     }
 
     return buttons;
@@ -438,12 +496,12 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
                     ),
                     const SizedBox(width: 8),
                     const CircleAvatar(
-                      backgroundImage: AssetImage('assets/images/user.png'),
+                      backgroundImage: AssetImage('assets/images/logo.jpeg'),
                       radius: 16,
                     ),
                     const SizedBox(width: 8),
                     // Exibir o nome de usuário dinamicamente
-                    //Text(_userName, style: const TextStyle(fontSize: 16, color: Colors.black)),
+                    Text(_userName, style: const TextStyle(fontSize: 16, color: Colors.black)),
                   ],
                 ),
                 Align(
@@ -734,3 +792,5 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
     );
   }
 }
+
+  

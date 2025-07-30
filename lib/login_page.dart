@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_application_1/reutilizaveis/tela_base.dart';
 import 'package:flutter_application_1/menu.dart';
 import 'package:flutter_application_1/secondary_company_selection_page.dart';
+import 'package:flutter_application_1/services/log_services.dart';
 import 'package:provider/provider.dart'; // Importe o Provider
 import 'package:flutter_application_1/providers/permission_provider.dart'; // Importe o PermissionProvider
 
@@ -57,13 +58,20 @@ class _LoginPageState extends State<LoginPage> {
 
           // NOVO: Carregar as permissões do usuário (sem activeSecondaryCompanyId)
           final permissionProvider = Provider.of<PermissionProvider>(context, listen: false);
-          await permissionProvider.loadUserPermissions(userId); // <-- SEM activeSecondaryCompanyId
-
           if (mainCompanyId != null && mainCompanyId.isNotEmpty) {
-            if (allowedSecondaryCompanies.isNotEmpty) {
-              if (allowedSecondaryCompanies.length == 1) {
-                // Se houver apenas UMA empresa secundária permitida, navega direto para a TelaPrincipal
-                Navigator.pushReplacement(
+            await LogService.addLog(
+            action: LogAction.LOGIN,
+            mainCompanyId: mainCompanyId,
+            details: 'Usuário ${user.email} realizou login com sucesso.',
+            // secondaryCompanyId pode ser adicionado após a seleção da filial
+          );
+      if (allowedSecondaryCompanies.isNotEmpty) {
+        if (allowedSecondaryCompanies.length == 1) {
+          final activeCompanyId = allowedSecondaryCompanies.first;
+          // AGORA: Carrega as permissões para a única filial permitida
+          await permissionProvider.loadUserPermissions(userId, activeCompanyId);
+
+          Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(
                     builder: (context) => TelaPrincipal(
@@ -73,16 +81,16 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 );
               } else {
-                // Se houver MÚLTIPLAS empresas secundárias, navega para a tela de seleção
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => SecondaryCompanySelectionPage(
-                      mainCompanyId: mainCompanyId,
-                    ),
-                  ),
-                );
-              }
+                // Navega para a tela de seleção, as permissões serão carregadas lá
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => SecondaryCompanySelectionPage(
+                mainCompanyId: mainCompanyId,
+              ),
+            ),
+          );
+        }
             } else {
               // Caso o allowedSecondaryCompanies seja nulo ou vazio
               setState(() {

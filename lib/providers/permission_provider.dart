@@ -1,65 +1,53 @@
 // lib/providers/permission_provider.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../models/permission_model.dart';
 
 class PermissionProvider with ChangeNotifier {
-  UserPermissions _userPermissions = UserPermissions(acessos: {}); // <-- Volta a ser 'acessos'
+  UserPermissions _userPermissions = UserPermissions.defaultPermissions();
   String? _currentUserId;
-  // String? _activeSecondaryCompanyId; // REMOVIDO: Não é mais necessário aqui
+  String? _activeSecondaryCompanyId; // ID da filial ativa
 
-  // Getter para o modelo completo de permissões
-  UserPermissions get allUserPermissions => _userPermissions; // Getter original
+  UserPermissions get permissions => _userPermissions;
 
-  // Método para carregar as permissões do usuário logado (sem activeSecondaryCompanyId)
-  Future<void> loadUserPermissions(String userId) async { // <-- REMOVIDO activeSecondaryCompanyId
+  // AGORA: Carrega as permissões para uma filial específica.
+  Future<void> loadUserPermissions(String userId, String activeSecondaryCompanyId) async {
     _currentUserId = userId;
-    // _activeSecondaryCompanyId = activeSecondaryCompanyId; // REMOVIDO
-
-    if (_currentUserId == null) { // Condição simplificada
-      _userPermissions = UserPermissions(acessos: {});
-      notifyListeners();
-      print("Dados insuficientes para carregar permissões: userId está faltando.");
-      return;
-    }
+    _activeSecondaryCompanyId = activeSecondaryCompanyId;
 
     try {
-      // Carrega o documento user_access que contém as permissões GLOBAIS
       final docSnapshot = await FirebaseFirestore.instance
           .collection('users')
           .doc(userId)
           .collection('permissions')
-          .doc('user_access') // <-- Documento fixo 'user_access'
+          .doc(activeSecondaryCompanyId) // Carrega o doc da filial ativa
           .get();
 
       if (docSnapshot.exists && docSnapshot.data() != null) {
         _userPermissions = UserPermissions.fromMap(docSnapshot.data()!);
       } else {
-        // Se user_access não existe, cria um com permissões padrão (globais)
-        _userPermissions = UserPermissions.defaultPermissions(); // Usa defaultPermissions global
-
+        // Se não houver, usa as padrão e cria o documento para a filial.
+        _userPermissions = UserPermissions.defaultPermissions();
         await FirebaseFirestore.instance
             .collection('users')
             .doc(userId)
             .collection('permissions')
-            .doc('user_access')
-            .set(_userPermissions.toMap(), SetOptions(merge: true));
+            .doc(activeSecondaryCompanyId)
+            .set(_userPermissions.toMap());
       }
     } catch (e) {
-      print("Erro ao carregar permissões do usuário $userId: $e"); // Mensagem simplificada
-      _userPermissions = UserPermissions(acessos: {}); // Em caso de erro, permissões vazias
+      print("Erro ao carregar permissões para a filial $activeSecondaryCompanyId: $e");
+      _userPermissions = UserPermissions.defaultPermissions();
     } finally {
       notifyListeners();
     }
   }
 
-  // Método para verificar permissão (sem secondaryCompanyId)
-  bool hasAccess(List<String> path) { // <-- Não recebe secondaryCompanyId
-    // Chama o método hasAccess do UserPermissions model (que não espera filial)
+  // O método hasAccess agora verifica as permissões da filial carregada.
+  bool hasAccess(List<String> path) {
     return _userPermissions.hasAccess(path);
   }
 
-  // Métodos de updatePermission e _savePermissionsToFirestore não estavam no PermissionProvider original
-  // Eles pertencem à UserPermissionPage.
+  // Os métodos de atualização e salvamento foram removidos daqui,
+  // pois a edição será feita diretamente na UserPermissionPage.
 }

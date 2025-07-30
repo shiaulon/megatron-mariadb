@@ -3,16 +3,18 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class UserPermissions {
-  final Map<String, dynamic> acessos; // <-- Volta a ser 'acessos'
+  final Map<String, dynamic> acessos;
 
   UserPermissions({required this.acessos});
 
+  // AGORA: O 'data' recebido é o próprio mapa de acessos do documento da filial.
   factory UserPermissions.fromMap(Map<String, dynamic> data) {
     return UserPermissions(
       acessos: Map<String, dynamic>.from(data['acessos'] ?? {}),
     );
   }
 
+  // AGORA: O mapa retornado será salvo diretamente no documento da filial.
   Map<String, dynamic> toMap() {
     return {
       'acessos': acessos,
@@ -21,8 +23,8 @@ class UserPermissions {
     };
   }
 
-  // Método para obter o valor de uma permissão aninhada
-  bool hasAccess(List<String> path) { // <-- Não recebe secondaryCompanyId
+  // Método para obter o valor de uma permissão aninhada (permanece igual)
+  bool hasAccess(List<String> path) {
     Map<String, dynamic> current = acessos;
     for (int i = 0; i < path.length; i++) {
       final key = path[i];
@@ -41,8 +43,8 @@ class UserPermissions {
     return false;
   }
 
-  // Permissões padrão (global para o usuário)
-  static UserPermissions defaultPermissions() { // <-- Volta a ser UserPermissions
+  // Permissões padrão para uma NOVA filial
+  static UserPermissions defaultPermissions() {
     return UserPermissions(
       acessos: {
         "registro_geral": {
@@ -58,7 +60,12 @@ class UserPermissions {
           },
           "registro_geral_manut": {"acesso": true, "manut_rg": true}
         },
-        "credito": {"acesso": true},
+        "credito": {
+          "acesso": true,
+          "tabelas": { // Adicione este sub-mapa
+            "documentos_basicos": true
+          }
+        },
         "relatorio": {"acesso": true},
         "relatorio_de_critica": {"acesso": true},
         "etiqueta": {"acesso": true},
@@ -70,7 +77,7 @@ class UserPermissions {
         "modulo_especial": {"acesso": true},
         "crm": {"acesso": true},
         "follow_up": {"acesso": true},
-        "administracao_usuarios": {"acesso": true} // Admin deve ter acesso por padrão
+        "administracao_usuarios": {"acesso": true}
       },
     );
   }

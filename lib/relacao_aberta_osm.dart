@@ -285,7 +285,7 @@ class _RelacaoAbertaOSMState extends State<RelacaoAbertaOSM> {
                     ),
                     const SizedBox(width: 8),
                     CircleAvatar(
-                      backgroundImage: AssetImage('assets/images/user.png'),
+                      backgroundImage: AssetImage('assets/images/logo.jpeg'),
                       radius: 16,
                     ),
                     const SizedBox(width: 8),

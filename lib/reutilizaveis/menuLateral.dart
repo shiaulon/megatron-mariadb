@@ -1,4 +1,4 @@
-// lib/widgets/app_drawer.dart
+// lib/reutilizaveis/menuLateral.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/naturezaRendimento.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaAtividadeEmpresas.dart';
@@ -19,9 +19,11 @@ import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaS
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaTipoBemCredito.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaTipoHistorico.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tipoTelefone.dart';
-import 'package:flutter_application_1/providers/permission_provider.dart';
+import 'package:flutter_application_1/paginasiguais/RegistroGeral/credito/tab_documento.dart';
 import 'package:flutter_application_1/registroGeral/manut_rg.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_application_1/providers/permission_provider.dart';
+
 
 // NOVO WIDGET: Item de menu com efeito de hover
 class HoverMenuItem extends StatefulWidget {
@@ -172,7 +174,7 @@ class AppDrawer extends StatelessWidget {
   final double breakpoint; // Adicione o breakpoint como parâmetro
   final String mainCompanyId;
   final String secondaryCompanyId;
-  //final String? userRole;
+  // final String? userRole; // REMOVIDO: Permissões via Provider
 
   const AppDrawer({
     Key? key,
@@ -180,7 +182,7 @@ class AppDrawer extends StatelessWidget {
     required this.breakpoint,
     required this.mainCompanyId,
     required this.secondaryCompanyId,
-    //this.userRole,
+    // this.userRole, // REMOVIDO
   }) : super(key: key);
 
   // Widget auxiliar para construir itens de menu individuais
@@ -215,6 +217,7 @@ class AppDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final permissionProvider = Provider.of<PermissionProvider>(context); // Acessa o provider
+
     return Container(
       margin: parentMaxWidth > breakpoint
           ? const EdgeInsets.only(right: 10.0, top: 10.0, bottom: 10.0)
@@ -227,7 +230,8 @@ class AppDrawer extends StatelessWidget {
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
-          if (permissionProvider.hasAccess(['registro_geral', 'acesso']))
+          // Bloco principal "Registro Geral"
+          if (permissionProvider.hasAccess(['registro_geral', 'acesso'])) // Verificação de permissão
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -239,7 +243,7 @@ class AppDrawer extends StatelessWidget {
                   ),
                 ),
                 // Submenu "Tabelas"
-                if (permissionProvider.hasAccess(['registro_geral', 'tabelas', 'acesso']))
+                if (permissionProvider.hasAccess(['registro_geral', 'tabelas', 'acesso'])) // Verificação de permissão
                   _buildMenuItemWithSubitems(context, 'Tabelas', Icons.table_chart, [
                     if (permissionProvider.hasAccess(['registro_geral', 'tabelas', 'controle']))
                       _buildSubMenuItem(context, 'Controle', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => TabelaControle(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId)))),
@@ -280,17 +284,32 @@ class AppDrawer extends StatelessWidget {
                     if (permissionProvider.hasAccess(['registro_geral', 'tabelas', 'natureza_rendimento']))
                       _buildSubMenuItem(context, 'Natureza Rendimento', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => TabelaNaturezaRendimento(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId)))),
                   ]),
-                // Submenu "Registro Geral" (manut RG)
+                // Submenu "Registro Geral" (Manut RG)
                 if (permissionProvider.hasAccess(['registro_geral', 'registro_geral_manut', 'acesso']))
-                  _buildMenuItemWithSubitems(context, 'Registro Geral', Icons.app_registration, [
+                  _buildMenuItemWithSubitems(context, 'Registro Geral (Manut.)', Icons.app_registration, [
                     if (permissionProvider.hasAccess(['registro_geral', 'registro_geral_manut', 'manut_rg']))
                       _buildSubMenuItem(context, 'Manut RG', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => PaginaComAbasLaterais(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId)))),
                   ]),
               ],
             ),
-          // OUTROS BLOCOS DO MENU PRINCIPAL
           if (permissionProvider.hasAccess(['credito', 'acesso']))
-            _buildMenuItem(context, 'Crédito', Icons.credit_card, () => print('Clicou em Crédito')),
+            _buildMenuItemWithSubitems(context, 'Crédito', Icons.credit_card, [
+               if (permissionProvider.hasAccess(['credito', 'tabelas', 'documentos_basicos'])) // Descomente quando a permissão for criada
+                _buildSubMenuItem(
+                  context,
+                  'Documentos Básicos',
+                  () => Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => TabelaCreditoDocumentosBasicos(
+                        mainCompanyId: mainCompanyId,
+                        secondaryCompanyId: secondaryCompanyId,
+                      ),
+                    ),
+                  ),
+                ),
+            ]),
+
           if (permissionProvider.hasAccess(['relatorio', 'acesso']))
             _buildMenuItem(context, 'Relatório', Icons.bar_chart, () => print('Clicou em Relatório')),
           if (permissionProvider.hasAccess(['relatorio_de_critica', 'acesso']))
@@ -313,55 +332,9 @@ class AppDrawer extends StatelessWidget {
             _buildMenuItem(context, 'CRM', Icons.support_agent, () => print('Clicou em CRM')),
           if (permissionProvider.hasAccess(['follow_up', 'acesso']))
             _buildMenuItem(context, 'Follow-up', Icons.follow_the_signs, () => print('Clicou em Follow-up')),
+          // Botão de administração de usuários (já tratado no _buildButtonsData da TelaPrincipal)
+          // ...
         ],
-          /*const Padding(
-            padding: EdgeInsets.symmetric(vertical: 16.0, horizontal: 12.0),
-            child: Text(
-              'REGISTRO GERAL',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black),
-            ),
-          ),
-          _buildMenuItemWithSubitems(context, 'Tabelas', Icons.table_chart, [
-            _buildSubMenuItem(context, 'Controle', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaControle(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
-            _buildSubMenuItem(context, 'País', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaPais(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
-            _buildSubMenuItem(context, 'Estado', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaEstado(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
-            _buildSubMenuItem(context, 'Estado x Imposto', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaEstadoXImposto(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
-            _buildSubMenuItem(context, 'Cidade', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaCidade(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
-            _buildSubMenuItem(context, 'Natureza', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  NaturezaTela(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
-            _buildSubMenuItem(context, 'Situação', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaSituacao(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
-            _buildSubMenuItem(context, 'Cargo', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaCargo(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
-            _buildSubMenuItem(context, 'Tipo Telefone', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaTipoTelefone(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
-            _buildSubMenuItem(context, 'Tipo Histórico', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaTipoHistorico(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
-            _buildSubMenuItem(context, 'Tipo Bem Crédito', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaTipoBemCredito(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
-            _buildSubMenuItem(context, 'Condição Pagamento', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaCondicaoPagamento(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
-            _buildSubMenuItem(context, 'IBGE x Cidade', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaIBGEXCidade(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
-            _buildSubMenuItem(context, 'Como nos Conheceu', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaComoNosConheceu(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
-            _buildSubMenuItem(context, 'Atividade Empresa', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaAtividadeEmpresas(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
-            _buildSubMenuItem(context, 'Tabela CEST', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaCest(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
-            _buildSubMenuItem(context, 'Manut Tab Governo NCM Imposto', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaManutTabGovNcmImposto(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
-            _buildSubMenuItem(context, 'Fazenda', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaFazenda(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
-            _buildSubMenuItem(context, 'Natureza Rendimento', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  TabelaNaturezaRendimento(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
-
-          ]),
-          _buildMenuItemWithSubitems(context, 'Registro Geral', Icons.app_registration, [
-            _buildSubMenuItem(context, 'Manut RG', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  PaginaComAbasLaterais(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
-            //_buildSubMenuItem(context, 'TEXTO', () => print('Clicou em TEXTO do submenu')),
-           // _buildSubMenuItem(context, 'Teste', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) =>  PaginaComAbasLaterais(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId, userRole: userRole)),),),
-
-          ]),
-          _buildMenuItem(context, 'Crédito', Icons.credit_card, () => print('Clicou em Crédito')),
-          _buildMenuItem(context, 'Relatório', Icons.bar_chart, () => print('Clicou em Relatório')),
-          _buildMenuItem(context, 'Relatório de Crítica', Icons.error_outline, () => print('Clicou em Relatório de Crítica')),
-          _buildMenuItem(context, 'Etiqueta', Icons.label_outline, () => print('Clicou em Etiqueta')),
-          _buildMenuItem(context, 'Contatos Geral', Icons.contacts, () => print('Clicou em Contatos Geral')),
-          _buildMenuItem(context, 'Portaria', Icons.security, () => print('Clicou em Portaria')),
-          _buildMenuItem(context, 'Qualificação RG', Icons.verified_user, () => print('Clicou em Qualificação RG')),
-          _buildMenuItem(context, 'Área RG', Icons.area_chart, () => print('Clicou em Área RG')),
-          _buildMenuItem(context, 'Tabela Preço X RG', Icons.price_change, () => print('Clicou em Tabela Preço X RG')),
-          _buildMenuItem(context, 'Módulo Especial', Icons.extension, () => print('Clicou em Módulo Especial')),
-          _buildMenuItem(context, 'CRM', Icons.support_agent, () => print('Clicou em CRM')),
-          _buildMenuItem(context, 'Follow-up', Icons.follow_the_signs, () => print('Clicou em Follow-up')),
-        ],*/
       ),
     );
   }

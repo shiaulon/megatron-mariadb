@@ -286,7 +286,7 @@ class _Detalhe4Carreira132CState extends State<Detalhe4Carreira132C> {
                     ),
                     const SizedBox(width: 8),
                     CircleAvatar(
-                      backgroundImage: AssetImage('assets/images/user.png'),
+                      backgroundImage: AssetImage('assets/images/logo.jpeg'),
                       radius: 16,
                     ),
                     const SizedBox(width: 8),

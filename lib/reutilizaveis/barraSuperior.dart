@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 
 /// Um widget reutilizável para a barra superior da aplicação.
 /// Permite customizar o comportamento do botão de voltar e a data.
-class TopAppBar extends StatelessWidget {
+class TopAppBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback onBackPressed;
   final String currentDate;
   final String userName; // Parâmetro para o nome do usuário
@@ -14,7 +14,7 @@ class TopAppBar extends StatelessWidget {
     required this.onBackPressed,
     required this.currentDate,
     this.userName = 'MRAFAEL', // Valor padrão, pode ser sobrescrito
-    this.userAvatar = const AssetImage('assets/images/user.png'), // Valor padrão
+    this.userAvatar = const AssetImage('assets/images/logo.jpeg'), // Valor padrão
   }) : super(key: key);
 
   @override
@@ -59,4 +59,8 @@ class TopAppBar extends StatelessWidget {
       ),
     );
   }
+  @override
+  // Fornece o tamanho preferido para o Scaffold.
+  // A altura padrão de um AppBar é kToolbarHeight (56.0), mas você pode ajustar se seu design for diferente.
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight); // <--- ADICIONE ESTE GETTER AQUI
 }
