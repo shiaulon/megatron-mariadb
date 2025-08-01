@@ -158,6 +158,14 @@ class _UserPermissionPageState extends State<UserPermissionPage> {
       // pois ele é carregado com a filial ativa no momento do login/seleção.
 
     } catch (e) {
+      await LogService.addLog(
+        action: LogAction.ERROR,
+        mainCompanyId: widget.mainCompanyId,
+        secondaryCompanyId: widget.secondaryCompanyId,
+        targetCollection: 'users',
+        targetDocId: widget.userId,
+        details: 'FALHA ao salvar permissões para o usuário ${widget.userName}. Erro: ${e.toString()}',
+      );
       print("Erro ao salvar permissões: $e");
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao salvar permissões: $e')),

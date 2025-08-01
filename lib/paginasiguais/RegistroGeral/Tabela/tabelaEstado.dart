@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_application_1/services/log_services.dart';
 import 'package:flutter_application_1/submenus.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -170,9 +171,29 @@ class _TabelaEstadoState extends State<TabelaEstado> {
     };
 
     try {
+      final docExists = (await _estadosCollectionRef.doc(docId).get()).exists;
       await _estadosCollectionRef.doc(docId).set(dataToSave, SetOptions(merge: true));
+      await LogService.addLog(
+      action: docExists ? LogAction.UPDATE : LogAction.CREATE,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'estados', // <-- PARTE CUSTOMIZÁVEL 1
+      targetDocId: docId,
+      details: 'Usuário salvou/atualizou o estado com código $docId.', // <-- PARTE CUSTOMIZÁVEL 2
+    );
+
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Estado salvo com sucesso!')));
     } catch (e) {
+      // --- LOG DE ERRO SAVE---
+    await LogService.addLog(
+      action: LogAction.ERROR,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'estados', // <-- PARTE CUSTOMIZÁVEL 1
+      targetDocId: docId,
+      details: 'FALHA ao salvar estado com código $docId. Erro: ${e.toString()}', // <-- PARTE CUSTOMIZÁVEL 2
+    );
+
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao salvar: $e')));
     } finally {
       setState(() => _isLoading = false);
@@ -203,9 +224,29 @@ class _TabelaEstadoState extends State<TabelaEstado> {
     setState(() => _isLoading = true);
     try {
       await _estadosCollectionRef.doc(docId).delete();
+      // --- LOG DE SUCESSO DELETE---
+    await LogService.addLog(
+      action: LogAction.DELETE,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'estados', // <-- PARTE CUSTOMIZÁVEL 1
+      targetDocId: docId,
+      details: 'Usuário excluiu o estado com código $docId.', // <-- PARTE CUSTOMIZÁVEL 2
+    );
+
       _clearFields(clearCode: true);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Estado excluído com sucesso!')));
     } catch (e) {
+      // --- LOG DE ERRO DELETE---
+    await LogService.addLog(
+      action: LogAction.ERROR,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'estados', // <-- PARTE CUSTOMIZÁVEL 1
+      targetDocId: docId,
+      details: 'FALHA ao excluir estado com código $docId. Erro: ${e.toString()}', // <-- PARTE CUSTOMIZÁVEL 2
+    );
+
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao excluir: $e')));
     } finally {
       setState(() => _isLoading = false);
@@ -260,9 +301,27 @@ class _TabelaEstadoState extends State<TabelaEstado> {
           ],
         ),
       );
+      // --- LOG DE SUCESSO REPORT---
+    await LogService.addLog(
+      action: LogAction.GENERATE_REPORT,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'estados', // <-- PARTE CUSTOMIZÁVEL 1
+      details: 'Usuário gerou um relatório da tabela de estados.', // <-- PARTE CUSTOMIZÁVEL 2
+    );
+
 
       await Printing.layoutPdf(onLayout: (format) async => pdf.save());
     } catch (e) {
+      // --- LOG DE ERRO REPPORT---
+    await LogService.addLog(
+      action: LogAction.ERROR,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'estados', // <-- PARTE CUSTOMIZÁVEL 1
+      details: 'FALHA ao gerar relatório de estados. Erro: ${e.toString()}', // <-- PARTE CUSTOMIZÁVEL 2
+    );
+
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao gerar relatório: $e')));
     } finally {
       setState(() => _isLoading = false);

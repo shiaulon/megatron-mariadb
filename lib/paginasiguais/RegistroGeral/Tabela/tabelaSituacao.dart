@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_application_1/services/log_services.dart';
 import 'package:flutter_application_1/submenus.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -110,11 +111,31 @@ class _TabelaSituacaoState extends State<TabelaSituacao> {
     };
 
     try {
+      final docExists = (await _collectionRef.doc(docId).get()).exists;
       await _collectionRef.doc(docId).set(dataToSave);
+      await LogService.addLog(
+      action: docExists ? LogAction.UPDATE : LogAction.CREATE,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'situacoes', // <-- PARTE CUSTOMIZÁVEL 1
+      targetDocId: docId,
+      details: 'Usuário salvou/atualizou a situação com código $docId.', // <-- PARTE CUSTOMIZÁVEL 2
+    );
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Situação salva com sucesso!')),
       );
     } catch (e) {
+      // --- LOG DE ERRO SAVE---
+    await LogService.addLog(
+      action: LogAction.ERROR,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'situacoes', // <-- PARTE CUSTOMIZÁVEL 1
+      targetDocId: docId,
+      details: 'FALHA ao salvar situação com código $docId. Erro: ${e.toString()}', // <-- PARTE CUSTOMIZÁVEL 2
+    );
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao salvar: $e')),
       );
@@ -149,11 +170,31 @@ class _TabelaSituacaoState extends State<TabelaSituacao> {
     setState(() => _isLoading = true);
     try {
       await _collectionRef.doc(docId).delete();
+      // --- LOG DE SUCESSO DELETE---
+    await LogService.addLog(
+      action: LogAction.DELETE,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'situacoes', // <-- PARTE CUSTOMIZÁVEL 1
+      targetDocId: docId,
+      details: 'Usuário excluiu a situação com código $docId.', // <-- PARTE CUSTOMIZÁVEL 2
+    );
+
       _clearFields(clearCode: true);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Situação excluída com sucesso!')),
       );
     } catch (e) {
+      // --- LOG DE ERRO DELETE---
+    await LogService.addLog(
+      action: LogAction.ERROR,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'situacoes', // <-- PARTE CUSTOMIZÁVEL 1
+      targetDocId: docId,
+      details: 'FALHA ao excluir situação com código $docId. Erro: ${e.toString()}', // <-- PARTE CUSTOMIZÁVEL 2
+    );
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao excluir: $e')),
       );
@@ -195,9 +236,27 @@ class _TabelaSituacaoState extends State<TabelaSituacao> {
           ],
         ),
       );
+      // --- LOG DE SUCESSO REPORT---
+    await LogService.addLog(
+      action: LogAction.GENERATE_REPORT,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'situacoes', // <-- PARTE CUSTOMIZÁVEL 1
+      details: 'Usuário gerou um relatório da tabela de situações.', // <-- PARTE CUSTOMIZÁVEL 2
+    );
+
 
       await Printing.layoutPdf(onLayout: (format) async => pdf.save());
     } catch (e) {
+      // --- LOG DE ERRO REPPORT---
+    await LogService.addLog(
+      action: LogAction.ERROR,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'situacoes', // <-- PARTE CUSTOMIZÁVEL 1
+      details: 'FALHA ao gerar relatório de situações. Erro: ${e.toString()}', // <-- PARTE CUSTOMIZÁVEL 2
+    );
+
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao gerar PDF: $e')));
     } finally {
       setState(() => _isLoading = false);

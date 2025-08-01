@@ -125,6 +125,14 @@ class _TabelaCreditoDocumentosBasicosState extends State<TabelaCreditoDocumentos
         const SnackBar(content: Text('Documento salvo com sucesso!')),
       );
     } catch (e) {
+      await LogService.addLog(
+        action: LogAction.ERROR, // <-- Ação específica de erro
+        mainCompanyId: widget.mainCompanyId,
+        secondaryCompanyId: widget.secondaryCompanyId,
+        targetCollection: 'credito_documentos_basicos',
+        targetDocId: docId,
+        details: 'FALHA ao salvar/atualizar documento com código $docId. Erro: ${e.toString()}',
+      );
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao salvar: $e')),
       );
@@ -172,6 +180,14 @@ class _TabelaCreditoDocumentosBasicosState extends State<TabelaCreditoDocumentos
         const SnackBar(content: Text('Documento excluído com sucesso!')),
       );
     } catch (e) {
+      await LogService.addLog(
+        action: LogAction.ERROR,
+        mainCompanyId: widget.mainCompanyId,
+        secondaryCompanyId: widget.secondaryCompanyId,
+        targetCollection: 'credito_documentos_basicos', // Ajuste o nome da coleção
+        targetDocId: docId,
+        details: 'FALHA ao excluir documento com código $docId. Erro: ${e.toString()}',
+      );
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao excluir: $e')),
       );
@@ -232,6 +248,13 @@ class _TabelaCreditoDocumentosBasicosState extends State<TabelaCreditoDocumentos
 
       await Printing.layoutPdf(onLayout: (format) async => pdf.save());
     } catch (e) {
+      await LogService.addLog(
+        action: LogAction.ERROR,
+        mainCompanyId: widget.mainCompanyId,
+        secondaryCompanyId: widget.secondaryCompanyId,
+        targetCollection: 'credito_documentos_basicos', // Ajuste o nome da coleção
+        details: 'FALHA ao gerar relatório. Erro: ${e.toString()}',
+      );
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao gerar PDF: $e')));
     } finally {
       setState(() => _isLoading = false);

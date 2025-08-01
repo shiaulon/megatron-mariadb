@@ -5,6 +5,7 @@ import 'package:flutter_application_1/reutilizaveis/customImputField.dart';
 import 'package:flutter_application_1/reutilizaveis/informacoesInferioresPagina.dart';
 import 'package:flutter_application_1/reutilizaveis/menuLateral.dart';
 import 'package:flutter_application_1/reutilizaveis/tela_base.dart';
+import 'package:flutter_application_1/services/log_services.dart';
 import 'package:flutter_application_1/submenus.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -410,6 +411,16 @@ class _NaturezaTelaState extends State<NaturezaTela> {
 
       if (confirmDelete) {
         await docRef.delete();
+         // --- LOG DE SUCESSO ---
+      await LogService.addLog(
+        action: LogAction.DELETE,
+        mainCompanyId: widget.mainCompanyId,
+        secondaryCompanyId: widget.secondaryCompanyId,
+        targetCollection: 'naturezas',
+        targetDocId: naturezaCode,
+        details: 'Usuário excluiu a natureza com código $naturezaCode.',
+      );
+      // ----------------------
         setState(() {
           _naturezaController.clear();
           _descricaoController.clear();
@@ -421,6 +432,16 @@ class _NaturezaTelaState extends State<NaturezaTela> {
         );
       }
     } catch (e) {
+      // --- LOG DE ERRO ---
+    await LogService.addLog(
+      action: LogAction.ERROR,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'naturezas',
+      targetDocId: naturezaCode,
+      details: 'FALHA ao excluir natureza com código $naturezaCode. Erro: ${e.toString()}',
+    );
+    // -------------------
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao excluir natureza: $e')),
       );
@@ -508,9 +529,28 @@ class _NaturezaTelaState extends State<NaturezaTela> {
           ],
         ),
       );
+      // --- LOG DE SUCESSO ---
+    await LogService.addLog(
+      action: LogAction.GENERATE_REPORT,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'naturezas',
+      details: 'Usuário gerou um relatório da tabela de naturezas.',
+    );
+    // ----------------------
+
 
       await Printing.layoutPdf(onLayout: (format) async => pdf.save());
     } catch (e) {
+      // --- LOG DE ERRO ---
+    await LogService.addLog(
+      action: LogAction.ERROR,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'naturezas',
+      details: 'FALHA ao gerar relatório de naturezas. Erro: ${e.toString()}',
+    );
+    // -------------------
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao gerar relatório: $e')),
       );
@@ -570,17 +610,36 @@ class _NaturezaTelaState extends State<NaturezaTela> {
     };
 
     try {
-      await FirebaseFirestore.instance
+      final docRef = FirebaseFirestore.instance
         .collection('companies').doc(widget.mainCompanyId)
         .collection('secondaryCompanies').doc(widget.secondaryCompanyId)
         .collection('data').doc('naturezas')
-        .collection('items').doc(naturezaCode)
-        .set(dataToSave, SetOptions(merge: true));
+        .collection('items').doc(naturezaCode);
+        final docExists = (await docRef.get()).exists;
+    await docRef.set(dataToSave, SetOptions(merge: true));
+    
+    await LogService.addLog(
+      action: docExists ? LogAction.UPDATE : LogAction.CREATE,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'naturezas',
+      targetDocId: naturezaCode,
+      details: 'Usuário salvou/atualizou a natureza: ${_descricaoController.text} (Cód: $naturezaCode).',
+    );
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Dados da Natureza salvos com sucesso!')),
       );
     } catch (e) {
+      // --- LOG DE ERRO ---
+    await LogService.addLog(
+      action: LogAction.ERROR,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'naturezas',
+      targetDocId: naturezaCode,
+      details: 'FALHA ao salvar natureza com código $naturezaCode. Erro: ${e.toString()}',
+    );
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao salvar dados da Natureza: $e')),
       );

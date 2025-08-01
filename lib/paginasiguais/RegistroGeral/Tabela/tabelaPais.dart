@@ -4,6 +4,7 @@ import 'package:flutter_application_1/reutilizaveis/barraSuperior.dart';
 import 'package:flutter_application_1/reutilizaveis/customImputField.dart';
 import 'package:flutter_application_1/reutilizaveis/menuLateral.dart';
 import 'package:flutter_application_1/reutilizaveis/tela_base.dart';
+import 'package:flutter_application_1/services/log_services.dart';
 import 'package:flutter_application_1/submenus.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -189,12 +190,34 @@ class _TabelaPaisState extends State<TabelaPais> {
     };
 
     try {
+      final docExists = (await _paisesCollectionRef.doc(codigo).get()).exists;
       await _paisesCollectionRef.doc(codigo).set(dataToSave, SetOptions(merge: true));
+      // --- LOG DE SUCESSO ---
+    await LogService.addLog(
+      action: docExists ? LogAction.UPDATE : LogAction.CREATE,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId, // Filial de onde a ação foi executada
+      targetCollection: 'paises (shared)', // Identifica que é um dado compartilhado
+      targetDocId: codigo,
+      details: 'Usuário salvou/atualizou o país: ${_paisController.text} (Cód: $codigo).',
+    );
+    // ----------------------
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('País salvo com sucesso!')),
       );
       await _fetchAllPaises(); // Atualiza a lista de países para o autocomplete
     } catch (e) {
+       // --- LOG DE ERRO ---
+    await LogService.addLog(
+      action: LogAction.ERROR,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'paises (shared)',
+      targetDocId: codigo,
+      details: 'FALHA ao salvar país com código $codigo. Erro: ${e.toString()}',
+    );
+    // -------------------
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao salvar país: $e')),
       );
@@ -239,12 +262,32 @@ class _TabelaPaisState extends State<TabelaPais> {
       setState(() => _isLoading = true);
       try {
         await _paisesCollectionRef.doc(codigo).delete();
+        // --- LOG DE SUCESSO ---
+      await LogService.addLog(
+        action: LogAction.DELETE,
+        mainCompanyId: widget.mainCompanyId,
+        secondaryCompanyId: widget.secondaryCompanyId,
+        targetCollection: 'paises (shared)',
+        targetDocId: codigo,
+        details: 'Usuário excluiu o país com código $codigo.',
+      );
+      // ----------------------
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('País "$codigo" excluído com sucesso!')),
         );
         _clearFormFields();
         await _fetchAllPaises(); // Atualiza a lista de países para o autocomplete
       } catch (e) {
+        // --- LOG DE ERRO ---
+      await LogService.addLog(
+        action: LogAction.ERROR,
+        mainCompanyId: widget.mainCompanyId,
+        secondaryCompanyId: widget.secondaryCompanyId,
+        targetCollection: 'paises (shared)',
+        targetDocId: codigo,
+        details: 'FALHA ao excluir país com código $codigo. Erro: ${e.toString()}',
+      );
+      // -------------------
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao excluir país: $e')),
         );
@@ -337,12 +380,31 @@ class _TabelaPaisState extends State<TabelaPais> {
         ),
       );
 
+      // --- LOG DE SUCESSO ---
+    await LogService.addLog(
+      action: LogAction.GENERATE_REPORT,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'paises (shared)',
+      details: 'Usuário gerou um relatório da tabela de países.',
+    );
+    // ----------------------
+
       await Printing.layoutPdf(
         onLayout: (PdfPageFormat format) async => pdf.save(),
          name: 'relatorio_paises_${widget.secondaryCompanyId}_${DateFormat('yyyyMMdd').format(DateTime.now())}.pdf',
       );
 
     } catch (e) {
+      // --- LOG DE ERRO ---
+    await LogService.addLog(
+      action: LogAction.ERROR,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'paises (shared)',
+      details: 'FALHA ao gerar relatório de países. Erro: ${e.toString()}',
+    );
+    // -------------------
        ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao gerar relatório: $e')),
       );

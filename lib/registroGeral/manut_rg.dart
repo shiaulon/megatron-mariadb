@@ -7,6 +7,7 @@ import 'package:flutter_application_1/reutilizaveis/barraSuperior.dart';
 import 'package:flutter_application_1/reutilizaveis/customImputField.dart';
 import 'package:flutter_application_1/reutilizaveis/menuLateral.dart';
 import 'package:flutter_application_1/reutilizaveis/tela_base.dart';
+import 'package:flutter_application_1/services/log_services.dart';
 import 'package:flutter_application_1/submenus.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -1306,13 +1307,34 @@ void _updateCounters() {
     };
 
     try {
-      await _collectionRef.doc(docId).set(dataToSave, SetOptions(merge: true));
+      final docExists = (await _collectionRef.doc(docId).get()).exists;
+    await _collectionRef.doc(docId).set(dataToSave, SetOptions(merge: true));
+    // --- LOG DE SUCESSO ---
+    await LogService.addLog(
+      action: docExists ? LogAction.UPDATE : LogAction.CREATE,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'manut_rg',
+      targetDocId: docId,
+      details: 'Usuário salvou/atualizou os dados gerais para o RG: $docId.',
+    );
+    // ----------------------
       await _fetchAllControlData(); // Atualiza a lista de sugestões
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Dados de controle salvos com sucesso!')),
       );
       _setUnsavedChanges(false); // Resetar flag após salvar com sucesso
     } catch (e) {
+      // --- LOG DE ERRO ---
+    await LogService.addLog(
+      action: LogAction.ERROR,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'manut_rg',
+      targetDocId: docId,
+      details: 'FALHA ao salvar dados gerais para o RG: $docId. Erro: ${e.toString()}',
+    );
+    // -------------------
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao salvar dados: $e')),
       );
@@ -1338,9 +1360,20 @@ void _updateCounters() {
       'cargo res': _resulCargoController.text,
       'participacao': _participacaoController.text,
     };
+    String socioNome = _nomeController.text.trim(); // Pega o nome para o log
 
     try {
-      await _collectionRef.doc(docId).collection('composicao_acionaria').add(socioData);
+      DocumentReference newDocRef = await _collectionRef.doc(docId).collection('composicao_acionaria').add(socioData);
+      // --- LOG DE SUCESSO ---
+    await LogService.addLog(
+      action: LogAction.CREATE,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'manut_rg/composicao_acionaria', // Coleção/Subcoleção
+      targetDocId: newDocRef.id, // ID do novo sócio
+      details: 'Usuário adicionou o sócio "$socioNome" ao RG: $docId.',
+    );
+    // ----------------------
       _socioController.clear();
       _nomeController.clear();
       _sqController.clear();
@@ -1349,6 +1382,17 @@ void _updateCounters() {
       _participacaoController.clear();
       _cpfController.clear();
     } catch (e) {
+      // --- LOG DE ERRO ---
+    await LogService.addLog(
+      action: LogAction.ERROR,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'manut_rg/composicao_acionaria',
+      targetDocId: docId, // Log no documento pai, pois o ID do filho falhou
+      details: 'FALHA ao adicionar sócio "$socioNome" ao RG: $docId. Erro: ${e.toString()}',
+    );
+    // -------------------
+
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Erro ao adicionar sócio: $e')));
     }
@@ -1357,7 +1401,27 @@ void _updateCounters() {
   Future<void> _deleteSocio(String itemId, String socioId) async {
     try {
       await _collectionRef.doc(itemId).collection('composicao_acionaria').doc(socioId).delete();
+      // --- LOG DE SUCESSO ---
+    await LogService.addLog(
+      action: LogAction.DELETE,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'manut_rg/composicao_acionaria',
+      targetDocId: socioId,
+      details: 'Usuário excluiu um sócio (ID: $socioId) do RG: $itemId.',
+    );
+    // ----------------------
     } catch (e) {
+       // --- LOG DE ERRO ---
+    await LogService.addLog(
+      action: LogAction.ERROR,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'manut_rg/composicao_acionaria',
+      targetDocId: socioId,
+      details: 'FALHA ao excluir sócio (ID: $socioId) do RG: $itemId. Erro: ${e.toString()}',
+    );
+    // -------------------
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Erro ao deletar sócio: $e')));
     }
@@ -1376,9 +1440,12 @@ void _updateCounters() {
       'ddd': _dddController.text, 'nro': _nroController.text, 'ramal': _ramalController.text,
       'tipo': _tipoController.text, 'contato': _contatoController.text,
     };
+    String telefoneNome = _nomeController.text.trim(); 
 
     try {
-      await _collectionRef.doc(docId).collection('telefones').add(telefoneData);
+      DocumentReference newDocRef = await _collectionRef.doc(docId).collection('telefones').add(telefoneData);
+
+      
       _sqController.clear();
       _paisController.clear();
       _operadoraController.clear();
@@ -1387,7 +1454,27 @@ void _updateCounters() {
       _ramalController.clear();
       _tipoController.clear();
       _contatoController.clear();
+      // --- LOG DE SUCESSO ---
+    await LogService.addLog(
+      action: LogAction.CREATE,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'manut_rg/telefones', // Coleção/Subcoleção
+      targetDocId: newDocRef.id, // ID do novo sócio
+      details: 'Usuário adicionou o telefone "$telefoneNome" ao RG: $docId.',
+    );
+    // ----------------------
     } catch (e) {
+      // --- LOG DE ERRO ---
+    await LogService.addLog(
+      action: LogAction.ERROR,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'manut_rg/telefones',
+      targetDocId: docId, // Log no documento pai, pois o ID do filho falhou
+      details: 'FALHA ao adicionar telefone "$telefoneNome" ao RG: $docId. Erro: ${e.toString()}',
+    );
+    // -------------------
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Erro ao adicionar telefone: $e')));
     }
@@ -1396,7 +1483,27 @@ void _updateCounters() {
   Future<void> _deleteTelefone(String itemId, String telefoneId) async {
     try {
       await _collectionRef.doc(itemId).collection('telefones').doc(telefoneId).delete();
+      // --- LOG DE SUCESSO ---
+    await LogService.addLog(
+      action: LogAction.DELETE,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'manut_rg/telefones',
+      targetDocId: telefoneId,
+      details: 'Usuário excluiu um telefones (ID: $telefoneId) do RG: $itemId.',
+    );
+    // ----------------------
     } catch (e) {
+      // --- LOG DE ERRO ---
+    await LogService.addLog(
+      action: LogAction.ERROR,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'manut_rg/telefones',
+      targetDocId: telefoneId,
+      details: 'FALHA ao excluir telefones (ID: $telefoneId) do RG: $itemId. Erro: ${e.toString()}',
+    );
+    // -------------------
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Erro ao deletar telefone: $e')));
     }
@@ -1412,7 +1519,27 @@ void _updateCounters() {
           .collection(subcollection)
           .doc(docId)
           .update({field: newValue});
+          // --- LOG DE SUCESSO ---
+    await LogService.addLog(
+      action: LogAction.UPDATE,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'manut_rg/$subcollection',
+      targetDocId: docId,
+      details: 'Usuário atualizou o campo "$field" para "$newValue" no RG: $parentItemId.',
+    );
+    // ----------------------
     } catch (e) {
+      // --- LOG DE ERRO ---
+    await LogService.addLog(
+      action: LogAction.ERROR,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'manut_rg/$subcollection',
+      targetDocId: docId,
+      details: 'FALHA ao atualizar o campo "$field" no RG: $parentItemId. Erro: ${e.toString()}',
+    );
+    // -------------------
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao atualizar campo: $e')),
       );
@@ -1459,9 +1586,20 @@ void _updateCounters() {
       'email ref comercial': _emailRefComercialController.text,
       'obs ref comercial': _obsRefComercialController.text,
     };
+    String refComercialNome = _nomeController.text.trim(); // Pega o nome para o log
 
     try {
-      await _collectionRef.doc(docId).collection('referencias_comerciais').add(refData);
+      DocumentReference newDocRef = await _collectionRef.doc(docId).collection('referencias_comerciais').add(refData);
+      // --- LOG DE SUCESSO ---
+    await LogService.addLog(
+      action: LogAction.CREATE,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'manut_rg/referencias_comerciais', // Coleção/Subcoleção
+      targetDocId: newDocRef.id, // ID do novo sócio
+      details: 'Usuário adicionou a referencias_comerciais "$refComercialNome" ao RG: $docId.',
+    );
+    // ----------------------
       // Limpar os campos após adicionar
       _sequenciaRefComercialController.clear();
       _nomeRefComercialController.clear();
@@ -1478,6 +1616,16 @@ void _updateCounters() {
         const SnackBar(content: Text('Referência comercial adicionada com sucesso!')),
       );
     } catch (e) {
+      // --- LOG DE ERRO ---
+    await LogService.addLog(
+      action: LogAction.ERROR,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'manut_rg/referencias_comerciais',
+      targetDocId: docId, // Log no documento pai, pois o ID do filho falhou
+      details: 'FALHA ao adicionar referencias_comerciais "$refComercialNome" ao RG: $docId. Erro: ${e.toString()}',
+    );
+    // -------------------
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao adicionar referência comercial: $e')),
       );
@@ -1488,10 +1636,30 @@ void _updateCounters() {
 Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
     try {
       await _collectionRef.doc(itemId).collection('referencias_comerciais').doc(refId).delete();
+      // --- LOG DE SUCESSO ---
+    await LogService.addLog(
+      action: LogAction.DELETE,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'manut_rg/referencias_comerciais',
+      targetDocId: refId,
+      details: 'Usuário excluiu uma referencias_comerciais (ID: $refId) do RG: $itemId.',
+    );
+    // ----------------------
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Referência comercial deletada com sucesso!')),
       );
     } catch (e) {
+      // --- LOG DE ERRO ---
+    await LogService.addLog(
+      action: LogAction.ERROR,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'manut_rg/referencias_comerciais',
+      targetDocId: refId,
+      details: 'FALHA ao excluir referencias_comerciais (ID: $refId) do RG: $itemId. Erro: ${e.toString()}',
+    );
+    // -------------------
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao deletar referência comercial: $e')),
       );
@@ -1512,9 +1680,21 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
       'contato ref banc': _contatoRefBancariaController.text, 'telefone ref banc': _telefoneRefBancariaController.text,
       'email ref banc': _emailRefBancariaController.text, 'obs ref banc': _obsRefBancariaController.text,
     };
+    String refBancariaNome = _nomeController.text.trim(); // Pega o nome para o log
 
     try {
-      await _collectionRef.doc(docId).collection('referencias_bancarias').add(refData);
+      DocumentReference newDocRef = await _collectionRef.doc(docId).collection('referencias_bancarias').add(refData);
+
+      // --- LOG DE SUCESSO ---
+    await LogService.addLog(
+      action: LogAction.CREATE,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'manut_rg/referencias_bancarias', // Coleção/Subcoleção
+      targetDocId: newDocRef.id, // ID do novo sócio
+      details: 'Usuário adicionou a referencias_bancarias "$refBancariaNome" ao RG: $docId.',
+    );
+    // ----------------------
       _sequenciaController.clear();
       _nomeRefBancariaController.clear();
       _enderecoRefBancariaController.clear();
@@ -1526,6 +1706,16 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
       _emailRefBancariaController.clear();
       _obsRefBancariaController.clear();
     } catch (e) {
+      // --- LOG DE ERRO ---
+    await LogService.addLog(
+      action: LogAction.ERROR,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'manut_rg/referencias_bancarias',
+      targetDocId: docId, // Log no documento pai, pois o ID do filho falhou
+      details: 'FALHA ao adicionar referencias_bancarias "$refBancariaNome" ao RG: $docId. Erro: ${e.toString()}',
+    );
+    // -------------------
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Erro ao adicionar referência: $e')));
     }
@@ -1534,7 +1724,27 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
   Future<void> _deleteReferenciaBancaria(String itemId, String refId) async {
     try {
       await _collectionRef.doc(itemId).collection('referencias_bancarias').doc(refId).delete();
+      // --- LOG DE SUCESSO ---
+    await LogService.addLog(
+      action: LogAction.DELETE,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'manut_rg/referencias_bancarias',
+      targetDocId: refId,
+      details: 'Usuário excluiu uma referencias_bancarias (ID: $refId) do RG: $itemId.',
+    );
+    // ----------------------
     } catch (e) {
+      // --- LOG DE ERRO ---
+    await LogService.addLog(
+      action: LogAction.ERROR,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'manut_rg/referencias_bancarias',
+      targetDocId: refId,
+      details: 'FALHA ao excluir referencias_bancarias (ID: $refId) do RG: $itemId. Erro: ${e.toString()}',
+    );
+    // -------------------
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Erro ao deletar referência: $e')));
     }
@@ -1555,8 +1765,20 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
       'email contato': _emailContatoController.text, 'obs contato': _obsContatoController.text,
     };
 
+    String contatoNome = _nomeController.text.trim(); // Pega o nome para o log
+
     try {
-      await _collectionRef.doc(docId).collection('contatos').add(refData);
+      DocumentReference newDocRef = await _collectionRef.doc(docId).collection('contatos').add(refData);
+      // --- LOG DE SUCESSO ---
+    await LogService.addLog(
+      action: LogAction.CREATE,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'manut_rg/contatos', // Coleção/Subcoleção
+      targetDocId: newDocRef.id, // ID do novo sócio
+      details: 'Usuário adicionou o contatos "$contatoNome" ao RG: $docId.',
+    );
+    // ----------------------
       _sequenciaContatoController.clear();
       _nomeContatoController.clear();
       _dataNascimentoContatoController.clear();
@@ -1565,6 +1787,16 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
       _emailContatoController.clear();
       _obsContatoController.clear();
     } catch (e) {
+      // --- LOG DE ERRO ---
+    await LogService.addLog(
+      action: LogAction.ERROR,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'manut_rg/contatos',
+      targetDocId: docId, // Log no documento pai, pois o ID do filho falhou
+      details: 'FALHA ao adicionar contatos "$contatoNome" ao RG: $docId. Erro: ${e.toString()}',
+    );
+    // -------------------
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Erro ao adicionar referência: $e')));
     }
@@ -1573,7 +1805,27 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
   Future<void> _deleteContato(String itemId, String refId) async {
     try {
       await _collectionRef.doc(itemId).collection('contatos').doc(refId).delete();
+      // --- LOG DE SUCESSO ---
+    await LogService.addLog(
+      action: LogAction.DELETE,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'manut_rg/contatos',
+      targetDocId: refId,
+      details: 'Usuário excluiu um contato (ID: $refId) do RG: $itemId.',
+    );
+    // ----------------------
     } catch (e) {
+      // --- LOG DE ERRO ---
+    await LogService.addLog(
+      action: LogAction.ERROR,
+      mainCompanyId: widget.mainCompanyId,
+      secondaryCompanyId: widget.secondaryCompanyId,
+      targetCollection: 'manut_rg/contatos',
+      targetDocId: refId,
+      details: 'FALHA ao excluir contato (ID: $refId) do RG: $itemId. Erro: ${e.toString()}',
+    );
+    // -------------------
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Erro ao deletar referência: $e')));
     }

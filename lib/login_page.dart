@@ -32,6 +32,7 @@ class _LoginPageState extends State<LoginPage> {
     setState(() {
       _errorMessage = null;
     });
+    String? mainCompanyIdForLog; // Variável para guardar o ID para o log de erro
     try {
       UserCredential userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
@@ -50,6 +51,7 @@ class _LoginPageState extends State<LoginPage> {
             .get();
 
         if (userDoc.exists) {
+          mainCompanyIdForLog = userDoc['mainCompanyId'];
           String? mainCompanyId = userDoc['mainCompanyId'];
           List<dynamic>? allowedSecondaryCompaniesRaw = userDoc['allowedSecondaryCompanies'];
           // String? userRole = userDoc['role']; // Este campo não será mais usado diretamente para permissões
@@ -113,6 +115,12 @@ class _LoginPageState extends State<LoginPage> {
         }
       }
     } on FirebaseAuthException catch (e) {
+      await LogService.addLog(
+        action: LogAction.ERROR,
+        // Se já tivermos o ID da empresa, usamos. Senão, pode ser nulo.
+        mainCompanyId: mainCompanyIdForLog,
+        details: 'FALHA na tentativa de login para o email ${_emailController.text}. Erro: ${e.message}',
+      );
       setState(() {
         if (e.code == 'user-not-found') {
           _errorMessage = 'Nenhum usuário encontrado para esse e-mail.';
@@ -128,6 +136,11 @@ class _LoginPageState extends State<LoginPage> {
       });
       print('Erro Firebase Auth: ${e.code} - ${e.message}');
     } catch (e) {
+        await LogService.addLog(
+        action: LogAction.ERROR,
+        mainCompanyId: mainCompanyIdForLog,
+        details: 'FALHA inesperada no login para o email ${_emailController.text}. Erro: ${e.toString()}',
+      );
       setState(() {
         _errorMessage = 'Ocorreu um erro inesperado. Tente novamente.';
       });
