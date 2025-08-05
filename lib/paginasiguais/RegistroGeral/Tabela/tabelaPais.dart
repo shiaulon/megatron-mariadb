@@ -194,6 +194,7 @@ class _TabelaPaisState extends State<TabelaPais> {
       await _paisesCollectionRef.doc(codigo).set(dataToSave, SetOptions(merge: true));
       // --- LOG DE SUCESSO ---
     await LogService.addLog(
+      modulo: LogModule.TABELA, // <-- ADICIONADO
       action: docExists ? LogAction.UPDATE : LogAction.CREATE,
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId, // Filial de onde a ação foi executada
@@ -210,6 +211,7 @@ class _TabelaPaisState extends State<TabelaPais> {
     } catch (e) {
        // --- LOG DE ERRO ---
     await LogService.addLog(
+      modulo: LogModule.TABELA, // <-- ADICIONADO
       action: LogAction.ERROR,
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
@@ -265,6 +267,7 @@ class _TabelaPaisState extends State<TabelaPais> {
         // --- LOG DE SUCESSO ---
       await LogService.addLog(
         action: LogAction.DELETE,
+        modulo: LogModule.TABELA, // <-- ADICIONADO
         mainCompanyId: widget.mainCompanyId,
         secondaryCompanyId: widget.secondaryCompanyId,
         targetCollection: 'paises (shared)',
@@ -280,6 +283,7 @@ class _TabelaPaisState extends State<TabelaPais> {
       } catch (e) {
         // --- LOG DE ERRO ---
       await LogService.addLog(
+        modulo: LogModule.TABELA, // <-- ADICIONADO
         action: LogAction.ERROR,
         mainCompanyId: widget.mainCompanyId,
         secondaryCompanyId: widget.secondaryCompanyId,
@@ -382,6 +386,7 @@ class _TabelaPaisState extends State<TabelaPais> {
 
       // --- LOG DE SUCESSO ---
     await LogService.addLog(
+      modulo: LogModule.TABELA, // <-- ADICIONADO
       action: LogAction.GENERATE_REPORT,
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
@@ -398,6 +403,7 @@ class _TabelaPaisState extends State<TabelaPais> {
     } catch (e) {
       // --- LOG DE ERRO ---
     await LogService.addLog(
+      modulo: LogModule.TABELA, // <-- ADICIONADO
       action: LogAction.ERROR,
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,

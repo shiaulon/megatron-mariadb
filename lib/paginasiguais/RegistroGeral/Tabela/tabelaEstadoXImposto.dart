@@ -266,6 +266,7 @@ class _TabelaEstadoXImpostoState extends State<TabelaEstadoXImposto> {
 
       await _collectionRef.doc(docId).set(dataToSave, SetOptions(merge: true));
       await LogService.addLog(
+        modulo: LogModule.TABELA, // <-- ADICIONADO
       action: docExists ? LogAction.UPDATE : LogAction.CREATE,
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
@@ -280,6 +281,7 @@ class _TabelaEstadoXImpostoState extends State<TabelaEstadoXImposto> {
     } catch (e) {
       // --- LOG DE ERRO SAVE---
     await LogService.addLog(
+      modulo: LogModule.TABELA, // <-- ADICIONADO
       action: LogAction.ERROR,
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
@@ -325,6 +327,7 @@ class _TabelaEstadoXImpostoState extends State<TabelaEstadoXImposto> {
       await _collectionRef.doc(docId).delete();
       // --- LOG DE SUCESSO DELETE---
     await LogService.addLog(
+      modulo: LogModule.TABELA, // <-- ADICIONADO
       action: LogAction.DELETE,
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
@@ -340,6 +343,7 @@ class _TabelaEstadoXImpostoState extends State<TabelaEstadoXImposto> {
     } catch(e) {
       // --- LOG DE ERRO DELETE---
     await LogService.addLog(
+      modulo: LogModule.TABELA, // <-- ADICIONADO
       action: LogAction.ERROR,
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
@@ -446,6 +450,7 @@ class _TabelaEstadoXImpostoState extends State<TabelaEstadoXImposto> {
         );
         // --- LOG DE SUCESSO REPORT---
     await LogService.addLog(
+      modulo: LogModule.TABELA, // <-- ADICIONADO
       action: LogAction.GENERATE_REPORT,
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
@@ -462,6 +467,7 @@ class _TabelaEstadoXImpostoState extends State<TabelaEstadoXImposto> {
     } catch (e) {
       // --- LOG DE ERRO REPPORT---
     await LogService.addLog(
+      modulo: LogModule.TABELA, // <-- ADICIONADO
       action: LogAction.ERROR,
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,

@@ -124,6 +124,7 @@ class _TabelaCestState extends State<TabelaCest> {
       
       // Log de consulta
       await LogService.addLog(
+        modulo: LogModule.TABELA, // <-- ADICIONADO
         action: LogAction.VIEW,
         mainCompanyId: widget.mainCompanyId,
         secondaryCompanyId: widget.secondaryCompanyId,
@@ -143,7 +144,8 @@ class _TabelaCestState extends State<TabelaCest> {
         });
       }
     } catch (e) {
-      await LogService.addLog(action: LogAction.ERROR, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'cest', targetDocId: cestCode, details: 'FALHA ao consultar CEST "$cestCode". Erro: ${e.toString()}');
+      await LogService.addLog(modulo: LogModule.TABELA, // <-- ADICIONADO
+        action: LogAction.ERROR, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'cest', targetDocId: cestCode, details: 'FALHA ao consultar CEST "$cestCode". Erro: ${e.toString()}');
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao consultar CEST: $e')));
     } finally {
       setState(() => _isLoading = false);
@@ -168,6 +170,7 @@ class _TabelaCestState extends State<TabelaCest> {
       await _collectionRef.doc(docId).set(dataToSave);
       
       await LogService.addLog(
+        modulo: LogModule.TABELA, // <-- ADICIONADO
         action: docExists ? LogAction.UPDATE : LogAction.CREATE,
         mainCompanyId: widget.mainCompanyId,
         secondaryCompanyId: widget.secondaryCompanyId,
@@ -178,7 +181,8 @@ class _TabelaCestState extends State<TabelaCest> {
 
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('CEST salvo com sucesso!')));
     } catch (e) {
-      await LogService.addLog(action: LogAction.ERROR, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'cest', targetDocId: docId, details: 'FALHA ao salvar CEST $docId. Erro: ${e.toString()}');
+      await LogService.addLog(modulo: LogModule.TABELA, // <-- ADICIONADO
+        action: LogAction.ERROR, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'cest', targetDocId: docId, details: 'FALHA ao salvar CEST $docId. Erro: ${e.toString()}');
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ocorreu um erro ao salvar.')));
     } finally {
       setState(() => _isLoading = false);
@@ -210,12 +214,14 @@ class _TabelaCestState extends State<TabelaCest> {
     try {
       await _collectionRef.doc(docId).delete();
       
-      await LogService.addLog(action: LogAction.DELETE, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'cest', targetDocId: docId, details: 'Usuário excluiu o CEST com código $docId.');
+      await LogService.addLog(modulo: LogModule.TABELA, // <-- ADICIONADO
+      action: LogAction.DELETE, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'cest', targetDocId: docId, details: 'Usuário excluiu o CEST com código $docId.');
 
       _clearFields(clearCode: true);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('CEST excluído com sucesso!')));
     } catch (e) {
-      await LogService.addLog(action: LogAction.ERROR, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'cest', targetDocId: docId, details: 'FALHA ao excluir CEST $docId. Erro: ${e.toString()}');
+      await LogService.addLog(modulo: LogModule.TABELA, // <-- ADICIONADO
+        action: LogAction.ERROR, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'cest', targetDocId: docId, details: 'FALHA ao excluir CEST $docId. Erro: ${e.toString()}');
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ocorreu um erro ao excluir.')));
     } finally {
       setState(() => _isLoading = false);
@@ -247,11 +253,13 @@ class _TabelaCestState extends State<TabelaCest> {
         ),
       );
       
-      await LogService.addLog(action: LogAction.GENERATE_REPORT, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'cest', details: 'Usuário gerou um relatório da tabela de CEST.');
+      await LogService.addLog(modulo: LogModule.TABELA, // <-- ADICIONADO
+        action: LogAction.GENERATE_REPORT, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'cest', details: 'Usuário gerou um relatório da tabela de CEST.');
 
       await Printing.layoutPdf(onLayout: (format) async => pdf.save());
     } catch (e) {
-      await LogService.addLog(action: LogAction.ERROR, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'cest', details: 'FALHA ao gerar relatório de CEST. Erro: ${e.toString()}');
+      await LogService.addLog(modulo: LogModule.TABELA, // <-- ADICIONADO
+        action: LogAction.ERROR, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'cest', details: 'FALHA ao gerar relatório de CEST. Erro: ${e.toString()}');
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao gerar PDF: $e')));
     } finally {
       setState(() => _isLoading = false);

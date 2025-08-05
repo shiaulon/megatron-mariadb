@@ -113,6 +113,7 @@ class _TabelaCreditoDocumentosBasicosState extends State<TabelaCreditoDocumentos
       final docExists = (await _collectionRef.doc(docId).get()).exists;
       await _collectionRef.doc(docId).set(dataToSave);
       await LogService.addLog(
+        modulo: LogModule.CREDITO, // <-- ADICIONADO
       action: docExists ? LogAction.UPDATE : LogAction.CREATE,
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
@@ -126,6 +127,7 @@ class _TabelaCreditoDocumentosBasicosState extends State<TabelaCreditoDocumentos
       );
     } catch (e) {
       await LogService.addLog(
+        modulo: LogModule.CREDITO, // <-- ADICIONADO
         action: LogAction.ERROR, // <-- Ação específica de erro
         mainCompanyId: widget.mainCompanyId,
         secondaryCompanyId: widget.secondaryCompanyId,
@@ -169,6 +171,7 @@ class _TabelaCreditoDocumentosBasicosState extends State<TabelaCreditoDocumentos
       await _collectionRef.doc(docId).delete();
       await LogService.addLog(
       action: LogAction.DELETE,
+      modulo: LogModule.CREDITO, // <-- ADICIONADO
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
       targetCollection: 'credito_documentos_basicos',
@@ -182,6 +185,7 @@ class _TabelaCreditoDocumentosBasicosState extends State<TabelaCreditoDocumentos
     } catch (e) {
       await LogService.addLog(
         action: LogAction.ERROR,
+        modulo: LogModule.CREDITO, // <-- ADICIONADO
         mainCompanyId: widget.mainCompanyId,
         secondaryCompanyId: widget.secondaryCompanyId,
         targetCollection: 'credito_documentos_basicos', // Ajuste o nome da coleção
@@ -239,6 +243,7 @@ class _TabelaCreditoDocumentosBasicosState extends State<TabelaCreditoDocumentos
 
       await LogService.addLog(
         action: LogAction.GENERATE_REPORT,
+        modulo: LogModule.CREDITO, // <-- ADICIONADO
         mainCompanyId: widget.mainCompanyId,
         secondaryCompanyId: widget.secondaryCompanyId,
         targetCollection: 'credito_documentos_basicos',
@@ -250,6 +255,7 @@ class _TabelaCreditoDocumentosBasicosState extends State<TabelaCreditoDocumentos
     } catch (e) {
       await LogService.addLog(
         action: LogAction.ERROR,
+        modulo: LogModule.CREDITO, // <-- ADICIONADO
         mainCompanyId: widget.mainCompanyId,
         secondaryCompanyId: widget.secondaryCompanyId,
         targetCollection: 'credito_documentos_basicos', // Ajuste o nome da coleção

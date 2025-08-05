@@ -413,6 +413,7 @@ class _NaturezaTelaState extends State<NaturezaTela> {
         await docRef.delete();
          // --- LOG DE SUCESSO ---
       await LogService.addLog(
+        modulo: LogModule.TABELA, // <-- ADICIONADO
         action: LogAction.DELETE,
         mainCompanyId: widget.mainCompanyId,
         secondaryCompanyId: widget.secondaryCompanyId,
@@ -435,6 +436,7 @@ class _NaturezaTelaState extends State<NaturezaTela> {
       // --- LOG DE ERRO ---
     await LogService.addLog(
       action: LogAction.ERROR,
+      modulo: LogModule.TABELA, // <-- ADICIONADO
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
       targetCollection: 'naturezas',
@@ -531,6 +533,7 @@ class _NaturezaTelaState extends State<NaturezaTela> {
       );
       // --- LOG DE SUCESSO ---
     await LogService.addLog(
+      modulo: LogModule.TABELA, // <-- ADICIONADO
       action: LogAction.GENERATE_REPORT,
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
@@ -544,6 +547,7 @@ class _NaturezaTelaState extends State<NaturezaTela> {
     } catch (e) {
       // --- LOG DE ERRO ---
     await LogService.addLog(
+      modulo: LogModule.TABELA, // <-- ADICIONADO
       action: LogAction.ERROR,
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
@@ -619,6 +623,7 @@ class _NaturezaTelaState extends State<NaturezaTela> {
     await docRef.set(dataToSave, SetOptions(merge: true));
     
     await LogService.addLog(
+      modulo: LogModule.TABELA, // <-- ADICIONADO
       action: docExists ? LogAction.UPDATE : LogAction.CREATE,
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
@@ -633,6 +638,7 @@ class _NaturezaTelaState extends State<NaturezaTela> {
     } catch (e) {
       // --- LOG DE ERRO ---
     await LogService.addLog(
+      modulo: LogModule.TABELA, // <-- ADICIONADO
       action: LogAction.ERROR,
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,

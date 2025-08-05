@@ -14,10 +14,19 @@ enum LogAction {
   PERMISSION_CHANGE, // <-- NOVO
   ERROR,             // <-- NOVO
 }
+enum LogModule {
+  REGISTRO_GERAL,
+  CREDITO,
+  ADMINISTRACAO,
+  LOGIN,
+  INDEFINIDO,
+  TABELA
+}
 
 class LogService {
   static Future<void> addLog({
     required LogAction action,
+    required LogModule modulo, // <-- NOVO PARÂMETRO
     String? mainCompanyId, // <-- Torne opcional para logs de erro/login
     String? secondaryCompanyId,
     String? targetCollection,
@@ -44,6 +53,7 @@ class LogService {
 
       await logCollection.add({
         'timestamp': FieldValue.serverTimestamp(),
+        'modulo': modulo.name, // <-- SALVA O NOME DO MÓDULO
         'userId': userId,
         'userEmail': userEmail,
         'secondaryCompanyId': secondaryCompanyId ?? '',

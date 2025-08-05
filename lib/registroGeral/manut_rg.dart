@@ -1311,6 +1311,7 @@ void _updateCounters() {
     await _collectionRef.doc(docId).set(dataToSave, SetOptions(merge: true));
     // --- LOG DE SUCESSO ---
     await LogService.addLog(
+      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
       action: docExists ? LogAction.UPDATE : LogAction.CREATE,
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
@@ -1327,6 +1328,7 @@ void _updateCounters() {
     } catch (e) {
       // --- LOG DE ERRO ---
     await LogService.addLog(
+      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
       action: LogAction.ERROR,
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
@@ -1367,6 +1369,7 @@ void _updateCounters() {
       // --- LOG DE SUCESSO ---
     await LogService.addLog(
       action: LogAction.CREATE,
+      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
       targetCollection: 'manut_rg/composicao_acionaria', // Coleção/Subcoleção
@@ -1385,6 +1388,7 @@ void _updateCounters() {
       // --- LOG DE ERRO ---
     await LogService.addLog(
       action: LogAction.ERROR,
+      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
       targetCollection: 'manut_rg/composicao_acionaria',
@@ -1403,6 +1407,7 @@ void _updateCounters() {
       await _collectionRef.doc(itemId).collection('composicao_acionaria').doc(socioId).delete();
       // --- LOG DE SUCESSO ---
     await LogService.addLog(
+      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
       action: LogAction.DELETE,
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
@@ -1414,6 +1419,7 @@ void _updateCounters() {
     } catch (e) {
        // --- LOG DE ERRO ---
     await LogService.addLog(
+      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
       action: LogAction.ERROR,
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
@@ -1456,6 +1462,7 @@ void _updateCounters() {
       _contatoController.clear();
       // --- LOG DE SUCESSO ---
     await LogService.addLog(
+      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
       action: LogAction.CREATE,
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
@@ -1468,6 +1475,7 @@ void _updateCounters() {
       // --- LOG DE ERRO ---
     await LogService.addLog(
       action: LogAction.ERROR,
+      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
       targetCollection: 'manut_rg/telefones',
@@ -1486,6 +1494,7 @@ void _updateCounters() {
       // --- LOG DE SUCESSO ---
     await LogService.addLog(
       action: LogAction.DELETE,
+      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
       targetCollection: 'manut_rg/telefones',
@@ -1497,6 +1506,7 @@ void _updateCounters() {
       // --- LOG DE ERRO ---
     await LogService.addLog(
       action: LogAction.ERROR,
+      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
       targetCollection: 'manut_rg/telefones',
@@ -1521,6 +1531,7 @@ void _updateCounters() {
           .update({field: newValue});
           // --- LOG DE SUCESSO ---
     await LogService.addLog(
+      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
       action: LogAction.UPDATE,
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
@@ -1532,6 +1543,7 @@ void _updateCounters() {
     } catch (e) {
       // --- LOG DE ERRO ---
     await LogService.addLog(
+      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
       action: LogAction.ERROR,
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
@@ -1593,6 +1605,7 @@ void _updateCounters() {
       // --- LOG DE SUCESSO ---
     await LogService.addLog(
       action: LogAction.CREATE,
+      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
       targetCollection: 'manut_rg/referencias_comerciais', // Coleção/Subcoleção
@@ -1619,6 +1632,7 @@ void _updateCounters() {
       // --- LOG DE ERRO ---
     await LogService.addLog(
       action: LogAction.ERROR,
+      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
       targetCollection: 'manut_rg/referencias_comerciais',
@@ -1639,6 +1653,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
       // --- LOG DE SUCESSO ---
     await LogService.addLog(
       action: LogAction.DELETE,
+      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
       targetCollection: 'manut_rg/referencias_comerciais',
@@ -1653,6 +1668,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
       // --- LOG DE ERRO ---
     await LogService.addLog(
       action: LogAction.ERROR,
+      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
       targetCollection: 'manut_rg/referencias_comerciais',
@@ -1688,6 +1704,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
       // --- LOG DE SUCESSO ---
     await LogService.addLog(
       action: LogAction.CREATE,
+      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
       targetCollection: 'manut_rg/referencias_bancarias', // Coleção/Subcoleção
@@ -1709,6 +1726,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
       // --- LOG DE ERRO ---
     await LogService.addLog(
       action: LogAction.ERROR,
+      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
       targetCollection: 'manut_rg/referencias_bancarias',
@@ -1727,6 +1745,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
       // --- LOG DE SUCESSO ---
     await LogService.addLog(
       action: LogAction.DELETE,
+      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
       targetCollection: 'manut_rg/referencias_bancarias',
@@ -1738,6 +1757,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
       // --- LOG DE ERRO ---
     await LogService.addLog(
       action: LogAction.ERROR,
+      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
       targetCollection: 'manut_rg/referencias_bancarias',
@@ -1772,6 +1792,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
       // --- LOG DE SUCESSO ---
     await LogService.addLog(
       action: LogAction.CREATE,
+      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
       targetCollection: 'manut_rg/contatos', // Coleção/Subcoleção
@@ -1789,6 +1810,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
     } catch (e) {
       // --- LOG DE ERRO ---
     await LogService.addLog(
+      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
       action: LogAction.ERROR,
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
@@ -1807,6 +1829,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
       await _collectionRef.doc(itemId).collection('contatos').doc(refId).delete();
       // --- LOG DE SUCESSO ---
     await LogService.addLog(
+      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
       action: LogAction.DELETE,
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
@@ -1818,6 +1841,7 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
     } catch (e) {
       // --- LOG DE ERRO ---
     await LogService.addLog(
+      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
       action: LogAction.ERROR,
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,

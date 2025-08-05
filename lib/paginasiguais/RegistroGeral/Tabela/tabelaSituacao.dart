@@ -114,6 +114,7 @@ class _TabelaSituacaoState extends State<TabelaSituacao> {
       final docExists = (await _collectionRef.doc(docId).get()).exists;
       await _collectionRef.doc(docId).set(dataToSave);
       await LogService.addLog(
+        modulo: LogModule.TABELA, // <-- ADICIONADO
       action: docExists ? LogAction.UPDATE : LogAction.CREATE,
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
@@ -129,6 +130,7 @@ class _TabelaSituacaoState extends State<TabelaSituacao> {
       // --- LOG DE ERRO SAVE---
     await LogService.addLog(
       action: LogAction.ERROR,
+      modulo: LogModule.TABELA, // <-- ADICIONADO
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
       targetCollection: 'situacoes', // <-- PARTE CUSTOMIZÁVEL 1
@@ -173,6 +175,7 @@ class _TabelaSituacaoState extends State<TabelaSituacao> {
       // --- LOG DE SUCESSO DELETE---
     await LogService.addLog(
       action: LogAction.DELETE,
+      modulo: LogModule.TABELA, // <-- ADICIONADO
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
       targetCollection: 'situacoes', // <-- PARTE CUSTOMIZÁVEL 1
@@ -188,6 +191,7 @@ class _TabelaSituacaoState extends State<TabelaSituacao> {
       // --- LOG DE ERRO DELETE---
     await LogService.addLog(
       action: LogAction.ERROR,
+      modulo: LogModule.TABELA, // <-- ADICIONADO
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
       targetCollection: 'situacoes', // <-- PARTE CUSTOMIZÁVEL 1
@@ -239,6 +243,7 @@ class _TabelaSituacaoState extends State<TabelaSituacao> {
       // --- LOG DE SUCESSO REPORT---
     await LogService.addLog(
       action: LogAction.GENERATE_REPORT,
+      modulo: LogModule.TABELA, // <-- ADICIONADO
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
       targetCollection: 'situacoes', // <-- PARTE CUSTOMIZÁVEL 1
@@ -250,6 +255,7 @@ class _TabelaSituacaoState extends State<TabelaSituacao> {
     } catch (e) {
       // --- LOG DE ERRO REPPORT---
     await LogService.addLog(
+      modulo: LogModule.TABELA, // <-- ADICIONADO
       action: LogAction.ERROR,
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,

@@ -63,6 +63,7 @@ class _LoginPageState extends State<LoginPage> {
           if (mainCompanyId != null && mainCompanyId.isNotEmpty) {
             await LogService.addLog(
             action: LogAction.LOGIN,
+            modulo: LogModule.LOGIN, // <-- ADICIONADO
             mainCompanyId: mainCompanyId,
             details: 'Usuário ${user.email} realizou login com sucesso.',
             // secondaryCompanyId pode ser adicionado após a seleção da filial
@@ -116,6 +117,7 @@ class _LoginPageState extends State<LoginPage> {
       }
     } on FirebaseAuthException catch (e) {
       await LogService.addLog(
+        modulo: LogModule.LOGIN, // <-- ADICIONADO
         action: LogAction.ERROR,
         // Se já tivermos o ID da empresa, usamos. Senão, pode ser nulo.
         mainCompanyId: mainCompanyIdForLog,
@@ -137,6 +139,7 @@ class _LoginPageState extends State<LoginPage> {
       print('Erro Firebase Auth: ${e.code} - ${e.message}');
     } catch (e) {
         await LogService.addLog(
+          modulo: LogModule.LOGIN, // <-- ADICIONADO
         action: LogAction.ERROR,
         mainCompanyId: mainCompanyIdForLog,
         details: 'FALHA inesperada no login para o email ${_emailController.text}. Erro: ${e.toString()}',

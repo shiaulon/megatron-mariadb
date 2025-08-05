@@ -1,19 +1,23 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_application_1/reutilizaveis/informacoesInferioresPagina.dart';
-import 'package:flutter_application_1/menu.dart';
-import 'package:flutter_application_1/reutilizaveis/menuLateral.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_application_1/reutilizaveis/barraSuperior.dart';
 import 'package:flutter_application_1/reutilizaveis/customImputField.dart';
-import 'package:flutter_application_1/submenus.dart';
+import 'package:flutter_application_1/reutilizaveis/menuLateral.dart';
 import 'package:flutter_application_1/reutilizaveis/tela_base.dart';
-import 'package:intl/intl.dart'; // Importe para formatar a data
-import 'package:flutter/services.dart'; // Para FilteringTextInputFormatter
 
+import 'package:flutter_application_1/services/log_services.dart';
+import 'package:flutter_application_1/submenus.dart';
+import 'package:intl/intl.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 class TabelaFazenda extends StatefulWidget {
   final String mainCompanyId;
   final String secondaryCompanyId;
-  final String? userRole; // Se precisar usar a permissão aqui também
+  final String? userRole;
 
   const TabelaFazenda({
     super.key,
@@ -26,48 +30,167 @@ class TabelaFazenda extends StatefulWidget {
   State<TabelaFazenda> createState() => _TabelaFazendaState();
 }
 
-
-
 class _TabelaFazendaState extends State<TabelaFazenda> {
-  // Define o breakpoint para alternar entre layouts
-  static const double _breakpoint = 700.0; // Desktop breakpoint
-
-  // GlobalKey para o Form (necessário para validar todos os campos)
+  static const double _breakpoint = 700.0;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-
-  // Variável para armazenar a data atual formatada
   late String _currentDate;
+  bool _isLoading = false;
 
-  // Controllers para os novos campos de texto na área central
-  final TextEditingController _dataAtualController = TextEditingController();
   final TextEditingController _fazendaController = TextEditingController();
   final TextEditingController _descricaoController = TextEditingController();
   final TextEditingController _rgController = TextEditingController();
-
 
   @override
   void initState() {
     super.initState();
     _currentDate = DateFormat('dd/MM/yyyy').format(DateTime.now());
-
-    // Adiciona listener para o campo Empresa para atualizar o contador
-    _fazendaController.addListener(_updateEmpresaCounter);
-    _descricaoController.addListener(_updateEmpresaCounter);
-    _rgController.addListener(_updateEmpresaCounter);
+    _fazendaController.addListener(_onCodigoChanged);
   }
 
-  void _updateEmpresaCounter() {
-    // Força a reconstrução do widget para que o suffixText seja atualizado
-    setState(() {});
+  CollectionReference get _collectionRef => FirebaseFirestore.instance
+      .collection('companies')
+      .doc(widget.mainCompanyId)
+      .collection('secondaryCompanies')
+      .doc(widget.secondaryCompanyId)
+      .collection('data')
+      .doc('fazendas') // Nome da coleção
+      .collection('items');
+
+  void _clearFields({bool clearCode = true}) {
+    if (clearCode) {
+      _fazendaController.clear();
+    }
+    _descricaoController.clear();
+    _rgController.clear();
   }
 
+  Future<void> _onCodigoChanged() async {
+    final codigo = _fazendaController.text.trim();
+    if (codigo.isEmpty) {
+      _clearFields(clearCode: false);
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      final docSnapshot = await _collectionRef.doc(codigo).get();
+
+      await LogService.addLog(
+        action: LogAction.VIEW,
+        modulo: LogModule.REGISTRO_GERAL,
+        mainCompanyId: widget.mainCompanyId,
+        secondaryCompanyId: widget.secondaryCompanyId,
+        targetCollection: 'fazendas',
+        targetDocId: codigo,
+        details: 'Usuário consultou a Fazenda cód. "$codigo". Resultado: ${docSnapshot.exists ? "Encontrado" : "Não encontrado"}.',
+      );
+
+      if (docSnapshot.exists) {
+        final data = docSnapshot.data() as Map<String, dynamic>;
+        setState(() {
+          _descricaoController.text = data['descricao'] ?? '';
+          _rgController.text = data['rg'] ?? '';
+        });
+      } else {
+        _clearFields(clearCode: false);
+      }
+    } catch (e) {
+      await LogService.addLog(action: LogAction.ERROR, modulo: LogModule.REGISTRO_GERAL, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'fazendas', targetDocId: codigo, details: 'FALHA ao consultar Fazenda cód. "$codigo". Erro: ${e.toString()}');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao consultar: $e')));
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _saveData() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    final docId = _fazendaController.text.trim();
+    setState(() => _isLoading = true);
+
+    final dataToSave = {
+      'descricao': _descricaoController.text.trim(),
+      'rg': _rgController.text.trim(),
+      'ultima_atualizacao': FieldValue.serverTimestamp(),
+      'criado_por': FirebaseAuth.instance.currentUser?.email ?? 'desconhecido',
+    };
+
+    try {
+      final docExists = (await _collectionRef.doc(docId).get()).exists;
+      await _collectionRef.doc(docId).set(dataToSave);
+
+      await LogService.addLog(
+        action: docExists ? LogAction.UPDATE : LogAction.CREATE,
+        modulo: LogModule.REGISTRO_GERAL,
+        mainCompanyId: widget.mainCompanyId,
+        secondaryCompanyId: widget.secondaryCompanyId,
+        targetCollection: 'fazendas',
+        targetDocId: docId,
+        details: 'Usuário salvou/atualizou a Fazenda: $docId - ${_descricaoController.text}.',
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Salvo com sucesso!')));
+    } catch (e) {
+      await LogService.addLog(action: LogAction.ERROR, modulo: LogModule.REGISTRO_GERAL, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'fazendas', targetDocId: docId, details: 'FALHA ao salvar Fazenda $docId. Erro: ${e.toString()}');
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ocorreu um erro ao salvar.')));
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _deleteData() async {
+    final docId = _fazendaController.text.trim();
+    if (docId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Preencha o código para excluir.')));
+      return;
+    }
+
+    final confirm = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(title: const Text('Confirmar Exclusão'), content: Text('Deseja excluir a Fazenda $docId?'), actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancelar')), TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Excluir'), style: TextButton.styleFrom(foregroundColor: Colors.red))]));
+    if (confirm != true) return;
+
+    setState(() => _isLoading = true);
+    try {
+      await _collectionRef.doc(docId).delete();
+      await LogService.addLog(action: LogAction.DELETE, modulo: LogModule.REGISTRO_GERAL, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'fazendas', targetDocId: docId, details: 'Usuário excluiu a Fazenda cód. $docId.');
+      _clearFields();
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Excluído com sucesso!')));
+    } catch (e) {
+      await LogService.addLog(action: LogAction.ERROR, modulo: LogModule.REGISTRO_GERAL, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'fazendas', targetDocId: docId, details: 'FALHA ao excluir Fazenda $docId. Erro: ${e.toString()}');
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ocorreu um erro ao excluir.')));
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _generateReport() async {
+    setState(() => _isLoading = true);
+    try {
+      final querySnapshot = await _collectionRef.orderBy(FieldPath.documentId).get();
+      if (querySnapshot.docs.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nenhum dado para gerar relatório.')));
+        setState(() => _isLoading = false);
+        return;
+      }
+      final pdf = pw.Document();
+      final headers = ['Fazenda (Cód)', 'Descrição', 'RG'];
+      final data = querySnapshot.docs.map((doc) {
+        final item = doc.data() as Map<String, dynamic>;
+        return [doc.id, item['descricao'] ?? '', item['rg'] ?? ''];
+      }).toList();
+      pdf.addPage(pw.MultiPage(pageFormat: PdfPageFormat.a4, header: (context) => pw.Header(level: 0, child: pw.Text('Relatório de Fazendas - ${widget.secondaryCompanyId}', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold))), build: (context) => [pw.Table.fromTextArray(headers: headers, data: data, border: pw.TableBorder.all(), headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold))]));
+      await LogService.addLog(action: LogAction.GENERATE_REPORT, modulo: LogModule.REGISTRO_GERAL, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'fazendas', details: 'Usuário gerou um relatório da tabela de Fazendas.');
+      await Printing.layoutPdf(onLayout: (format) async => pdf.save());
+    } catch (e) {
+      await LogService.addLog(action: LogAction.ERROR, modulo: LogModule.REGISTRO_GERAL, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'fazendas', details: 'FALHA ao gerar relatório de Fazendas. Erro: ${e.toString()}');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao gerar PDF: $e')));
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+  
   @override
   void dispose() {
-    //_lembretesController.dispose(); // Descarta o controller
-
-    // Descarte os novos controllers de campo de texto
-    _dataAtualController.dispose();
-    //_empresaController.removeListener(_updateEmpresaCounter); // Remover listener
+    _fazendaController.removeListener(_onCodigoChanged);
     _fazendaController.dispose();
     _descricaoController.dispose();
     _rgController.dispose();
@@ -77,386 +200,144 @@ class _TabelaFazendaState extends State<TabelaFazenda> {
   @override
   Widget build(BuildContext context) {
     return TelaBase(
-      body: Column(
-        // Este Column é o body passado para a TelaBase
+      body: Stack(
         children: [
-          TopAppBar(
-            onBackPressed: () {
-              Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => TelaSubPrincipal(
-          mainCompanyId: widget.mainCompanyId, // Repassa o ID da empresa principal
-          secondaryCompanyId: widget.secondaryCompanyId, // Repassa o ID da empresa secundária
-          userRole: widget.userRole, // Repassa o papel do usuário
-        ),
-      ),
-    );
-            },
-            currentDate: _currentDate,
-            // userName: 'MRAFAEL', // Opcional, se quiser sobrescrever o padrão
-            // userAvatar: AssetImage('assets/images/another_user.png'), // Opcional
-          ),
-
-          // Área de conteúdo principal (flexível, abaixo da barra superior)
-          Expanded(
-            child: LayoutBuilder(
-              builder: (BuildContext context, BoxConstraints constraints) {
-                if (constraints.maxWidth > _breakpoint) {
-                  // Layout para telas largas (Desktop/Tablet)
-                  return Column(
-                    // Coluna principal da área de conteúdo
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        // Expande para o restante do espaço vertical
-                        child: Row(
-                          // Row para menu, área central e lembretes
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Menu Lateral (flex 1)
-                            Expanded(
-                              flex: 1,
-                              child: AppDrawer(parentMaxWidth: constraints.maxWidth,
-                          breakpoint: 700.0,
-                          mainCompanyId: widget.mainCompanyId, // Passa
-                          secondaryCompanyId: widget.secondaryCompanyId, // Passa
-                          //userRole: widget.userRole,
-                          ),
-                            ),
-                            // Área Central: Agora com o retângulo de informações E o título
-                            Expanded(
-                              // <-- ONDE A MUDANÇA OCORRE: Este Expanded é o pai do título e do container azul
-                              flex: 3,
-                              child: Column(
-                                // Column para empilhar o título e o container
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                // Alinha os filhos à esquerda (Text e Padding)
-                                children: [
-                                  Padding(
-                                    // Título "Controle"
-                                    padding: const EdgeInsets.only(
-                                        top: 20.0, bottom: 0.0), // Padding vertical
-                                    child: Center(
-                                      // <-- Centraliza o texto APENAS dentro deste Expanded
-                                      child: Text(
-                                        'Fazenda', // Título alterado para "Controle"
-                                        style: TextStyle(
-                                          fontSize: 28,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.black87,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  Expanded( // O Container azul ocupará o restante do espaço vertical
-                                    child: _buildCentralInputArea(), // Chamando a nova área de entrada de dados
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
+          Column(
+            children: [
+              TopAppBar(
+                onBackPressed: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => TelaSubPrincipal(
+                        mainCompanyId: widget.mainCompanyId,
+                        secondaryCompanyId: widget.secondaryCompanyId,
+                        userRole: widget.userRole,
                       ),
-                    ],
-                  );
-                } else {
-                  // Layout para telas pequenas (Mobile)
-                  return SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        // Título "Controle" centralizado para mobile
-                        Padding(
-                          padding:
-                              const EdgeInsets.only(top: 15.0, bottom: 8.0),
-                          child: Center(
-                            child: Text(
-                              'Fazenda', // Título alterado para "Controle"
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
-                            ),
-                          ),
-                        ),
-                        AppDrawer(parentMaxWidth: constraints.maxWidth,
-                          breakpoint: 700.0,
-                          mainCompanyId: widget.mainCompanyId, // Passa
-                          secondaryCompanyId: widget.secondaryCompanyId, // Passa
-                          //userRole: widget.userRole,
-                          ),
-                        _buildCentralInputArea(), // Área de entrada de dados abaixo do menu
-                      ],
                     ),
                   );
-                }
-              },
-            ),
+                },
+                currentDate: _currentDate,
+              ),
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (BuildContext context, BoxConstraints constraints) {
+                    if (constraints.maxWidth > _breakpoint) {
+                      return _buildDesktopLayout(constraints);
+                    } else {
+                      return _buildMobileLayout(constraints);
+                    }
+                  },
+                ),
+              ),
+            ],
           ),
+           if (_isLoading)
+            Container(
+              color: Colors.black.withOpacity(0.5),
+              child: const Center(child: CircularProgressIndicator()),
+            ),
         ],
       ),
     );
   }
 
+  Widget _buildDesktopLayout(BoxConstraints constraints) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          flex: 1,
+          child: AppDrawer(
+            parentMaxWidth: constraints.maxWidth,
+            breakpoint: _breakpoint,
+            mainCompanyId: widget.mainCompanyId,
+            secondaryCompanyId: widget.secondaryCompanyId,
+          ),
+        ),
+        Expanded(
+          flex: 3,
+          child: Column(
+            children: [
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 20.0),
+                child: Text('Fazenda', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+              ),
+              Expanded(child: _buildCentralInputArea()),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMobileLayout(BoxConstraints constraints) {
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 15.0),
+            child: Text('Fazenda', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          ),
+          AppDrawer(
+            parentMaxWidth: constraints.maxWidth,
+            breakpoint: _breakpoint,
+            mainCompanyId: widget.mainCompanyId,
+            secondaryCompanyId: widget.secondaryCompanyId,
+          ),
+          _buildCentralInputArea(),
+        ],
+      ),
+    );
+  }
 
   Widget _buildCentralInputArea() {
     return Form(
-      // Envolve toda a área de entrada de dados com um Form
-      key: _formKey, // Atribui a GlobalKey ao Form
+      key: _formKey,
       child: Padding(
-        padding: const EdgeInsets.all(25), // Padding ao redor do retângulo
+        padding: const EdgeInsets.all(25),
         child: Container(
-          padding: const EdgeInsets.all(0.0), // Padding interno do container azul
           decoration: BoxDecoration(
-            color: Colors.blue[100], // Fundo azul claro
-            border: Border.all(color: Colors.black, width: 1.0), // Borda preta
-            borderRadius: BorderRadius.circular(10.0), // Cantos arredondados
+            color: Colors.blue[100],
+            border: Border.all(color: Colors.black, width: 1.0),
+            borderRadius: BorderRadius.circular(10.0),
           ),
           child: Column(
-            // Use Column para empilhar os elementos e permitir o posicionamento no final
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               Expanded(
-                // Este Expanded fará com que a parte superior dos campos de entrada ocupe o espaço disponível
                 child: SingleChildScrollView(
-                  // Para permitir rolagem se os campos forem muitos
+                  padding: const EdgeInsets.all(30),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      SizedBox(height: 40,),
-                      // código----------------------------------------------------------------------
-                      Padding(
-                        padding: const EdgeInsets.only(left: 25, right: 25),
-                        child: Row(
-                          children: [
-                            SizedBox(width: 150,),
-                            Expanded(
-                              child: CustomInputField(
-                                controller: _fazendaController,
-                                label: 'Fazenda',
-                                inputFormatters: [
-                                  FilteringTextInputFormatter.digitsOnly, // Aceita apenas dígitos
-                                ],
-                                maxLength: 5,
-                                keyboardType: TextInputType.number,
-                                suffixText: '${_fazendaController.text.length}/5',
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Campo obrigatório';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            ),
-                            SizedBox(width: 150,),
-                          ],
-                        ),
+                      CustomInputField(
+                        controller: _fazendaController,
+                        label: 'Fazenda (Código)',
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        maxLength: 5,
+                        keyboardType: TextInputType.number,
+                        validator: (v) => v!.isEmpty ? 'Obrigatório' : null,
                       ),
-                      SizedBox(height: 35),
-                      //resumo---------------------------------------------------------------------------------------------
-                      Padding(
-                        padding: const EdgeInsets.only(left: 25, right: 25),
-                        child: Row(
-                          children: [
-                            SizedBox(width: 150,),
-                            Expanded(
-                              child: CustomInputField(
-                                controller: _descricaoController,
-                                label: 'Descrição',
-                                inputFormatters: [],
-                                
-                                maxLength: 30,
-                                suffixText: '${_descricaoController.text.length}/30',
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Campo obrigatório';
-                                  }
-                                  // **VALIDAÇÃO EXTRA AQUI:** Deve ter exatamente 2 caracteres
-                                  
-                                  return null;
-                                },
-                                
-                              ),
-                            ),
-                            SizedBox(width: 150,),
-                          ],
-                        ),
+                      const SizedBox(height: 20),
+                      CustomInputField(
+                        controller: _descricaoController,
+                        label: 'Descrição',
+                        maxLength: 30,
+                        validator: (v) => v!.isEmpty ? 'Obrigatório' : null,
                       ),
-                      SizedBox(height: 35,),
-                      //pais----------------------------------------------------------------------------------------------------
-                      Padding(
-                        padding: const EdgeInsets.only(left: 25, right: 25),
-                        child: Row(
-                          children: [
-                            SizedBox(width: 150,),
-                            Expanded(
-                              child: CustomInputField(
-                                controller: _rgController,
-                                label: 'RG',
-                                inputFormatters: [],
-                                maxLength: 5,
-                                suffixText: '${_rgController.text.length}/5',
-                                
-                              ),
-                            ),
-                            SizedBox(width: 150,),
-                          ],
-                        ),
+                      const SizedBox(height: 20),
+                      CustomInputField(
+                        controller: _rgController,
+                        label: 'RG',
+                        maxLength: 5,
+                         keyboardType: TextInputType.number,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       ),
-                      SizedBox(height: 35,),
-                      
-                      const SizedBox(height: 45), // Espaçamento antes dos rádios
-
-                      
                     ],
                   ),
                 ),
               ),
-              // Botões EXCLUIR, SALVAR, RELATÓRIO
-                      Center(
-                        child: IntrinsicHeight(
-                          // Garante que a altura das colunas filhas seja a mesma
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.stretch, // Faz com que as colunas se estiquem para a altura máxima
-                            children: [
-                              Align(
-                                alignment: Alignment.bottomCenter,
-                                child: ElevatedButton(
-                                  onPressed: () {
-                                    // Valida todos os campos do formulário
-                                    if (_formKey.currentState?.validate() ?? false) {
-                                      // Todos os campos são válidos, prossiga com o salvamento
-                                      print('--- Dados Salvos ---');
-                                      print('Data Atual: ${_dataAtualController.text}');
-                                      print('codigo Cargo: ${_fazendaController ?? 'Nenhum selecionado'}');
-                                      print('Descrição cargo: ${_descricaoController ?? 'Nenhum selecionado'}');
-                                      print('Resumo cargo: ${_rgController ?? 'Nenhum selecionado'}');
-                                    } else {
-                                      // Exibe uma mensagem ou snackbar indicando erros de validação
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                            content: Text(
-                                                'Por favor, corrija os erros nos campos antes de salvar.')),
-                                      );
-                                    }
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    fixedSize: const Size(200, 50),
-                                    side: const BorderSide(
-                                      width: 1.0,
-                                      color: Colors.black,
-                                    ),
-                                    backgroundColor: Colors.red, // Cor de fundo do botão
-                                    foregroundColor: Colors.black, // Cor do texto
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 40, vertical: 15),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(20.0),
-                                    ),
-                                  ),
-                                  child: const Text('EXCLUIR',
-                                      style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold)),
-                                ),
-                              ),
-                              const SizedBox(width: 30),
-                              Align(
-                                alignment: Alignment.bottomCenter,
-                                child: ElevatedButton(
-                                  onPressed: () {
-                                    // Valida todos os campos do formulário
-                                    if (_formKey.currentState?.validate() ?? false) {
-                                      // Todos os campos são válidos, prossiga com o salvamento
-                                      print('--- Dados Salvos ---');
-                                      print('Data Atual: ${_dataAtualController.text}');
-                                      print('codigo Cargo: ${_fazendaController ?? 'Nenhum selecionado'}');
-                                      print('Descrição cargo: ${_descricaoController ?? 'Nenhum selecionado'}');
-                                      print('Resumo cargo: ${_rgController ?? 'Nenhum selecionado'}');
-                                    } else {
-                                      // Exibe uma mensagem ou snackbar indicando erros de validação
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                            content: Text(
-                                                'Por favor, corrija os erros nos campos antes de salvar.')),
-                                      );
-                                    }
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    fixedSize: const Size(200, 50),
-                                    side: const BorderSide(
-                                      width: 1.0,
-                                      color: Colors.black,
-                                    ),
-                                    backgroundColor: Colors.green, // Cor de fundo do botão
-                                    foregroundColor: Colors.black, // Cor do texto
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 40, vertical: 15),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(20.0),
-                                    ),
-                                  ),
-                                  child: const Text('SALVAR',
-                                      style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold)),
-                                ),
-                              ),
-                              const SizedBox(width: 30),
-                              Align(
-                                alignment: Alignment.bottomCenter,
-                                child: ElevatedButton(
-                                  onPressed: () {
-                                    // Valida todos os campos do formulário
-                                    if (_formKey.currentState?.validate() ?? false) {
-                                      // Todos os campos são válidos, prossiga com o salvamento
-                                      print('--- Dados Salvos ---');
-                                      print('Data Atual: ${_dataAtualController.text}');
-                                    } else {
-                                      // Exibe uma mensagem ou snackbar indicando erros de validação
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                            content: Text(
-                                                'Por favor, corrija os erros nos campos antes de salvar.')),
-                                      );
-                                    }
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    fixedSize: const Size(200, 50),
-                                    side: const BorderSide(
-                                      width: 1.0,
-                                      color: Colors.black,
-                                    ),
-                                    backgroundColor: Colors.yellow, // Cor de fundo do botão
-                                    foregroundColor: Colors.black, // Cor do texto
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 40, vertical: 15),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(20.0),
-                                    ),
-                                  ),
-                                  child: const Text('RELATÓRIO',
-                                      style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold)),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-
-              // Estes dois containers ficarão fixos na parte inferior
-              // Você pode usar `Align` ou simplesmente colocá-los no final da Column
-              // como eles já são agora, mas removendo-os do SingleChildScrollView.
-              const SizedBox(height: 40),
-              //BottomInfoContainers(tablePath: 'Tabela > Estado'),
-              
+              _buildActionButtons(),
             ],
           ),
         ),
@@ -464,5 +345,19 @@ class _TabelaFazendaState extends State<TabelaFazenda> {
     );
   }
 
-  
+  Widget _buildActionButtons() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 20.0),
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        spacing: 20,
+        runSpacing: 15,
+        children: [
+          ElevatedButton.icon(icon: const Icon(Icons.delete), label: const Text('EXCLUIR'), style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white), onPressed: _deleteData),
+          ElevatedButton.icon(icon: const Icon(Icons.save), label: const Text('SALVAR'), style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white), onPressed: _saveData),
+          ElevatedButton.icon(icon: const Icon(Icons.print), label: const Text('RELATÓRIO'), style: ElevatedButton.styleFrom(backgroundColor: Colors.amber, foregroundColor: Colors.black), onPressed: _generateReport),
+        ],
+      ),
+    );
+  }
 }

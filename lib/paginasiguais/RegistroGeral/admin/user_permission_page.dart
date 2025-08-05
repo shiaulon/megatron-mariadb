@@ -143,6 +143,7 @@ class _UserPermissionPageState extends State<UserPermissionPage> {
       // LOG DE ALTERAÇÃO DE PERMISSÃO
       await LogService.addLog(
         action: LogAction.PERMISSION_CHANGE,
+        modulo: LogModule.ADMINISTRACAO,
         mainCompanyId: widget.mainCompanyId,
         secondaryCompanyId: widget.secondaryCompanyId, // Filial do admin
         targetCollection: 'users',
@@ -160,6 +161,7 @@ class _UserPermissionPageState extends State<UserPermissionPage> {
     } catch (e) {
       await LogService.addLog(
         action: LogAction.ERROR,
+        modulo: LogModule.ADMINISTRACAO,
         mainCompanyId: widget.mainCompanyId,
         secondaryCompanyId: widget.secondaryCompanyId,
         targetCollection: 'users',
