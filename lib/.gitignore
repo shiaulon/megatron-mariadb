@@ -1,0 +1,29 @@
+# Arquivos de metadados do Dart e Flutter.
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+
+# Arquivos de Build.
+build/
+
+# Arquivos gerados por IDEs.
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# Arquivos de sistema operacional.
+.DS_Store
+Thumbs.db
+
+# Arquivos sensíveis.
+*.env
+secrets.json
+
+# Logs e arquivos de teste.
+coverage/
+test/.test_coverage.json
