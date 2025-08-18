@@ -265,7 +265,7 @@ class _TabelaEstadoXImpostoState extends State<TabelaEstadoXImposto> {
       final docExists = (await _collectionRef.doc(docId).get()).exists;
 
       await _collectionRef.doc(docId).set(dataToSave, SetOptions(merge: true));
-      await LogService.addLog(
+      /*await LogService.addLog(
         modulo: LogModule.TABELA, // <-- ADICIONADO
       action: docExists ? LogAction.UPDATE : LogAction.CREATE,
       mainCompanyId: widget.mainCompanyId,
@@ -273,14 +273,14 @@ class _TabelaEstadoXImpostoState extends State<TabelaEstadoXImposto> {
       targetCollection: 'estado_imposto', // <-- PARTE CUSTOMIZÁVEL 1
       targetDocId: docId,
       details: 'Usuário salvou/atualizou o estado_imposto com código $docId.', // <-- PARTE CUSTOMIZÁVEL 2
-    );
+    );*/
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Dados salvos com sucesso!')),
       );
     } catch (e) {
       // --- LOG DE ERRO SAVE---
-    await LogService.addLog(
+    /*await LogService.addLog(
       modulo: LogModule.TABELA, // <-- ADICIONADO
       action: LogAction.ERROR,
       mainCompanyId: widget.mainCompanyId,
@@ -288,7 +288,7 @@ class _TabelaEstadoXImpostoState extends State<TabelaEstadoXImposto> {
       targetCollection: 'estado_imposto', // <-- PARTE CUSTOMIZÁVEL 1
       targetDocId: docId,
       details: 'FALHA ao salvar estado_imposto com código $docId. Erro: ${e.toString()}', // <-- PARTE CUSTOMIZÁVEL 2
-    );
+    );*/
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao salvar: $e')),
@@ -326,7 +326,7 @@ class _TabelaEstadoXImpostoState extends State<TabelaEstadoXImposto> {
     try {
       await _collectionRef.doc(docId).delete();
       // --- LOG DE SUCESSO DELETE---
-    await LogService.addLog(
+    /*await LogService.addLog(
       modulo: LogModule.TABELA, // <-- ADICIONADO
       action: LogAction.DELETE,
       mainCompanyId: widget.mainCompanyId,
@@ -334,7 +334,7 @@ class _TabelaEstadoXImpostoState extends State<TabelaEstadoXImposto> {
       targetCollection: 'estado_imposto', // <-- PARTE CUSTOMIZÁVEL 1
       targetDocId: docId,
       details: 'Usuário excluiuo estado_imposto com código $docId.', // <-- PARTE CUSTOMIZÁVEL 2
-    );
+    );*/
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Registro excluído com sucesso!')),
@@ -342,7 +342,7 @@ class _TabelaEstadoXImpostoState extends State<TabelaEstadoXImposto> {
       _clearFormFields();
     } catch(e) {
       // --- LOG DE ERRO DELETE---
-    await LogService.addLog(
+    /*await LogService.addLog(
       modulo: LogModule.TABELA, // <-- ADICIONADO
       action: LogAction.ERROR,
       mainCompanyId: widget.mainCompanyId,
@@ -350,7 +350,7 @@ class _TabelaEstadoXImpostoState extends State<TabelaEstadoXImposto> {
       targetCollection: 'estado_imposto', // <-- PARTE CUSTOMIZÁVEL 1
       targetDocId: docId,
       details: 'FALHA ao excluir estado_imposto com código $docId. Erro: ${e.toString()}', // <-- PARTE CUSTOMIZÁVEL 2
-    );
+    );*/
 
        ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao excluir: $e')),
@@ -449,14 +449,14 @@ class _TabelaEstadoXImpostoState extends State<TabelaEstadoXImposto> {
             ),
         );
         // --- LOG DE SUCESSO REPORT---
-    await LogService.addLog(
+    /*await LogService.addLog(
       modulo: LogModule.TABELA, // <-- ADICIONADO
       action: LogAction.GENERATE_REPORT,
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
       targetCollection: 'estado_imposto', // <-- PARTE CUSTOMIZÁVEL 1
       details: 'Usuário gerou um relatório da tabela de estado_imposto.', // <-- PARTE CUSTOMIZÁVEL 2
-    );
+    );*/
 
         
         await Printing.layoutPdf(
@@ -466,14 +466,14 @@ class _TabelaEstadoXImpostoState extends State<TabelaEstadoXImposto> {
 
     } catch (e) {
       // --- LOG DE ERRO REPPORT---
-    await LogService.addLog(
+   /* await LogService.addLog(
       modulo: LogModule.TABELA, // <-- ADICIONADO
       action: LogAction.ERROR,
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
       targetCollection: 'estado_imposto', // <-- PARTE CUSTOMIZÁVEL 1
       details: 'FALHA ao gerar relatório de estado_imposto. Erro: ${e.toString()}', // <-- PARTE CUSTOMIZÁVEL 2
-    );
+    );*/
 
         ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Erro ao gerar relatório: $e')),

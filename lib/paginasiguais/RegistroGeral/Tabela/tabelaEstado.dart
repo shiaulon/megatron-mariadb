@@ -1,19 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_application_1/providers/auth_provider.dart';
+import 'package:flutter_application_1/reutilizaveis/barraSuperior.dart';
+import 'package:flutter_application_1/reutilizaveis/customImputField.dart';
+import 'package:flutter_application_1/reutilizaveis/menuLateral.dart';
+import 'package:flutter_application_1/reutilizaveis/tela_base.dart';
+import 'package:flutter_application_1/services/estado_service.dart';
 import 'package:flutter_application_1/services/log_services.dart';
+import 'package:flutter_application_1/services/pais_service.dart';
 import 'package:flutter_application_1/submenus.dart';
 import 'package:intl/intl.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-
-import 'package:flutter_application_1/reutilizaveis/tela_base.dart';
-import 'package:flutter_application_1/reutilizaveis/barraSuperior.dart';
-import 'package:flutter_application_1/reutilizaveis/menuLateral.dart';
-import 'package:flutter_application_1/reutilizaveis/customImputField.dart';
-
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:provider/provider.dart';
+import 'package:collection/collection.dart';
 
 String? _ufValidator(String? value) {
   if (value == null || value.isEmpty) {
@@ -47,6 +48,9 @@ class TabelaEstado extends StatefulWidget {
 }
 
 class _TabelaEstadoState extends State<TabelaEstado> {
+  final EstadoService _estadoService = EstadoService();
+  final PaisService _paisService = PaisService();
+  
   static const double _breakpoint = 700.0;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   late String _currentDate;
@@ -57,6 +61,7 @@ class _TabelaEstadoState extends State<TabelaEstado> {
   
   String? _selectedPaisId;
   List<Map<String, dynamic>> _allPaises = [];
+  List<Map<String, dynamic>> _allEstados = [];
   
   bool _isLoading = false;
 
@@ -64,43 +69,81 @@ class _TabelaEstadoState extends State<TabelaEstado> {
   void initState() {
     super.initState();
     _currentDate = DateFormat('dd/MM/yyyy').format(DateTime.now());
-    _fetchAllPaises();
+    _loadInitialData();
     _codigoController.addListener(_onCodigoChanged);
     _siglaController.addListener(_onEstadoChanged);
   }
 
-  CollectionReference get _estadosCollectionRef => FirebaseFirestore.instance
-      .collection('companies').doc(widget.mainCompanyId)
-      .collection('secondaryCompanies').doc(widget.secondaryCompanyId)
-      .collection('data').doc('estados').collection('items');
+  @override
+  void dispose() {
+    _codigoController.removeListener(_onCodigoChanged);
+    _siglaController.removeListener(_onEstadoChanged);
+    _codigoController.dispose();
+    _estadoController.dispose();
+    _siglaController.dispose();
+    super.dispose();
+  }
 
-  // CORREÇÃO: Aponta para a coleção de países compartilhada, conforme as regras do Firebase
-  CollectionReference get _paisesCollectionRef => FirebaseFirestore.instance
-      .collection('companies').doc(widget.mainCompanyId)
-      .collection('shared_data').doc('paises')
-      .collection('items');
-
-  Future<void> _fetchAllPaises() async {
+  Future<void> _loadInitialData() async {
     setState(() => _isLoading = true);
     try {
-      final querySnapshot = await _paisesCollectionRef.get();
-      _allPaises = querySnapshot.docs.map((doc) {
-        final data = doc.data() as Map<String, dynamic>;
-        return {
-          'id': doc.id,
-          'pais': data['pais'] ?? 'País sem nome',
-          'resumo': data['resumo'] ?? '',
-          'codigoPais': data['codigoPais'] ?? '',
-        };
-      }).toList();
+      final token = Provider.of<AuthProvider>(context, listen: false).token;
+      if (token == null) throw Exception("Usuário não autenticado.");
+
+      final results = await Future.wait([
+        _estadoService.getAll(token),
+        _paisService.getAllPaises(token),
+      ]);
+      
+      if (mounted) {
+        setState(() {
+          _allEstados = results[0];
+          _allPaises = results[1];
+        });
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao carregar países: $e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao carregar dados: $e')));
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  void _clearFields({bool clearCode = false}) {
+  void _onCodigoChanged() {
+    final codigo = _codigoController.text.trim();
+    if (codigo.isEmpty) {
+      _clearFields(clearCode: false);
+      return;
+    }
+    final match = _allEstados.firstWhereOrNull((estado) => estado['id'].toString() == codigo);
+    if (match != null) {
+      _populateFields(match);
+    } else {
+      _clearFields(clearCode: false);
+    }
+  }
+
+  void _onEstadoChanged() {
+    setState(() {
+      final String sigla = _siglaController.text.toUpperCase();
+      if (sigla != 'EX') {
+        var brasil = _allPaises.firstWhereOrNull((p) => (p['nome'] as String).toLowerCase() == 'brasil');
+        if (brasil != null) {
+          _selectedPaisId = brasil['id'];
+        }
+      }
+    });
+  }
+
+  void _populateFields(Map<String, dynamic> data) {
+    setState(() {
+      _codigoController.text = data['id']?.toString() ?? '';
+      _estadoController.text = data['nome'] ?? '';
+      _siglaController.text = data['sigla'] ?? '';
+      _selectedPaisId = data['pais_id'];
+    });
+  }
+
+  void _clearFields({bool clearCode = true}) {
     if (clearCode) _codigoController.clear();
     _estadoController.clear();
     _siglaController.clear();
@@ -108,97 +151,34 @@ class _TabelaEstadoState extends State<TabelaEstado> {
       _selectedPaisId = null;
     });
   }
-
-  void _onEstadoChanged() {
-    final String sigla = _siglaController.text.toUpperCase();
-    if (sigla == 'EX') {
-      setState(() {
-        _selectedPaisId = null; // Limpa a seleção para que o usuário escolha
-      });
-    } else {
-      // Procura pelo país "Brasil" na lista
-      var brasil = _allPaises.firstWhere(
-        (p) => (p['pais'] as String).toLowerCase() == 'brasil',
-        orElse: () => {}, // Retorna um mapa vazio se não encontrar
-      );
-      if (brasil.isNotEmpty) {
-        setState(() {
-          _selectedPaisId = brasil['id']; // Define o ID do Brasil
-        });
-      }
-    }
-  }
-
-  Future<void> _onCodigoChanged() async {
-    final codigo = _codigoController.text.trim();
-    if (codigo.isEmpty) {
-      _clearFields(clearCode: false);
+  
+  Future<void> _saveData() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    setState(() => _isLoading = true);
+    
+    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    if (token == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Erro de autenticação.')));
+      setState(() => _isLoading = false);
       return;
     }
 
-    setState(() => _isLoading = true);
-    try {
-      final docSnapshot = await _estadosCollectionRef.doc(codigo).get();
-      if (docSnapshot.exists) {
-        final data = docSnapshot.data() as Map<String, dynamic>;
-        setState(() {
-          _estadoController.text = data['estado'] ?? '';
-          _siglaController.text = data['sigla'] ?? '';
-          _selectedPaisId = data['paisId'];
-        });
-      } else {
-        _clearFields(clearCode: false);
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao buscar estado: $e')));
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _saveData() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
-
-    final docId = _codigoController.text.trim();
-    setState(() => _isLoading = true);
-
     final dataToSave = {
-      'estado': _estadoController.text.trim(),
+      'id': _codigoController.text.trim(),
+      'nome': _estadoController.text.trim(),
       'sigla': _siglaController.text.trim().toUpperCase(),
-      'paisId': _selectedPaisId,
-      'ultima_atualizacao': FieldValue.serverTimestamp(),
-      'criado_por': FirebaseAuth.instance.currentUser?.email ?? 'desconhecido',
+      'pais_id': _selectedPaisId,
+      'secondaryCompanyId': widget.secondaryCompanyId,
     };
 
     try {
-      final docExists = (await _estadosCollectionRef.doc(docId).get()).exists;
-      await _estadosCollectionRef.doc(docId).set(dataToSave, SetOptions(merge: true));
-      await LogService.addLog(
-        modulo: LogModule.TABELA, // <-- ADICIONADO
-      action: docExists ? LogAction.UPDATE : LogAction.CREATE,
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'estados', // <-- PARTE CUSTOMIZÁVEL 1
-      targetDocId: docId,
-      details: 'Usuário salvou/atualizou o estado com código $docId.', // <-- PARTE CUSTOMIZÁVEL 2
-    );
-
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Estado salvo com sucesso!')));
+      await _estadoService.saveData(dataToSave, token);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Estado salvo com sucesso!'), backgroundColor: Colors.green));
+      await _loadInitialData();
     } catch (e) {
-      // --- LOG DE ERRO SAVE---
-    await LogService.addLog(
-      modulo: LogModule.TABELA, // <-- ADICIONADO
-      action: LogAction.ERROR,
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'estados', // <-- PARTE CUSTOMIZÁVEL 1
-      targetDocId: docId,
-      details: 'FALHA ao salvar estado com código $docId. Erro: ${e.toString()}', // <-- PARTE CUSTOMIZÁVEL 2
-    );
-
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao salvar: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao salvar: $e'), backgroundColor: Colors.red));
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -220,186 +200,68 @@ class _TabelaEstadoState extends State<TabelaEstado> {
         ],
       ),
     );
-
     if (confirm != true) return;
 
     setState(() => _isLoading = true);
+    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    if (token == null) { /* ... */ return; }
+    
     try {
-      await _estadosCollectionRef.doc(docId).delete();
-      // --- LOG DE SUCESSO DELETE---
-    await LogService.addLog(
-      modulo: LogModule.TABELA, // <-- ADICIONADO
-      action: LogAction.DELETE,
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'estados', // <-- PARTE CUSTOMIZÁVEL 1
-      targetDocId: docId,
-      details: 'Usuário excluiu o estado com código $docId.', // <-- PARTE CUSTOMIZÁVEL 2
-    );
-
+      await _estadoService.deleteData(docId, widget.secondaryCompanyId, token);
       _clearFields(clearCode: true);
+      await _loadInitialData();
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Estado excluído com sucesso!')));
     } catch (e) {
-      // --- LOG DE ERRO DELETE---
-    await LogService.addLog(
-      modulo: LogModule.TABELA, // <-- ADICIONADO
-      action: LogAction.ERROR,
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'estados', // <-- PARTE CUSTOMIZÁVEL 1
-      targetDocId: docId,
-      details: 'FALHA ao excluir estado com código $docId. Erro: ${e.toString()}', // <-- PARTE CUSTOMIZÁVEL 2
-    );
-
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao excluir: $e')));
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
   
   Future<void> _generateReport() async {
     setState(() => _isLoading = true);
+    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    if (token == null) { /* ... */ return; }
+    final logService = LogService(token);
+
     try {
-      final estadosSnapshot = await _estadosCollectionRef.get();
-      if (estadosSnapshot.docs.isEmpty) {
+      if (_allEstados.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nenhum estado para gerar relatório.')));
         return;
       }
-
-      final List<Map<String, dynamic>> allEstadosData = [];
-      for (var doc in estadosSnapshot.docs) {
-        final data = doc.data() as Map<String, dynamic>;
-        allEstadosData.add({
-          'codigo': doc.id,
-          'estado': data['estado'] ?? 'N/A',
-          'sigla': data['sigla'] ?? 'N/A',
-          'paisId': data['paisId'] ?? 'N/A',
-        });
-      }
-
-      final pdf = pw.Document();
-      final headers = ['Código', 'Estado', 'Sigla', 'Cód. País'];
       
-      final data = allEstadosData.map((estado) => [
-        estado['codigo'],
-        estado['estado'],
-        estado['sigla'],
-        estado['paisId'],
-      ]).toList();
-
-      pdf.addPage(
-        pw.MultiPage(
-          pageFormat: PdfPageFormat.a4,
-          header: (context) => pw.Header(
-            level: 0,
-            child: pw.Text('Relatório de Estados - ${widget.secondaryCompanyId}', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
-          ),
-          build: (context) => [
-            pw.Table.fromTextArray(
-              headers: headers,
-              data: data,
-              border: pw.TableBorder.all(),
-              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-              cellStyle: const pw.TextStyle(fontSize: 10),
-            )
-          ],
-        ),
+      await logService.addReportLog(
+        reportName: 'Relatório de Estados',
+        mainCompanyId: widget.mainCompanyId,
+        secondaryCompanyId: widget.secondaryCompanyId,
       );
-      // --- LOG DE SUCESSO REPORT---
-    await LogService.addLog(
-      modulo: LogModule.TABELA, // <-- ADICIONADO
-      action: LogAction.GENERATE_REPORT,
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'estados', // <-- PARTE CUSTOMIZÁVEL 1
-      details: 'Usuário gerou um relatório da tabela de estados.', // <-- PARTE CUSTOMIZÁVEL 2
-    );
 
-
-      await Printing.layoutPdf(onLayout: (format) async => pdf.save());
-    } catch (e) {
-      // --- LOG DE ERRO REPPORT---
-    await LogService.addLog(
-      modulo: LogModule.TABELA, // <-- ADICIONADO
-      action: LogAction.ERROR,
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'estados', // <-- PARTE CUSTOMIZÁVEL 1
-      details: 'FALHA ao gerar relatório de estados. Erro: ${e.toString()}', // <-- PARTE CUSTOMIZÁVEL 2
-    );
-
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao gerar relatório: $e')));
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _generateCombinedReport() async {
-    setState(() => _isLoading = true);
-    try {
-      final estadosSnapshot = await _estadosCollectionRef.get();
-      if (estadosSnapshot.docs.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nenhum estado para gerar relatório.')));
-        return;
-      }
-      
       final paisesMap = {for (var pais in _allPaises) pais['id']: pais};
-
-      final List<List<String>> reportData = [];
-      for (var estadoDoc in estadosSnapshot.docs) {
-        final estadoData = estadoDoc.data() as Map<String, dynamic>;
-        final paisId = estadoData['paisId'];
-        final paisData = paisesMap[paisId];
-
-        reportData.add([
-          estadoDoc.id,
-          estadoData['estado'] ?? 'N/A',
-          estadoData['sigla'] ?? 'N/A',
-          paisId ?? 'N/A',
-          paisData?['pais'] ?? 'País não encontrado',
-          paisData?['resumo'] ?? 'N/A',
-        ]);
-      }
+      final reportData = _allEstados.map((estado) {
+        final paisData = paisesMap[estado['pais_id']];
+        return [
+          estado['id'] ?? 'N/A',
+          estado['nome'] ?? 'N/A',
+          estado['sigla'] ?? 'N/A',
+          paisData?['nome'] ?? 'País N/A',
+        ];
+      }).toList();
 
       final pdf = pw.Document();
-      final headers = ['Cód. Estado', 'Estado', 'Sigla', 'Cód. País', 'País', 'Resumo País'];
+      final headers = ['Código', 'Estado', 'Sigla', 'País'];
       
-      pdf.addPage(
-        pw.MultiPage(
-          pageFormat: PdfPageFormat.a4.landscape,
-          header: (context) => pw.Header(
-            level: 0,
-            child: pw.Text('Relatório Completo: Estados e Países', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
-          ),
-          build: (context) => [
-            pw.Table.fromTextArray(
-              headers: headers,
-              data: reportData,
-              border: pw.TableBorder.all(),
-              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-              cellStyle: const pw.TextStyle(fontSize: 9),
-            )
-          ],
-        ),
-      );
+      pdf.addPage(pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        header: (context) => pw.Header(level: 0, child: pw.Text('Relatório de Estados', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold))),
+        build: (context) => [pw.Table.fromTextArray(headers: headers, data: reportData)],
+      ));
 
       await Printing.layoutPdf(onLayout: (format) async => pdf.save());
-
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao gerar relatório: $e')));
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
-  }
-  
-  @override
-  void dispose() {
-    _codigoController.removeListener(_onCodigoChanged);
-    _estadoController.removeListener(_onEstadoChanged);
-    _codigoController.dispose();
-    _estadoController.dispose();
-    _siglaController.dispose();
-    super.dispose();
   }
 
   @override
@@ -437,10 +299,7 @@ class _TabelaEstadoState extends State<TabelaEstado> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(flex: 1, child: AppDrawer(parentMaxWidth: constraints.maxWidth, breakpoint: _breakpoint, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, 
-        //userRole: widget.userRole,
-                          ),
-        ),
+        Expanded(flex: 1, child: AppDrawer(parentMaxWidth: constraints.maxWidth, breakpoint: _breakpoint, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId)),
         Expanded(
           flex: 3,
           child: Column(
@@ -465,10 +324,7 @@ class _TabelaEstadoState extends State<TabelaEstado> {
             padding: EdgeInsets.only(top: 15.0, bottom: 8.0),
             child: Text('Estado', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
           ),
-          AppDrawer(parentMaxWidth: 0, breakpoint: _breakpoint, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, 
-          //userRole: widget.userRole,
-                          )
-          ,
+          AppDrawer(parentMaxWidth: 0, breakpoint: _breakpoint, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId),
           _buildCentralInputArea(),
         ],
       ),
@@ -522,7 +378,7 @@ class _TabelaEstadoState extends State<TabelaEstado> {
       items: _allPaises.map<DropdownMenuItem<String>>((pais) {
         return DropdownMenuItem<String>(
           value: pais['id'],
-          child: Text(pais['pais']),
+          child: Text(pais['nome']),
         );
       }).toList(),
       onChanged: isNotExterior ? null : (String? newValue) {
@@ -545,7 +401,6 @@ class _TabelaEstadoState extends State<TabelaEstado> {
           _buildActionButton('EXCLUIR', Colors.red, _deleteData),
           _buildActionButton('SALVAR', Colors.green, _saveData),
           _buildActionButton('RELATÓRIO', Colors.yellow, _generateReport),
-          _buildActionButton('REL. COMPLETO', Colors.orange, _generateCombinedReport),
         ],
       ),
     );
@@ -553,7 +408,7 @@ class _TabelaEstadoState extends State<TabelaEstado> {
 
   Widget _buildActionButton(String text, Color color, VoidCallback onPressed) {
     return ElevatedButton(
-      onPressed: onPressed,
+      onPressed: _isLoading ? null : onPressed,
       style: ElevatedButton.styleFrom(
         fixedSize: const Size(180, 50),
         backgroundColor: color,

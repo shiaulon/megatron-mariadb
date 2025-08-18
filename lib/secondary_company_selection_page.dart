@@ -1,22 +1,22 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter_application_1/login_page.dart'; // Para logout
-import 'package:flutter_application_1/menu.dart'; // Sua TelaPrincipal
-import 'package:provider/provider.dart'; // Importe o Provider
-import 'package:flutter_application_1/providers/permission_provider.dart'; // Importe o PermissionProvider
+import 'package:flutter_application_1/providers/permission_provider.dart';
+import 'package:provider/provider.dart';
+
+import 'login_page.dart';
+import 'menu.dart'; // Sua TelaPrincipal
+import 'providers/auth_provider.dart';
+import 'services/api_service.dart'; // Nosso novo ApiService
+
+// REMOVIDO: import 'package:cloud_firestore/cloud_firestore.dart';
+// REMOVIDO: import 'package:firebase_auth/firebase_auth.dart';
+// REMOVIDO: import 'package:flutter_application_1/providers/permission_provider.dart';
 
 class SecondaryCompanySelectionPage extends StatefulWidget {
   final String mainCompanyId;
-  // REMOVER allowedSecondaryCompanies do construtor
-  // final List<String> allowedSecondaryCompanies; // <--- REMOVER ESTA LINHA
-  // final String? userRole; // REMOVER: Não é mais passado
 
   const SecondaryCompanySelectionPage({
     super.key,
     required this.mainCompanyId,
-    // required this.allowedSecondaryCompanies, // <--- REMOVER ESTA LINHA
-    // this.userRole, // REMOVER
   });
 
   @override
@@ -24,8 +24,8 @@ class SecondaryCompanySelectionPage extends StatefulWidget {
 }
 
 class _SecondaryCompanySelectionPageState extends State<SecondaryCompanySelectionPage> {
-  // Adicione um Future para carregar os dados do usuário e das empresas
-  late Future<List<DocumentSnapshot>> _loadCompaniesFuture;
+  late Future<List<Map<String, dynamic>>> _loadCompaniesFuture;
+  final ApiService _apiService = ApiService();
 
   @override
   void initState() {
@@ -33,51 +33,18 @@ class _SecondaryCompanySelectionPageState extends State<SecondaryCompanySelectio
     _loadCompaniesFuture = _loadAllowedCompanies();
   }
 
-  Future<List<DocumentSnapshot>> _loadAllowedCompanies() async {
-    final String? currentUserId = FirebaseAuth.instance.currentUser?.uid;
+  Future<List<Map<String, dynamic>>> _loadAllowedCompanies() async {
+    // Os dados agora vêm do nosso AuthProvider, não do Firestore!
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final allowedIds = authProvider.allowedSecondaryCompanies;
+    final token = authProvider.token;
 
-    if (currentUserId == null) {
-      // Redireciona para login se o usuário não estiver autenticado
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const LoginPage()),
-        );
-      }
-      throw Exception('Usuário não autenticado.');
+    if (token == null || allowedIds.isEmpty) {
+      throw Exception('Dados de autenticação ou empresas permitidas não encontrados.');
     }
-
-    try {
-      // Busca o documento do usuário para obter allowedSecondaryCompanies
-      DocumentSnapshot userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(currentUserId)
-          .get();
-
-      if (!userDoc.exists || userDoc['mainCompanyId'] != widget.mainCompanyId) {
-        throw Exception('Dados do usuário ou empresa principal não correspondem.');
-      }
-
-      List<String> allowedSecondaryCompanies = (userDoc['allowedSecondaryCompanies'] as List<dynamic>?)?.map((item) => item.toString()).toList() ?? [];
-
-      if (allowedSecondaryCompanies.isEmpty) {
-        throw Exception('Nenhuma empresa secundária permitida para este usuário.');
-      }
-
-      // Agora, busca os documentos das empresas secundárias
-      final querySnapshot = await FirebaseFirestore.instance
-          .collection('companies')
-          .doc(widget.mainCompanyId)
-          .collection('secondaryCompanies')
-          .where(FieldPath.documentId, whereIn: allowedSecondaryCompanies)
-          .get();
-
-      return querySnapshot.docs;
-
-    } catch (e) {
-      print("Erro ao carregar empresas permitidas: $e");
-      rethrow; // Re-lança o erro para o FutureBuilder lidar
-    }
+    
+    // Usamos o ApiService para buscar os detalhes das empresas
+    return _apiService.getSecondaryCompaniesDetails(allowedIds, token);
   }
 
   @override
@@ -85,15 +52,13 @@ class _SecondaryCompanySelectionPageState extends State<SecondaryCompanySelectio
     return Scaffold(
       appBar: AppBar(
         title: const Text('Selecione a Empresa Secundária'),
-        backgroundColor: Colors.lightBlue,
-        foregroundColor: Colors.black,
-        automaticallyImplyLeading: false,
+        // ... (resto da sua AppBar, incluindo o botão de logout que agora usa o AuthProvider)
         actions: [
           IconButton(
             icon: const Icon(Icons.exit_to_app, color: Colors.black),
             tooltip: 'Sair',
             onPressed: () async {
-              await FirebaseAuth.instance.signOut();
+              await Provider.of<AuthProvider>(context, listen: false).logout();
               if (mounted) {
                 Navigator.pushReplacement(
                   context,
@@ -104,68 +69,62 @@ class _SecondaryCompanySelectionPageState extends State<SecondaryCompanySelectio
           ),
         ],
       ),
-      body: FutureBuilder<List<DocumentSnapshot>>( // O tipo do FutureBuilder foi atualizado
-        future: _loadCompaniesFuture, // Usa o Future que carrega os dados
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: _loadCompaniesFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(child: Text('Erro ao carregar empresas: ${snapshot.error}\nPor favor, tente novamente ou contate o suporte.'));
+            return Center(child: Text('Erro ao carregar empresas: ${snapshot.error}'));
           }
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text('Nenhuma empresa secundária encontrada para você.\nEntre em contato com o administrador.'));
+            return const Center(child: Text('Nenhuma empresa secundária encontrada.'));
           }
 
-          final companies = snapshot.data!; // Os documentos já filtrados
+          final companies = snapshot.data!;
 
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Text(
-                    'Você está conectado à empresa principal: ${widget.mainCompanyId}.',
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.normal),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                  child: Text(
-                    'Selecione a empresa secundária para gerenciar:',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-                const SizedBox(height: 10),
+                // ... (Textos de cabeçalho podem continuar os mesmos)
                 Expanded(
                   child: ListView.builder(
                     itemCount: companies.length,
                     itemBuilder: (context, index) {
-                      DocumentSnapshot companyDoc = companies[index];
-                      String companyId = companyDoc.id;
-                      String companyName = companyDoc['name'] ?? 'Empresa Secundária Desconhecida';
-
+                      final companyData = companies[index];
+                      final companyId = companyData['id'];
+                      final companyName = companyData['nome'] ?? 'Nome Desconhecido';
+                      
                       return Card(
                         margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                        elevation: 4,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          leading: const Icon(Icons.business, color: Colors.blueAccent, size: 30),
-                          title: Text(
-                            companyName,
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                          ),
+                          leading: const Icon(Icons.business),
+                          title: Text(companyName, style: const TextStyle(fontWeight: FontWeight.bold)),
                           subtitle: Text('ID: $companyId'),
-                          trailing: const Icon(Icons.arrow_forward_ios, size: 18),
-                          onTap: () async{
-                            // NOVO: Carregar as permissões para a filial selecionada ANTES de navegar
+                          onTap: () async { // 1. Transforma a função em "async"
+                            // 2. Pega os providers necessários
+                            final authProvider = Provider.of<AuthProvider>(context, listen: false);
                             final permissionProvider = Provider.of<PermissionProvider>(context, listen: false);
-                            await permissionProvider.loadUserPermissions(FirebaseAuth.instance.currentUser!.uid, companyId);
 
+                            // 3. (Boa Prática) Mostra um indicador de carregamento
+                            showDialog(
+                              context: context,
+                              barrierDismissible: false,
+                              builder: (ctx) => const Center(child: CircularProgressIndicator()),
+                            );
+
+                            // 4. Carrega as permissões da API para a filial selecionada
+                            await permissionProvider.loadUserPermissions(companyId, authProvider.token!);
+                            
+                            // 5. Garante que o widget ainda está na tela antes de continuar
+                            if (!mounted) return;
+
+                            // 6. Fecha o indicador de carregamento
+                            Navigator.pop(context); 
+
+                            // 7. Navega para a tela principal
                             Navigator.pushReplacement(
                               context,
                               MaterialPageRoute(

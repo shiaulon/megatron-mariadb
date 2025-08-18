@@ -71,7 +71,7 @@ class _TabelaComoNosConheceuState extends State<TabelaComoNosConheceu> {
     try {
       final docSnapshot = await _collectionRef.doc(codigo).get();
 
-      await LogService.addLog(
+      /*await LogService.addLog(
         action: LogAction.VIEW,
         modulo: LogModule.REGISTRO_GERAL,
         mainCompanyId: widget.mainCompanyId,
@@ -79,7 +79,7 @@ class _TabelaComoNosConheceuState extends State<TabelaComoNosConheceu> {
         targetCollection: 'como_nos_conheceu (shared)',
         targetDocId: codigo,
         details: 'Usuário consultou "Como nos Conheceu" cód. "$codigo". Resultado: ${docSnapshot.exists ? "Encontrado" : "Não encontrado"}.',
-      );
+      );*/
 
       if (docSnapshot.exists) {
         final data = docSnapshot.data() as Map<String, dynamic>;
@@ -90,7 +90,7 @@ class _TabelaComoNosConheceuState extends State<TabelaComoNosConheceu> {
         _clearFields(clearCode: false);
       }
     } catch (e) {
-      await LogService.addLog(action: LogAction.ERROR, modulo: LogModule.REGISTRO_GERAL, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'como_nos_conheceu (shared)', targetDocId: codigo, details: 'FALHA ao consultar "Como nos Conheceu" cód. "$codigo". Erro: ${e.toString()}');
+      //await LogService.addLog(action: LogAction.ERROR, modulo: LogModule.REGISTRO_GERAL, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'como_nos_conheceu (shared)', targetDocId: codigo, details: 'FALHA ao consultar "Como nos Conheceu" cód. "$codigo". Erro: ${e.toString()}');
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao consultar: $e')));
     } finally {
       setState(() => _isLoading = false);
@@ -113,7 +113,7 @@ class _TabelaComoNosConheceuState extends State<TabelaComoNosConheceu> {
       final docExists = (await _collectionRef.doc(docId).get()).exists;
       await _collectionRef.doc(docId).set(dataToSave);
 
-      await LogService.addLog(
+      /*await LogService.addLog(
         action: docExists ? LogAction.UPDATE : LogAction.CREATE,
         modulo: LogModule.REGISTRO_GERAL,
         mainCompanyId: widget.mainCompanyId,
@@ -121,11 +121,11 @@ class _TabelaComoNosConheceuState extends State<TabelaComoNosConheceu> {
         targetCollection: 'como_nos_conheceu (shared)',
         targetDocId: docId,
         details: 'Usuário salvou/atualizou "Como nos Conheceu": $docId - ${_descricaoController.text}.',
-      );
+      );*/
 
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Salvo com sucesso!')));
     } catch (e) {
-      await LogService.addLog(action: LogAction.ERROR, modulo: LogModule.REGISTRO_GERAL, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'como_nos_conheceu (shared)', targetDocId: docId, details: 'FALHA ao salvar "Como nos Conheceu" $docId. Erro: ${e.toString()}');
+      //await LogService.addLog(action: LogAction.ERROR, modulo: LogModule.REGISTRO_GERAL, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'como_nos_conheceu (shared)', targetDocId: docId, details: 'FALHA ao salvar "Como nos Conheceu" $docId. Erro: ${e.toString()}');
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ocorreu um erro ao salvar.')));
     } finally {
       setState(() => _isLoading = false);
@@ -145,11 +145,11 @@ class _TabelaComoNosConheceuState extends State<TabelaComoNosConheceu> {
     setState(() => _isLoading = true);
     try {
       await _collectionRef.doc(docId).delete();
-      await LogService.addLog(action: LogAction.DELETE, modulo: LogModule.REGISTRO_GERAL, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'como_nos_conheceu (shared)', targetDocId: docId, details: 'Usuário excluiu "Como nos Conheceu" cód. $docId.');
+      //await LogService.addLog(action: LogAction.DELETE, modulo: LogModule.REGISTRO_GERAL, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'como_nos_conheceu (shared)', targetDocId: docId, details: 'Usuário excluiu "Como nos Conheceu" cód. $docId.');
       _clearFields();
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Excluído com sucesso!')));
     } catch (e) {
-      await LogService.addLog(action: LogAction.ERROR, modulo: LogModule.REGISTRO_GERAL, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'como_nos_conheceu (shared)', targetDocId: docId, details: 'FALHA ao excluir "Como nos Conheceu" $docId. Erro: ${e.toString()}');
+      //await LogService.addLog(action: LogAction.ERROR, modulo: LogModule.REGISTRO_GERAL, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'como_nos_conheceu (shared)', targetDocId: docId, details: 'FALHA ao excluir "Como nos Conheceu" $docId. Erro: ${e.toString()}');
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ocorreu um erro ao excluir.')));
     } finally {
       setState(() => _isLoading = false);
@@ -172,10 +172,10 @@ class _TabelaComoNosConheceuState extends State<TabelaComoNosConheceu> {
         return [doc.id, item['descricao'] ?? ''];
       }).toList();
       pdf.addPage(pw.MultiPage(pageFormat: PdfPageFormat.a4, header: (context) => pw.Header(level: 0, child: pw.Text('Relatório de "Como nos Conheceu" - ${widget.secondaryCompanyId}', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold))), build: (context) => [pw.Table.fromTextArray(headers: headers, data: data, border: pw.TableBorder.all(), headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold))]));
-      await LogService.addLog(action: LogAction.GENERATE_REPORT, modulo: LogModule.REGISTRO_GERAL, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'como_nos_conheceu (shared)', details: 'Usuário gerou um relatório da tabela "Como nos Conheceu".');
+      //await LogService.addLog(action: LogAction.GENERATE_REPORT, modulo: LogModule.REGISTRO_GERAL, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'como_nos_conheceu (shared)', details: 'Usuário gerou um relatório da tabela "Como nos Conheceu".');
       await Printing.layoutPdf(onLayout: (format) async => pdf.save());
     } catch (e) {
-      await LogService.addLog(action: LogAction.ERROR, modulo: LogModule.REGISTRO_GERAL, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'como_nos_conheceu (shared)', details: 'FALHA ao gerar relatório de "Como nos Conheceu". Erro: ${e.toString()}');
+      //await LogService.addLog(action: LogAction.ERROR, modulo: LogModule.REGISTRO_GERAL, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'como_nos_conheceu (shared)', details: 'FALHA ao gerar relatório de "Como nos Conheceu". Erro: ${e.toString()}');
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao gerar PDF: $e')));
     } finally {
       setState(() => _isLoading = false);

@@ -1,12 +1,15 @@
 // lib/pages/admin/user_permission_page.dart
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_application_1/models/permission_model.dart';
+import 'package:flutter_application_1/providers/auth_provider.dart';
 import 'package:flutter_application_1/reutilizaveis/barraSuperior.dart';
 import 'package:flutter_application_1/reutilizaveis/tela_base.dart';
+import 'package:flutter_application_1/services/admin_service.dart';
+import 'package:flutter_application_1/services/api_service.dart';
 import 'package:flutter_application_1/services/log_services.dart';
+import 'package:flutter_application_1/services/permission_service.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
 class UserPermissionPage extends StatefulWidget {
   final String userId;
@@ -27,155 +30,112 @@ class UserPermissionPage extends StatefulWidget {
 }
 
 class _UserPermissionPageState extends State<UserPermissionPage> {
-  late String _currentDate;
-  // AGORA: Um mapa para guardar as permissões de CADA filial. Chave: filialId, Valor: mapa de permissões.
   late Map<String, Map<String, dynamic>> _permissionsByFilial;
-  // AGORA: Um mapa para guardar os nomes das filiais. Chave: filialId, Valor: nome da filial.
   late Map<String, String> _filialNames;
   bool _isLoading = true;
-
+  
+  final AdminService _adminService = AdminService();
+  final ApiService _apiService = ApiService(); // Para buscar nomes das filiais
+  final PermissionService _permissionService = PermissionService(); // Para buscar permissões
+  late String _currentDate;
   @override
   void initState() {
-    super.initState();
     _currentDate = DateFormat('dd/MM/yyyy').format(DateTime.now());
+    super.initState();
     _permissionsByFilial = {};
     _filialNames = {};
-    _loadUserPermissionsAndFiliais();
+    _loadInitialData();
   }
 
-  Future<void> _loadUserPermissionsAndFiliais() async {
+  Future<void> _loadInitialData() async {
     setState(() => _isLoading = true);
+    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    if (token == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Erro de autenticação')));
+      setState(() => _isLoading = false);
+      return;
+    }
+
     try {
-      // 1. Buscar as filiais permitidas do usuário
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(widget.userId).get();
-      if (!userDoc.exists) {
-        throw Exception("Usuário não encontrado.");
-      }
-      final List<String> allowedFiliais = List<String>.from(userDoc.data()?['allowedSecondaryCompanies'] ?? []);
-      if (allowedFiliais.isEmpty) {
+      // 1. Busca os IDs das filiais que o USUÁRIO (que está sendo editado) pode acessar
+      final allowedFilialIds = await _adminService.getUserAllowedCompanies(widget.userId, token);
+
+      if (allowedFilialIds.isEmpty) {
         setState(() => _isLoading = false);
-        return; // Sai se não houver filiais
+        return; // Sai se o usuário não tem filiais associadas
       }
 
-      // 2. Buscar os nomes das filiais
-      final companiesSnapshot = await FirebaseFirestore.instance
-          .collection('companies')
-          .doc(widget.mainCompanyId)
-          .collection('secondaryCompanies')
-          .where(FieldPath.documentId, whereIn: allowedFiliais)
-          .get();
-
-      for (var doc in companiesSnapshot.docs) {
-        _filialNames[doc.id] = doc.data()['name'] ?? 'Nome Desconhecido';
-      }
-
-      // 3. Buscar as permissões para cada filial
-      final permissionsSnapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(widget.userId)
-          .collection('permissions')
-          .where(FieldPath.documentId, whereIn: allowedFiliais)
-          .get();
-
-      final Map<String, Map<String, dynamic>> loadedPermissions = {};
-      for (var doc in permissionsSnapshot.docs) {
-        loadedPermissions[doc.id] = Map<String, dynamic>.from(doc.data()?['acessos'] ?? {});
-      }
-
-      // 4. Garantir que cada filial tenha um conjunto de permissões (mesmo que padrão)
-      for (String filialId in allowedFiliais) {
-        if (!loadedPermissions.containsKey(filialId)) {
-          loadedPermissions[filialId] = UserPermissions.defaultPermissions().acessos;
-        }
-      }
+      // 2. Com os IDs, busca os detalhes (nomes) dessas filiais
+      final filiaisDetails = await _apiService.getSecondaryCompaniesDetails(allowedFilialIds, token);
       
-      setState(() {
-        _permissionsByFilial = loadedPermissions;
-      });
+      for (var filial in filiaisDetails) {
+        _filialNames[filial['id']] = filial['nome'];
+      }
+
+      // 3. Para cada filial permitida, busca as permissões específicas do usuário
+      for (String filialId in allowedFilialIds) {
+        final permissionsData = await _permissionService.getUserPermissions(filialId, token);
+        _permissionsByFilial[filialId] = permissionsData['acessos'] ?? {};
+      }
 
     } catch (e) {
-      print("Erro ao carregar permissões para edição: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao carregar permissões: $e')),
-      );
+      print('Erro ao carregar dados de permissão: $e');
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao carregar dados: $e')));
     } finally {
-      setState(() => _isLoading = false);
+      if(mounted) setState(() => _isLoading = false);
     }
   }
 
   void _togglePermission(String filialId, List<String> path, bool newValue) {
-    setState(() {
-      Map<String, dynamic> currentLevel = _permissionsByFilial[filialId]!;
-      for (int i = 0; i < path.length; i++) {
-        final key = path[i];
-        if (i == path.length - 1) {
-          currentLevel[key] = newValue;
-        } else {
-          currentLevel.putIfAbsent(key, () => {});
-          if (currentLevel[key] is! Map<String, dynamic>) {
-            currentLevel[key] = {};
-          }
-          currentLevel = currentLevel[key] as Map<String, dynamic>;
-        }
-      }
-    });
+  // 1. Cria uma cópia profunda do mapa de permissões para não modificar o original diretamente.
+  final newPermissionsByFilial = Map<String, Map<String, dynamic>>.from(
+    _permissionsByFilial.map(
+      (key, value) => MapEntry(key, Map<String, dynamic>.from(value)),
+    ),
+  );
+
+  // 2. Navega na cópia para encontrar o local a ser alterado.
+  Map<String, dynamic> currentLevel = newPermissionsByFilial[filialId]!;
+  for (int i = 0; i < path.length; i++) {
+    final key = path[i];
+    if (i == path.length - 1) {
+      // 3. Altera o valor na cópia.
+      currentLevel[key] = newValue;
+    } else {
+      // Garante que o próximo nível seja um mapa editável (uma cópia também).
+      currentLevel.putIfAbsent(key, () => <String, dynamic>{});
+      currentLevel[key] = Map<String, dynamic>.from(currentLevel[key]);
+      currentLevel = currentLevel[key];
+    }
   }
+
+  // 4. Atualiza o estado com o NOVO mapa modificado.
+  setState(() {
+    _permissionsByFilial = newPermissionsByFilial;
+  });
+}
 
   Future<void> _savePermissions() async {
     setState(() => _isLoading = true);
+    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    if (token == null) { /* Tratar erro */ return; }
+    
     try {
-      WriteBatch batch = FirebaseFirestore.instance.batch();
-
+      // Prepara os dados no formato que o backend espera
+      final Map<String, dynamic> dataToSave = {'admin_secondary_company_id': widget.secondaryCompanyId,};
       _permissionsByFilial.forEach((filialId, acessos) {
-        DocumentReference permDocRef = FirebaseFirestore.instance
-            .collection('users')
-            .doc(widget.userId)
-            .collection('permissions')
-            .doc(filialId);
-        
-        // Usando o toMap do modelo para incluir metadados
-        final permissionsData = UserPermissions(acessos: acessos);
-        batch.set(permDocRef, permissionsData.toMap());
+        dataToSave[filialId] = {'acessos': acessos};
       });
 
-      await batch.commit();
-
-      // LOG DE ALTERAÇÃO DE PERMISSÃO
-      await LogService.addLog(
-        action: LogAction.PERMISSION_CHANGE,
-        modulo: LogModule.ADMINISTRACAO,
-        mainCompanyId: widget.mainCompanyId,
-        secondaryCompanyId: widget.secondaryCompanyId, // Filial do admin
-        targetCollection: 'users',
-        targetDocId: widget.userId,
-        details: 'Admin ${FirebaseAuth.instance.currentUser?.email} alterou as permissões para o usuário ${widget.userName} (ID: ${widget.userId}).',
-      );
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Permissões salvas com sucesso!')),
-      );
-      
-      // Não é mais necessário recarregar o provider global aqui,
-      // pois ele é carregado com a filial ativa no momento do login/seleção.
-
-    } catch (e) {
-      await LogService.addLog(
-        action: LogAction.ERROR,
-        modulo: LogModule.ADMINISTRACAO,
-        mainCompanyId: widget.mainCompanyId,
-        secondaryCompanyId: widget.secondaryCompanyId,
-        targetCollection: 'users',
-        targetDocId: widget.userId,
-        details: 'FALHA ao salvar permissões para o usuário ${widget.userName}. Erro: ${e.toString()}',
-      );
-      print("Erro ao salvar permissões: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao salvar permissões: $e')),
-      );
+      await _adminService.savePermissions(widget.userId, dataToSave, token);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Permissões salvas com sucesso!')));
+    } catch(e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao salvar permissões: $e')));
     } finally {
       setState(() => _isLoading = false);
     }
   }
+
 
   bool _getPermissionValue(String filialId, List<String> path) {
     Map<String, dynamic>? current = _permissionsByFilial[filialId];
@@ -281,6 +241,8 @@ class _UserPermissionPageState extends State<UserPermissionPage> {
               filialId, 'Registro Geral (Manut.)', Icons.app_registration, ['registro_geral', 'registro_geral_manut', 'acesso'],
               [
                 _buildPermissionCheckbox(filialId, 'Manut RG', ['registro_geral', 'registro_geral_manut', 'manut_rg'], paddingLeft: 10.0),
+                // ✔️ ADICIONE O CHECKBOX PARA A NOVA TELA AQUI
+              _buildPermissionCheckbox(filialId, 'Natureza X RG', ['registro_geral', 'manut_rg', 'natureza_x_rg'], paddingLeft: 10.0),
               ],
               paddingLeft: 20.0,
             ),

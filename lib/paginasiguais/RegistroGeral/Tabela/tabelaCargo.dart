@@ -112,7 +112,7 @@ class _TabelaCargoState extends State<TabelaCargo> {
       final docExists = (await _collectionRef.doc(docId).get()).exists;
       await _collectionRef.doc(docId).set(dataToSave);
       // --- LOG DE SUCESSO SAVE---
-    await LogService.addLog(
+    /*await LogService.addLog(
       modulo: LogModule.TABELA, // <-- ADICIONADO
       action: docExists ? LogAction.UPDATE : LogAction.CREATE,
       mainCompanyId: widget.mainCompanyId,
@@ -120,13 +120,13 @@ class _TabelaCargoState extends State<TabelaCargo> {
       targetCollection: 'cargos', // <-- PARTE CUSTOMIZÁVEL 1
       targetDocId: docId,
       details: 'Usuário salvou/atualizou o cargo com código $docId.', // <-- PARTE CUSTOMIZÁVEL 2
-    );
+    );*/
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Cargo salvo com sucesso!')),
       );
     } catch (e) {
       // --- LOG DE ERRO SAVE---
-    await LogService.addLog(
+    /*await LogService.addLog(
       modulo: LogModule.TABELA, // <-- ADICIONADO
       action: LogAction.ERROR,
       mainCompanyId: widget.mainCompanyId,
@@ -134,7 +134,7 @@ class _TabelaCargoState extends State<TabelaCargo> {
       targetCollection: 'cargos', // <-- PARTE CUSTOMIZÁVEL 1
       targetDocId: docId,
       details: 'FALHA ao salvar cargo com código $docId. Erro: ${e.toString()}', // <-- PARTE CUSTOMIZÁVEL 2
-    );
+    );*/
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao salvar: $e')),
@@ -171,7 +171,7 @@ class _TabelaCargoState extends State<TabelaCargo> {
     try {
       await _collectionRef.doc(docId).delete();
       // --- LOG DE SUCESSO DELETE---
-    await LogService.addLog(
+    /*await LogService.addLog(
       modulo: LogModule.TABELA, // <-- ADICIONADO
       action: LogAction.DELETE,
       mainCompanyId: widget.mainCompanyId,
@@ -179,7 +179,7 @@ class _TabelaCargoState extends State<TabelaCargo> {
       targetCollection: 'cargos', // <-- PARTE CUSTOMIZÁVEL 1
       targetDocId: docId,
       details: 'Usuário excluiu o cargo com código $docId.', // <-- PARTE CUSTOMIZÁVEL 2
-    );
+    );*/
 
       _clearFields(clearCode: true);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -187,7 +187,7 @@ class _TabelaCargoState extends State<TabelaCargo> {
       );
     } catch (e) {
       // --- LOG DE ERRO DELETE---
-    await LogService.addLog(
+    /*await LogService.addLog(
       modulo: LogModule.TABELA, // <-- ADICIONADO
       action: LogAction.ERROR,
       mainCompanyId: widget.mainCompanyId,
@@ -195,7 +195,7 @@ class _TabelaCargoState extends State<TabelaCargo> {
       targetCollection: 'cargos', // <-- PARTE CUSTOMIZÁVEL 1
       targetDocId: docId,
       details: 'FALHA ao excluir cargo com código $docId. Erro: ${e.toString()}', // <-- PARTE CUSTOMIZÁVEL 2
-    );
+    );*/
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao excluir: $e')),
@@ -239,27 +239,27 @@ class _TabelaCargoState extends State<TabelaCargo> {
         ),
       );
       // --- LOG DE SUCESSO REPORT---
-    await LogService.addLog(
+    /*await LogService.addLog(
       modulo: LogModule.TABELA, // <-- ADICIONADO
       action: LogAction.GENERATE_REPORT,
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
       targetCollection: 'cargos', // <-- PARTE CUSTOMIZÁVEL 1
       details: 'Usuário gerou um relatório da tabela de cargo.', // <-- PARTE CUSTOMIZÁVEL 2
-    );
+    );*/
 
 
       await Printing.layoutPdf(onLayout: (format) async => pdf.save());
     } catch (e) {
       // --- LOG DE ERRO REPPORT---
-    await LogService.addLog(
+    /*await LogService.addLog(
       modulo: LogModule.TABELA, // <-- ADICIONADO
       action: LogAction.ERROR,
       mainCompanyId: widget.mainCompanyId,
       secondaryCompanyId: widget.secondaryCompanyId,
       targetCollection: 'cargos', // <-- PARTE CUSTOMIZÁVEL 1
       details: 'FALHA ao gerar relatório de cargo. Erro: ${e.toString()}', // <-- PARTE CUSTOMIZÁVEL 2
-    );
+    );*/
 
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao gerar PDF: $e')));
     } finally {

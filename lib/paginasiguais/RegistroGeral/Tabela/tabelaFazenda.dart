@@ -75,7 +75,7 @@ class _TabelaFazendaState extends State<TabelaFazenda> {
     try {
       final docSnapshot = await _collectionRef.doc(codigo).get();
 
-      await LogService.addLog(
+      /*await LogService.addLog(
         action: LogAction.VIEW,
         modulo: LogModule.REGISTRO_GERAL,
         mainCompanyId: widget.mainCompanyId,
@@ -84,7 +84,7 @@ class _TabelaFazendaState extends State<TabelaFazenda> {
         targetDocId: codigo,
         details: 'Usuário consultou a Fazenda cód. "$codigo". Resultado: ${docSnapshot.exists ? "Encontrado" : "Não encontrado"}.',
       );
-
+*/
       if (docSnapshot.exists) {
         final data = docSnapshot.data() as Map<String, dynamic>;
         setState(() {
@@ -95,7 +95,7 @@ class _TabelaFazendaState extends State<TabelaFazenda> {
         _clearFields(clearCode: false);
       }
     } catch (e) {
-      await LogService.addLog(action: LogAction.ERROR, modulo: LogModule.REGISTRO_GERAL, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'fazendas', targetDocId: codigo, details: 'FALHA ao consultar Fazenda cód. "$codigo". Erro: ${e.toString()}');
+      //await LogService.addLog(action: LogAction.ERROR, modulo: LogModule.REGISTRO_GERAL, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'fazendas', targetDocId: codigo, details: 'FALHA ao consultar Fazenda cód. "$codigo". Erro: ${e.toString()}');
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao consultar: $e')));
     } finally {
       setState(() => _isLoading = false);
@@ -119,7 +119,7 @@ class _TabelaFazendaState extends State<TabelaFazenda> {
       final docExists = (await _collectionRef.doc(docId).get()).exists;
       await _collectionRef.doc(docId).set(dataToSave);
 
-      await LogService.addLog(
+      /*await LogService.addLog(
         action: docExists ? LogAction.UPDATE : LogAction.CREATE,
         modulo: LogModule.REGISTRO_GERAL,
         mainCompanyId: widget.mainCompanyId,
@@ -127,11 +127,11 @@ class _TabelaFazendaState extends State<TabelaFazenda> {
         targetCollection: 'fazendas',
         targetDocId: docId,
         details: 'Usuário salvou/atualizou a Fazenda: $docId - ${_descricaoController.text}.',
-      );
+      );*/
 
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Salvo com sucesso!')));
     } catch (e) {
-      await LogService.addLog(action: LogAction.ERROR, modulo: LogModule.REGISTRO_GERAL, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'fazendas', targetDocId: docId, details: 'FALHA ao salvar Fazenda $docId. Erro: ${e.toString()}');
+      //await LogService.addLog(action: LogAction.ERROR, modulo: LogModule.REGISTRO_GERAL, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'fazendas', targetDocId: docId, details: 'FALHA ao salvar Fazenda $docId. Erro: ${e.toString()}');
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ocorreu um erro ao salvar.')));
     } finally {
       setState(() => _isLoading = false);
@@ -151,11 +151,11 @@ class _TabelaFazendaState extends State<TabelaFazenda> {
     setState(() => _isLoading = true);
     try {
       await _collectionRef.doc(docId).delete();
-      await LogService.addLog(action: LogAction.DELETE, modulo: LogModule.REGISTRO_GERAL, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'fazendas', targetDocId: docId, details: 'Usuário excluiu a Fazenda cód. $docId.');
+      //await LogService.addLog(action: LogAction.DELETE, modulo: LogModule.REGISTRO_GERAL, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'fazendas', targetDocId: docId, details: 'Usuário excluiu a Fazenda cód. $docId.');
       _clearFields();
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Excluído com sucesso!')));
     } catch (e) {
-      await LogService.addLog(action: LogAction.ERROR, modulo: LogModule.REGISTRO_GERAL, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'fazendas', targetDocId: docId, details: 'FALHA ao excluir Fazenda $docId. Erro: ${e.toString()}');
+     // await LogService.addLog(action: LogAction.ERROR, modulo: LogModule.REGISTRO_GERAL, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'fazendas', targetDocId: docId, details: 'FALHA ao excluir Fazenda $docId. Erro: ${e.toString()}');
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ocorreu um erro ao excluir.')));
     } finally {
       setState(() => _isLoading = false);
@@ -178,10 +178,10 @@ class _TabelaFazendaState extends State<TabelaFazenda> {
         return [doc.id, item['descricao'] ?? '', item['rg'] ?? ''];
       }).toList();
       pdf.addPage(pw.MultiPage(pageFormat: PdfPageFormat.a4, header: (context) => pw.Header(level: 0, child: pw.Text('Relatório de Fazendas - ${widget.secondaryCompanyId}', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold))), build: (context) => [pw.Table.fromTextArray(headers: headers, data: data, border: pw.TableBorder.all(), headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold))]));
-      await LogService.addLog(action: LogAction.GENERATE_REPORT, modulo: LogModule.REGISTRO_GERAL, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'fazendas', details: 'Usuário gerou um relatório da tabela de Fazendas.');
+      //await LogService.addLog(action: LogAction.GENERATE_REPORT, modulo: LogModule.REGISTRO_GERAL, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'fazendas', details: 'Usuário gerou um relatório da tabela de Fazendas.');
       await Printing.layoutPdf(onLayout: (format) async => pdf.save());
     } catch (e) {
-      await LogService.addLog(action: LogAction.ERROR, modulo: LogModule.REGISTRO_GERAL, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'fazendas', details: 'FALHA ao gerar relatório de Fazendas. Erro: ${e.toString()}');
+      //await LogService.addLog(action: LogAction.ERROR, modulo: LogModule.REGISTRO_GERAL, mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, targetCollection: 'fazendas', details: 'FALHA ao gerar relatório de Fazendas. Erro: ${e.toString()}');
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao gerar PDF: $e')));
     } finally {
       setState(() => _isLoading = false);

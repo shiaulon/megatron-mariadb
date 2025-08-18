@@ -6,7 +6,7 @@ import 'package:flutter_application_1/paginasiguais/RegistroGeral/admin/user_man
 import 'package:flutter_application_1/providers/permission_provider.dart';
 import 'package:flutter_application_1/secondary_company_selection_page.dart';
 import 'package:intl/intl.dart'; // Importe para formatar a data
-import 'package:firebase_auth/firebase_auth.dart'; // Para FirebaseAuth.instance.currentUser
+//import 'package:firebase_auth/firebase_auth.dart'; // Para FirebaseAuth.instance.currentUser
 
 import 'package:flutter_application_1/login_page.dart';
 import 'package:flutter_application_1/submenus.dart'; // Para a TelaSubPrincipal
@@ -106,9 +106,7 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
   @override
   void initState() {
     super.initState();
-    _userName = FirebaseAuth.instance.currentUser?.displayName ??
-        FirebaseAuth.instance.currentUser?.email?.split('@').first.toUpperCase() ??
-        'Usuário';
+    _userName = 'Usuário Logado'; 
 
     if (_textEditingController.text.isEmpty) {
       _textEditingController.text = '• ';

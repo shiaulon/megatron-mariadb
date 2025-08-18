@@ -1,69 +1,65 @@
-// lib/services/log_service.dart
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+// lib/services/log_services.dart
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart' show kIsWeb;
 
-// Enum ATUALIZADO com as novas ações
-enum LogAction {
-  CREATE,
-  UPDATE,
-  DELETE,
-  LOGIN,
-  LOGOUT,
-  VIEW,
-  GENERATE_REPORT,
-  PERMISSION_CHANGE, // <-- NOVO
-  ERROR,             // <-- NOVO
-}
-enum LogModule {
-  REGISTRO_GERAL,
-  CREDITO,
-  ADMINISTRACAO,
-  LOGIN,
-  INDEFINIDO,
-  TABELA
-}
+enum LogAction { CREATE, UPDATE, DELETE, LOGIN, LOGOUT, ERROR, PERMISSION_CHANGE, GENERATE_REPORT }
+enum LogModule { LOGIN, ADMINISTRACAO, TABELA, REGISTRO_GERAL, CREDITO, RELATORIO, CRM }
 
 class LogService {
-  static Future<void> addLog({
-    required LogAction action,
-    required LogModule modulo, // <-- NOVO PARÂMETRO
-    String? mainCompanyId, // <-- Torne opcional para logs de erro/login
-    String? secondaryCompanyId,
-    String? targetCollection,
-    String? targetDocId,
-    required String details,
+  static final String _host = kIsWeb ? 'localhost' : '10.0.2.2';
+  static final String _baseUrl = 'http://$_host:8080/logs';
+
+  final String _token; 
+  LogService(this._token);
+
+  Map<String, String> _getHeaders() {
+    return {
+      'Content-Type': 'application/json; charset=UTF-8',
+      'Authorization': 'Bearer $_token',
+    };
+  }
+
+  // REMOVIDO: A função addLog não existe mais no frontend.
+  Future<void> addReportLog({
+    required String reportName,
+    required String mainCompanyId,
+    required String secondaryCompanyId,
   }) async {
-    final user = FirebaseAuth.instance.currentUser;
-    // Permite logs mesmo sem usuário (ex: falha de login)
-    final userEmail = user?.email ?? "Usuário Desconhecido";
-    final userId = user?.uid ?? "N/A";
-
-    // Se não houver mainCompanyId, não podemos salvar o log na estrutura atual.
-    // Em um sistema maior, poderia haver uma coleção de logs "global".
-    if (mainCompanyId == null || mainCompanyId.isEmpty) {
-      print('Log não salvo: mainCompanyId não fornecido.');
-      return;
-    }
-
     try {
-      final logCollection = FirebaseFirestore.instance
-          .collection('companies')
-          .doc(mainCompanyId)
-          .collection('logs');
-
-      await logCollection.add({
-        'timestamp': FieldValue.serverTimestamp(),
-        'modulo': modulo.name, // <-- SALVA O NOME DO MÓDULO
-        'userId': userId,
-        'userEmail': userEmail,
-        'secondaryCompanyId': secondaryCompanyId ?? '',
-        'action': action.name,
-        'targetCollection': targetCollection ?? '',
-        'targetDocId': targetDocId ?? '',
-        'details': details,
-      });
+      await http.post(
+        Uri.parse('$_baseUrl/report'), // Chama a nova rota
+        headers: _getHeaders(),
+        body: jsonEncode({
+          'reportName': reportName,
+          'mainCompanyId': mainCompanyId,
+          'secondaryCompanyId': secondaryCompanyId,
+        }),
+      );
     } catch (e) {
-      print('### Erro CRÍTICO ao salvar log: $e ###');
+      print("Falha ao enviar log de relatório: $e");
+    }
+  }
+
+  // A função getLogs continua a mesma, pois é usada pela LogsPage
+  Future<List<Map<String, dynamic>>> getLogs({
+    String? userEmail,
+    String? action,
+    String? modulo,
+  }) async {
+    final queryParams = <String, String>{};
+    if (userEmail != null && userEmail.isNotEmpty) queryParams['userEmail'] = userEmail;
+    if (action != null) queryParams['action'] = action;
+    if (modulo != null) queryParams['modulo'] = modulo;
+    
+    final url = Uri.parse(_baseUrl).replace(queryParameters: queryParams);
+    final response = await http.get(url, headers: _getHeaders());
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+      return List<Map<String, dynamic>>.from(data);
+    } else {
+      throw Exception('Falha ao carregar logs da API: ${response.body}');
     }
   }
 }

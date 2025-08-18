@@ -39,7 +39,10 @@ dependencies:
   path_provider: ^2.1.3 # Para encontrar um caminho para salvar o arquivo (útil para mobile/desktop)
   open_filex: ^4.3.2 # Para abrir o arquivo PDF após a criação (ou share_plus para compartilhar)
   intl: ^0.20.2 # Já deve estar lá para formatação de data, mas é bom garantir.
-  
+  url_launcher: ^6.2.6
+  provider: ^6.1.2 # Use a versão mais recente estável.
+  collection: ^1.18.0 # Certifique-se que esta também está lá para `firstWhereOrNull`
+  flutter_secure_storage: ^9.2.2 # <--- VERIFIQUE ESTA LINHA
 
 
   # The following adds the Cupertino Icons font to your application.

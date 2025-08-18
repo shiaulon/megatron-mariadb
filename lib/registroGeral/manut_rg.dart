@@ -3,16 +3,18 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaEstadoXImposto.dart';
+import 'package:flutter_application_1/providers/auth_provider.dart';
 import 'package:flutter_application_1/reutilizaveis/barraSuperior.dart';
 import 'package:flutter_application_1/reutilizaveis/customImputField.dart';
 import 'package:flutter_application_1/reutilizaveis/menuLateral.dart';
 import 'package:flutter_application_1/reutilizaveis/tela_base.dart';
+import 'package:flutter_application_1/services/auth_service.dart';
 import 'package:flutter_application_1/services/log_services.dart';
+import 'package:flutter_application_1/services/manut_rg_service.dart';
 import 'package:flutter_application_1/submenus.dart';
 import 'package:intl/intl.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:collection/collection.dart';
+import 'package:provider/provider.dart';
 
 // --- FORMATTERS E VALIDATORS (Copiados do seu código original) ---
 
@@ -118,10 +120,14 @@ class CepInputFormatter extends TextInputFormatter {
       TextEditingValue oldValue, TextEditingValue newValue) {
     final text = newValue.text.replaceAll(RegExp(r'\D'), '');
     if (text.length <= 5) return newValue;
-    return newValue.copyWith(
-      text:
-          '${text.substring(0, 5)}-${text.substring(5, text.length > 8 ? 8 : text.length)}',
-      selection: TextSelection.collapsed(offset: newValue.selection.end + 1),
+    
+    // Cria o texto formatado primeiro
+    final formattedText = '${text.substring(0, 5)}-${text.substring(5, text.length > 8 ? 8 : text.length)}';
+    
+    // Retorna o texto formatado e posiciona o cursor no final dele
+    return TextEditingValue(
+      text: formattedText,
+      selection: TextSelection.collapsed(offset: formattedText.length),
     );
   }
 }
@@ -240,6 +246,7 @@ class _PaginaComAbasLateraisState extends State<PaginaComAbasLaterais> {
   static const double _breakpoint = 700.0;
   late String _currentDate;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final ManutRgService _manutRgService = ManutRgService();
 
   int _selectedIndex = 0;
   bool _isLoading = false;
@@ -249,7 +256,9 @@ class _PaginaComAbasLateraisState extends State<PaginaComAbasLaterais> {
   List<Map<String, dynamic>> _allCidades = [];
   List<Map<String, dynamic>> _allCargos = [];
   List<Map<String, dynamic>> _allSituacoes = [];
+  List<Map<String, dynamic>> _allPaises = [];
   Map<String, bool> _isFieldSelectedFromDropdown = {};
+  Map<String, dynamic>? _rgData;
 
   // --- Controllers para todos os campos ---
   final TextEditingController _cepController = TextEditingController();
@@ -371,11 +380,7 @@ class _PaginaComAbasLateraisState extends State<PaginaComAbasLaterais> {
   final TextEditingController _cellEditController = TextEditingController();
   final FocusNode _cellFocusNode = FocusNode();
 
-  Stream<QuerySnapshot>? _telefonesStream;
-  Stream<QuerySnapshot>? _sociosStream;
-  Stream<QuerySnapshot>? _referenciasStream;
-  Stream<QuerySnapshot>? _contatosStream;
-  Stream<QuerySnapshot>? _referenciasComerciaisStream;
+  
 
   bool _possuiEndCobran = false;
   bool _possuiEndCorrespondencia = false;
@@ -388,10 +393,11 @@ class _PaginaComAbasLateraisState extends State<PaginaComAbasLaterais> {
   void initState() {
   super.initState();
   _currentDate = DateFormat('dd/MM/yyyy').format(DateTime.now());
-  _fetchAllControlData();
-  _fetchAllCidades();
-  _fetchAllCargos();
-  _fetchAllSituacoes(); 
+  _fetchAllInitialData();
+  //_fetchAllControlData();
+  //_fetchAllCidades();
+ // _fetchAllCargos();
+  //_fetchAllSituacoes(); 
 
   _isFieldSelectedFromDropdown = {
         'campoComum1': false,
@@ -400,7 +406,7 @@ class _PaginaComAbasLateraisState extends State<PaginaComAbasLaterais> {
     };
 
   // Mantenha os listeners para os campos de busca que controlam a população/limpeza
-  _campoComum1Controller.addListener(_updateStreams);
+  //_campoComum1Controller.addListener(_updateStreams);
   _campoComum2Controller.addListener(_handleClearCheck);
   _campoComum3Controller.addListener(_handleClearCheck);
   _codigoGeradoController.addListener(_handleClearCheck);
@@ -563,7 +569,7 @@ class _PaginaComAbasLateraisState extends State<PaginaComAbasLaterais> {
    _obsRefComercialController.addListener(_updateCounters);
 
   // ADICIONAL: Adicione o listener para carregar os estados dos checkboxes de endereço
-  _campoComum1Controller.addListener(_loadCheckboxStates);
+  //_campoComum1Controller.addListener(_loadCheckboxStates);
 }
 
 void _updateCounters() {
@@ -651,11 +657,39 @@ void _updateCounters() {
     }
   }
 
+  // Adicionar uma nova função para carregar os dados via API
+Future<void> _loadRgData(String rgId) async {
+    if (rgId.isEmpty) return;
+    setState(() => _isLoading = true);
+    try {
+      final token = Provider.of<AuthProvider>(context, listen: false).token;
+      if (token == null) throw Exception('Usuário não autenticado.');
+
+      final data = await _manutRgService.getRgCompleto(rgId, token);
+      
+      setState(() {
+        if (data.isNotEmpty) {
+          _rgData = data;
+          _populateAllFields(_rgData!);
+        } else {
+          _rgData = null;
+          _clearDependentFields();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('CPF/CNPJ não encontrado. Você pode criar um novo registro.')),
+          );
+        }
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao carregar dados: $e')));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
   
 
   // NOVO MÉTODO: Para carregar o estado dos checkboxes baseado nos dados da empresa
   // Isso deve ser chamado quando uma empresa é carregada (e não apenas quando um campo é modificado).
-  void _loadCheckboxStates() {
+  /*void _loadCheckboxStates() {
       final docId = _campoComum1Controller.text.trim();
       if (docId.isNotEmpty) {
           _collectionRef.doc(docId).get().then((docSnapshot) {
@@ -686,7 +720,7 @@ void _updateCounters() {
               _setUnsavedChanges(false);
           });
       }
-  }
+  }*/
 
   void _updateEmpresaCounter() {
     // Força a reconstrução do widget para que o suffixText seja atualizado
@@ -694,82 +728,128 @@ void _updateCounters() {
   }
 
   // Helper para obter a referência da coleção
-  CollectionReference get _collectionRef => FirebaseFirestore.instance
-      .collection('companies')
-      .doc(widget.mainCompanyId)
-      .collection('secondaryCompanies')
-      .doc(widget.secondaryCompanyId)
-      .collection('data')
-      .doc('manut_rg')
-      .collection('items');
+  
 
-  CollectionReference get _cidadesCollectionRef => FirebaseFirestore.instance
-      .collection('companies')
-      .doc(widget.mainCompanyId)
-      .collection('secondaryCompanies')
-      .doc(widget.secondaryCompanyId)
-      .collection('data')
-      .doc('cidades')
-      .collection('items');
+  
 
-  CollectionReference get _cargosCollectionRef => FirebaseFirestore.instance
-      .collection('companies')
-      .doc(widget.mainCompanyId)
-      .collection('secondaryCompanies')
-      .doc(widget.secondaryCompanyId)
-      .collection('data')
-      .doc('cargos')
-      .collection('items');
+  
 
-  CollectionReference get _situacoesCollectionRef => FirebaseFirestore.instance
-    .collection('companies')
-    .doc(widget.mainCompanyId)
-    .collection('secondaryCompanies')
-    .doc(widget.secondaryCompanyId)
-    .collection('data')
-    .doc('situacoes') // Assumindo 'situacoes' como nome do documento pai
-    .collection('items');
+  
 
   // Busca todos os dados para popular os dropdowns
   Future<void> _fetchAllControlData() async {
+  setState(() => _isLoading = true);
+  try {
+    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    if (token == null) return;
+    
+    // Usa o novo endpoint de sugestões
+    _allControlData = await _manutRgService.getRgSuggestions(token);
+
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Erro ao carregar sugestões: $e')),
+    );
+  } finally {
+    if (mounted) setState(() => _isLoading = false);
+  }
+}
+
+  Future<void> _fetchAllInitialData() async {
     setState(() => _isLoading = true);
     try {
-      final querySnapshot = await _collectionRef.get();
-      _allControlData = querySnapshot.docs
-          .map((doc) => doc.data() as Map<String, dynamic>)
-          .toList();
+      final token = Provider.of<AuthProvider>(context, listen: false).token;
+      if (token == null) throw Exception("Usuário não autenticado");
+
+      // Carrega todos os dados auxiliares em paralelo
+      final results = await Future.wait([
+        _manutRgService.getRgSuggestions(token),
+        _manutRgService.getDadosAuxiliares('cidades', token),
+        _manutRgService.getDadosAuxiliares('cargos', token),
+        _manutRgService.getDadosAuxiliares('situacoes', token),
+        _manutRgService.getDadosAuxiliares('paises', token), // <-- ADICIONE ESTA LINHA
+      ]);
+
+      _allControlData = results[0];
+      _allCidades = results[1];
+      _allCargos = results[2];
+      _allSituacoes = results[3];
+      _allPaises = results[4]; 
+
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao carregar sugestões: $e')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao carregar dados iniciais: $e')));
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
+  Widget _buildPaisAutocomplete({VoidCallback? onUserInteraction}) {
+  return Autocomplete<Map<String, dynamic>>(
+    displayStringForOption: (option) => option['nome'] as String? ?? '',
+    optionsBuilder: (textEditingValue) {
+      if (textEditingValue.text.isEmpty) {
+        return const Iterable.empty();
+      }
+      return _allPaises.where((option) {
+        final nome = option['nome']?.toString().toLowerCase() ?? '';
+        final id = option['id']?.toString().toLowerCase() ?? '';
+        final input = textEditingValue.text.toLowerCase();
+        return nome.contains(input) || id.contains(input);
+      });
+    },
+    onSelected: (selection) {
+      setState(() {
+        _paisController.text = selection['id'] ?? '';
+      });
+      FocusScope.of(context).unfocus();
+      onUserInteraction?.call();
+    },
+    fieldViewBuilder: (context, fieldController, focusNode, onFieldSubmitted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final matchedPais = _allPaises.firstWhereOrNull(
+          (element) => element['id'] == _paisController.text
+        );
+        final displayText = matchedPais != null ? matchedPais['nome'] : _paisController.text;
+        if (fieldController.text != displayText) {
+          fieldController.text = displayText;
+        }
+      });
+
+      return CustomInputField(
+        controller: fieldController,
+        focusNode: focusNode,
+        label: "País",
+        onUserInteraction: onUserInteraction,
+        onChanged: (value) {
+          // ATUALIZAÇÃO SUTIL: Não mexa no _paisController aqui para evitar o loop
+          // Apenas deixe o Autocomplete gerenciar o texto digitado
+        },
+      );
+    },
+  );
+}
+
   Future<void> _fetchAllCidades() async {
-    try {
-      final querySnapshot = await _cidadesCollectionRef.get();
-      _allCidades = querySnapshot.docs.map((doc) {
-        final data = doc.data() as Map<String, dynamic>;
-        return {
-          'id': doc.id,
-          'cidade': data['cidade'] ?? 'Cidade sem nome',
-        };
-      }).toList();
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao carregar cidades: $e')));
-    }
+  try {
+    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    if (token == null) return;
+    // Chama o novo método do service
+    _allCidades = await _manutRgService.getCidades(token);
+    if (mounted) setState(() {});
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Erro ao carregar cidades: $e')),
+    );
   }
+}
 
   Future<void> _fetchAllCargos() async {
     try {
-      final querySnapshot = await _cargosCollectionRef.get();
-      _allCargos = querySnapshot.docs.map((doc) {
-        final data = doc.data() as Map<String, dynamic>;
-        return {'id': doc.id, 'descricao': data['descricao'] ?? 'Cargo sem descrição'};
-      }).toList();
+      final token = Provider.of<AuthProvider>(context, listen: false).token;
+    if (token == null) return;
+    // Chama o novo método do service
+    _allCargos = await _manutRgService.getCargos(token);
+    if (mounted) setState(() {});
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao carregar cargos: $e')));
@@ -778,12 +858,11 @@ void _updateCounters() {
 
   Future<void> _fetchAllSituacoes() async {
   try {
-    final querySnapshot = await _situacoesCollectionRef.get();
-    _allSituacoes = querySnapshot.docs.map((doc) {
-      final data = doc.data() as Map<String, dynamic>;
-      // Ajuste os campos 'id' e 'descricao' conforme a sua estrutura real de "situacoes"
-      return {'id': doc.id, 'descricao': data['descricao'] ?? 'Situação sem descrição'};
-    }).toList();
+    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    if (token == null) return;
+    // Chama o novo método do service
+    _allSituacoes = await _manutRgService.getSituacoes(token);
+    if (mounted) setState(() {});
   } catch (e) {
     ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao carregar situações: $e')));
@@ -792,147 +871,100 @@ void _updateCounters() {
 
   // Preenche todos os campos com base no item selecionado no dropdown
   void _populateAllFields(Map<String, dynamic> data) {
-    setState(() {
-      _campoComum1Controller.text = data['campoComum1'] ?? '';
-      _campoComum2Controller.text = data['campoComum2'] ?? '';
-      _campoComum3Controller.text = data['campoComum3'] ?? '';
-      _codigoGeradoController.text = data['codigoGerado'] ?? '';
-      if (data['dataInclusao'] != null) {
-        final timestamp = data['dataInclusao'] as Timestamp;
-        _dataInclusaoController.text = DateFormat('dd/MM/yyyy').format(timestamp.toDate());
-      } else {
-        _dataInclusaoController.clear();
+  setState(() {
+    _campoComum1Controller.text = data['id'] ?? '';
+    _campoComum2Controller.text = data['codigo_interno'] ?? '';
+    _campoComum3Controller.text = data['razao_social'] ?? '';
+    _codigoGeradoController.text = data['codigo_gerado']?.toString() ?? '';
+    
+    if (data['data_inclusao'] != null) {
+      final dataInclusao = DateTime.tryParse(data['data_inclusao']);
+      if (dataInclusao != null) {
+        _dataInclusaoController.text = DateFormat('dd/MM/yyyy').format(dataInclusao);
       }
+    } else {
+      _dataInclusaoController.clear();
+    }
 
-      _isFieldSelectedFromDropdown['campoComum1'] = true;
-      _isFieldSelectedFromDropdown['campoComum2'] = true;
-      _isFieldSelectedFromDropdown['campoComum3'] = true;
+    // --- Aba Dados Gerais ---
+    _cepController.text = data['cep'] ?? '';
+    _enderecoController.text = data['endereco'] ?? '';
+    _numeroController.text = data['numero'] ?? '';
+    _complementoController.text = data['complemento'] ?? '';
+    _bairroController.text = data['bairro'] ?? '';
+    _cidadeController.text = data['cidade_id'] ?? '';
+    _ufController.text = data['uf'] ?? '';
+    _cxPostalController.text = data['caixa_postal'] ?? '';
+    _comoNosConheceuController.text = data['como_nos_conheceu'] ?? '';
+    _portadorController.text = data['portador'] ?? '';
+    _tabDescontoController.text = data['tab_desconto'] ?? '';
+    _inscSuframaController.text = data['insc_suframa'] ?? '';
+    _inscProdutorController.text = data['insc_produtor'] ?? '';
+    _inscMunicipalController.text = data['insc_municipal'] ?? '';
+    _vendedorController.text = data['vendedor_id'] ?? '';
+    _atendenteController.text = data['atendente_id'] ?? '';
+    _areaController.text = data['area_id'] ?? '';
+    _situacaoController.text = data['situacao_id'] ?? '';
 
-      // Resetar flags de alteração, pois os dados foram carregados (estado "limpo").
-      _hasUnsavedChanges = false;
-      _hasSubcollectionInputChanges = false;
+    // --- Aba Jurídica ---
+    _cnpjController.text = data['cnpj_juridico'] ?? ''; // CORRIGIDO
+    _inscEstadualController.text = data['insc_estadual'] ?? '';
+    String? contribValue = data['contrib_icms'];
+    _selectedContribIcms = (contribValue == 'Sim' || contribValue == 'Não') ? contribValue : null;
+    String? revendaValue = data['revenda'];
+    _selectedRevenda = (revendaValue == 'Sim' || revendaValue == 'Não') ? revendaValue : null;
 
-      
+    // --- Aba Complemento ---
+    _confidencialController.text = data['confidencial'] ?? '';
+    _observacaoController.text = data['observacao'] ?? '';
+    _observacaoNfController.text = data['observacao_nf'] ?? '';
+    _eMailController.text = data['email_principal'] ?? '';
+    _eMailCobranController.text = data['email_cobranca'] ?? '';
+    _eMailNfController.text = data['email_nfe'] ?? '';
+    _siteController.text = data['site'] ?? '';
 
-      _cepController.text = data['cep'] ?? '';
-      _enderecoController.text = data['endereco'] ?? '';
-      _numeroController.text = data['numero'] ?? '';
-      _complementoController.text = data['complemento'] ?? '';
-      _bairroController.text = data['bairro'] ?? '';
-      _cidadeController.text = data['cidade'] ?? '';
-      _ufController.text = data['uf'] ?? '';
-      _cxPostalController.text = data['cx. Postal'] ?? '';
-      _comoNosConheceuController.text = data['como nos conheceu'] ?? '';
-      _portadorController.text = data['portador'] ?? '';
-      _tabDescontoController.text = data['tab desconto'] ?? '';
-      _inscSuframaController.text = data['insc suframa'] ?? '';
-      _inscProdutorController.text = data['insc produtor'] ?? '';
-      _inscMunicipalController.text = data['insc municipal'] ?? '';
-      _vendedorController.text = data['vendedor'] ?? '';
-      _atendenteController.text = data['atendente'] ?? '';
-      _areaController.text = data['area'] ?? '';
-      _situacaoController.text = data['situacao'] ?? '';
-      _sqController.text = data['sq'] ?? '';
-      _paisController.text = data['pais'] ?? '';
-      _operadoraController.text = data['operadora'] ?? '';
-      _dddController.text = data['ddd'] ?? '';
-      _nroController.text = data['nro'] ?? '';
-      _ramalController.text = data['ramal'] ?? '';
-      _tipoController.text = data['tipo'] ?? '';
-      _contatoController.text = data['contato'] ?? '';
-      _cnpjController.text = data['cnpj'] ?? '';
-      _inscEstadualController.text = data['insc estadual'] ?? '';
-      _siteController.text = data['site'] ?? '';
+    // --- Aba Apelido/Fantasia ---
+    _1Controller.text = data['fantasia1'] ?? '';
+    _2Controller.text = data['fantasia2'] ?? '';
+    _3Controller.text = data['fantasia3'] ?? '';
+    _4Controller.text = data['fantasia4'] ?? '';
+    _5Controller.text = data['fantasia5'] ?? '';
 
-      _1Controller.text = data['1'] ?? '';
-      _2Controller.text = data['2c'] ?? '';
-      _3Controller.text = data['3'] ?? '';
-      _4Controller.text = data['4'] ?? '';
-      _5Controller.text = data['5'] ?? '';
+    // --- Abas de Endereço ---
+    _possuiEndCobran = data['possui_end_cobranca'] ?? false;
+    _enderecoCobrancaController.text = data['cobranca_endereco'] ?? '';
+    _numeroCobrancaController.text = data['cobranca_numero'] ?? '';
+    _complementoCobrancaController.text = data['cobranca_complemento'] ?? '';
+    _bairroCobrancaController.text = data['cobranca_bairro'] ?? '';
+    _cidadeCobrancaController.text = data['cobranca_cidade_id'] ?? '';
+    _cepCobrancaController.text = data['cobranca_cep'] ?? '';
+    _attController.text = data['cobranca_att'] ?? '';
+    
+    // CORREÇÃO ABA CORRESPONDÊNCIA
+    _possuiEndCorrespondencia = data['possui_end_correspondencia'] ?? false;
+    _enderecoCorrespondenciaController.text = data['correspondencia_endereco'] ?? '';
+    _numeroCorrespondenciaController.text = data['correspondencia_numero'] ?? '';
+    _complementoCorrespondenciaController.text = data['correspondencia_complemento'] ?? '';
+    _bairroCorrespondenciaController.text = data['correspondencia_bairro'] ?? '';
+    _cidadeCorrespondenciaController.text = data['correspondencia_cidade_id'] ?? '';
+    _cepCorrespondenciaController.text = data['correspondencia_cep'] ?? '';
+    _attCorrespondenciaController.text = data['correspondencia_att'] ?? '';
 
-      _enderecoCobrancaController.text = data['endereco cobranca'] ?? '';
-      _numeroCobrancaController.text = data['numero cobranca'] ?? '';
-      _complementoCobrancaController.text = data['complemento cobranca'] ?? '';
-      _bairroCobrancaController.text = data['bairro cobranca'] ?? '';
-      _cidadeCobrancaController.text = data['cidade cobranca'] ?? '';
-      _respCidadeCobrancaController.text = data['resp cidade cobranca'] ?? '';
-      _cepCobrancaController.text = data['cep cobranca'] ?? '';
-      _attController.text = data['att'] ?? '';
+    // CORREÇÃO ABA ENTREGA
+    _possuiEndEntrega = data['possui_end_entrega'] ?? false;
+    _enderecoEntregaController.text = data['entrega_endereco'] ?? '';
+    _numeroEntregaController.text = data['entrega_numero'] ?? '';
+    _complementoEntregaController.text = data['entrega_complemento'] ?? '';
+    _bairroEntregaController.text = data['entrega_bairro'] ?? '';
+    _cidadeEntregaController.text = data['entrega_cidade_id'] ?? '';
+    _cepEntregaController.text = data['entrega_cep'] ?? '';
+    _attEntregaController.text = data['entrega_att'] ?? '';
 
-      _enderecoCorrespondenciaController.text = data['endereco correspondencia'] ?? '';
-      _numeroCorrespondenciaController.text = data['numero correspondencia'] ?? '';
-      _complementoCorrespondenciaController.text = data['complemento correspondencia'] ?? '';
-      _bairroCorrespondenciaController.text = data['bairro correspondencia'] ?? '';
-      _cidadeCorrespondenciaController.text = data['cidade correspondencia'] ?? '';
-      _respCidadeCorrespondenciaController.text = data['resp cidade correspondencia'] ?? '';
-      _cepCorrespondenciaController.text = data['cep correspondencia'] ?? '';
-      _attCorrespondenciaController.text = data['att correspondencia'] ?? '';
-
-      _enderecoEntregaController.text = data['endereco entrega'] ?? '';
-      _numeroEntregaController.text = data['numero entrega'] ?? '';
-      _complementoEntregaController.text = data['complemento entrega'] ?? '';
-      _bairroEntregaController.text = data['bairro entrega'] ?? '';
-      _cidadeEntregaController.text = data['cidade entrega'] ?? '';
-      _respCidadeEntregaController.text = data['resp cidade entrega'] ?? '';
-      _cepEntregaController.text = data['cep entrega'] ?? '';
-      _attEntregaController.text = data['att entrega'] ?? '';
-
-      String? contribValue = data['contrib ICMS'];
-      _selectedContribIcms = (contribValue == 'Sim' || contribValue == 'Não') ? contribValue : null;
-
-      String? revendaValue = data['revenda'];
-      _selectedRevenda = (revendaValue == 'Sim' || revendaValue == 'Não') ? revendaValue : null;
-      _confidencialController.text = data['confidencial'] ?? '';
-      _observacaoController.text = data['observacao'] ?? '';
-      _observacaoNfController.text = data['observacao Nf'] ?? '';
-      _eMailController.text = data['email'] ?? '';
-      _eMailCobranController.text = data['email cobranca'] ?? '';
-      _eMailNfController.text = data['email Nf'] ?? '';
-      /*_socioController.text = data['socio'] ?? '';
-      _nomeController.text = data['nome'] ?? '';
-      _cpfController.text = data['cpf'] ?? '';
-      _cargoController.text = data['cargo'] ?? '';
-      _resulCargoController.text = data['cargo res'] ?? '';
-      _participacaoController.text = data['participacao'] ?? '';*/
-
-      /*_sequenciaController.text = data['sequencia ref banc'] ?? '';
-      _nomeRefBancariaController.text = data['nome ref banc'] ?? '';
-      _enderecoRefBancariaController.text = data['endereco ref banc'] ?? '';
-      _cidadeRefBancariaController.text = data['cidade ref banc'] ?? '';
-      _contatoRefBancariaController.text = data['contato ref banc'] ?? '';
-      _telefoneRefBancariaController.text = data['telefone ref banc'] ?? '';
-      _emailRefBancariaController.text = data['email ref banc'] ?? '';
-      _obsRefBancariaController.text = data['obs ref banc'] ?? '';
-
-      _sequenciaRefComercialController.text = data['sequencia ref comercial'] ?? '';
-      _nomeRefComercialController.text = data['nome ref comercial'] ?? '';
-      //_resulNomeRefComercialController.text = data['resul nome ref comercial'] ?? '';
-      _enderecoRefComercialController.text = data['endereco ref comercial'] ?? '';
-      _cidadeRefComercialController.text = data['cidade ref comercial'] ?? '';
-      _contatoRefComercialController.text = data['contato ref comercial'] ?? '';
-      _telefoneRefComercialController.text = data['telefone ref comercial'] ?? '';
-      _emailRefComercialController.text = data['email ref comercial'] ?? '';
-      _obsRefComercialController.text = data['obs ref comercial'] ?? '';
-
-      _sequenciaContatoController.text = data['sequencia contato'] ?? '';
-      _nomeContatoController.text = data['nome contato'] ?? '';
-      _dataNascimentoContatoController.text = data['data nasc contato'] ?? '';
-      _cargoContatoController.text = data['cargo contato'] ?? '';
-      _resulCargoContatoController.text = data['cargo res contato'] ?? '';
-      _emailContatoController.text = data['email contato'] ?? '';
-      _obsContatoController.text = data['obs contato'] ?? '';*/
-
-      // ADICIONAR: Atualizar o estado dos checkboxes de endereço ao popular os campos
-      _possuiEndCobran = (data['endereco cobranca']?.isNotEmpty ?? false);
-      _possuiEndCorrespondencia = (data['endereco correspondencia']?.isNotEmpty ?? false);
-      _possuiEndEntrega = (data['endereco entrega']?.isNotEmpty ?? false);
-
-      //_setUnsavedChanges(false); // Resetar flag após carregar um item do banco
-      // Resetar flags após o preenchimento programático.
+    // Resetar flags de alteração
     _hasUnsavedChanges = false;
     _hasSubcollectionInputChanges = false;
-    });
-  }
+  });
+}
 
   void _populateCidadeGeralFields(Map<String, dynamic> cidadeData) {
     setState(() {
@@ -1141,211 +1173,220 @@ void _updateCounters() {
 }
 
   Future<void> _generateNewCodigo() async {
-    if (_codigoGeradoController.text.isNotEmpty) return; // Não gera se já houver um código
+  if (_codigoGeradoController.text.isNotEmpty) return;
+  setState(() => _isLoading = true);
+  try {
+    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    if (token == null) return;
+    
+    // Simplesmente chama o service que pergunta ao backend
+    final newCode = await _manutRgService.getNextCodigo(token);
+    
+    setState(() {
+      _codigoGeradoController.text = newCode;
+      _dataInclusaoController.text = DateFormat('dd/MM/yyyy').format(DateTime.now());
+    });
+  } catch (e) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text('Erro ao gerar novo código: $e')));
+  } finally {
+    if (mounted) setState(() => _isLoading = false);
+  }
+}
+
+  // Função unificada para Adicionar sub-itens
+  Future<void> _addSubItem(String path, Map<String, dynamic> data) async {
+    final rgId = _campoComum1Controller.text.trim();
+    if (rgId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Primeiro, selecione um RG.')));
+      return;
+    }
     setState(() => _isLoading = true);
     try {
-      // Busca todos os documentos para encontrar o maior código
-      final querySnapshot = await _collectionRef.get();
-      int maxCode = 0;
-      for (var doc in querySnapshot.docs) {
-        final data = doc.data() as Map<String, dynamic>;
-        final codeStr = data['codigoGerado'];
-        if (codeStr != null) {
-          final code = int.tryParse(codeStr);
-          if (code != null && code > maxCode) {
-            maxCode = code;
-          }
-        }
-      }
-      // Novo código é o maior encontrado + 1
-      final newCode = (maxCode + 1).toString();
-      final formattedDate = DateFormat('dd/MM/yyyy').format(DateTime.now());
-      setState(() {
-        _codigoGeradoController.text = newCode;
-        _dataInclusaoController.text = formattedDate;
-      });
+      final token = Provider.of<AuthProvider>(context, listen: false).token;
+      if (token == null) throw Exception('Não autenticado');
+      
+      await _manutRgService.addSubItem(rgId, path, data, token);
+      await _loadRgData(rgId); // Recarrega para atualizar a UI
+      _clearSubcollectionInputFields(_selectedIndex); // Limpa os campos de entrada
+
     } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erro ao gerar novo código: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao adicionar item: $e')));
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
+
+  // Função unificada para Deletar sub-itens
+  Future<void> _deleteSubItem(String itemId, String path) async {
+    final rgId = _campoComum1Controller.text.trim();
+    setState(() => _isLoading = true);
+    try {
+      final token = Provider.of<AuthProvider>(context, listen: false).token;
+      if (token == null) throw Exception('Não autenticado');
+
+      await _manutRgService.deleteSubItem(itemId, path, token);
+      await _loadRgData(rgId); // Recarrega para atualizar a UI
+
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao excluir item: $e')));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _updateSubcollectionField(String subcollectionPath, Map<String, dynamic> itemData, String field, String newValue) async {
+    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    if (token == null) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sessão expirada.')));
+        return;
+    }
+
+    setState(() { itemData[field] = newValue; }); 
+
+    final String itemId = itemData['id'].toString();
+
+    try {
+        await _manutRgService.updateSubItem(itemId, subcollectionPath, itemData, token);
+    } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao atualizar campo: $e')));
+        await _loadRgData(_campoComum1Controller.text.trim());
+    }
+  }
+
 
   // Salva os dados de TODAS as abas no Firebase
-  Future<void> _saveData() async {
-    final docId = _campoComum1Controller.text.trim();
-    if (docId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('O campo "Info Comum 1" é obrigatório para salvar.')),
-      );
-      return;
-    }
-    if (!(_formKey.currentState?.validate() ?? false)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor, corrija os erros antes de salvar.')),
-      );
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    final dataToSave = {
-      'campoComum1': _campoComum1Controller.text,
-      'campoComum2': _campoComum2Controller.text,
-      'campoComum3': _campoComum3Controller.text,
-      'codigoGerado': _codigoGeradoController.text,
-
-      /*'sequencia ref comercial': _sequenciaRefComercialController.text,
-      'nome ref comercial': _nomeRefComercialController.text,
-      'resul nome ref comercial': _resulNomeRefComercialController.text,
-      'endereco ref comercial': _enderecoRefComercialController.text,
-      'cidade ref comercial': _cidadeRefComercialController.text,
-      'contato ref comercial': _contatoRefComercialController.text,
-      'telefone ref comercial': _telefoneRefComercialController.text,
-      'email ref comercial': _emailRefComercialController.text,
-      'obs ref comercial': _obsRefComercialController.text,*/
-
-      'cep': _cepController.text,
-      'endereco': _enderecoController.text,
-      'numero': _numeroController.text,
-      'complemento': _complementoController.text,
-      'bairro': _bairroController.text,
-      'cidade': _cidadeController.text,
-      'uf': _ufController.text,
-      'cx. Postal': _cxPostalController.text,
-      'como nos conheceu': _comoNosConheceuController.text,
-      'portador': _portadorController.text,
-      'tab desconto': _tabDescontoController.text,
-      'insc suframa': _inscSuframaController.text,
-      'insc produtor': _inscProdutorController.text,
-      'insc municipal': _inscMunicipalController.text,
-      'vendedor': _vendedorController.text,
-      'atendente': _atendenteController.text,
-      'area': _areaController.text,
-      'situacao': _situacaoController.text,
-      'sq': _sqController.text,
-      'pais': _paisController.text,
-      'operadora': _operadoraController.text,
-      'ddd': _dddController.text,
-      'nro': _nroController.text,
-      'ramal': _ramalController.text,
-      'tipo': _tipoController.text,
-      'contato': _contatoController.text,
-      'cnpj': _cnpjController.text,
-      'insc estadual': _inscEstadualController.text,
-      'contrib ICMS': _selectedContribIcms,
-      'revenda': _selectedRevenda,
-      'confidencial': _confidencialController.text,
-      'observacao': _observacaoController.text,
-      'observacao Nf': _observacaoNfController.text,
-      'email': _eMailController.text,
-      'email cobranca': _eMailCobranController.text,
-      'email Nf': _eMailNfController.text,
-      'socio': _socioController.text,
-      'nome': _nomeController.text,
-      'cpf': _cpfController.text,
-      'cargo': _cargoController.text,
-      'cargo res': _resulCargoController.text,
-      'participacao': _participacaoController.text,
-
-      'sequencia ref banc': _sequenciaController.text,
-      'nome ref banc': _nomeRefBancariaController.text,
-      //'resul nome ref banc' :_resulNomeController.text,
-      'endereco ref banc': _enderecoRefBancariaController.text,
-      'resul endereco ref banc' :_resulEnderecoController.text,
-      'cidade ref banc': _cidadeRefBancariaController.text,
-      'contato ref banc': _contatoRefBancariaController.text,
-      'telefone ref banc': _telefoneRefBancariaController.text,
-      'email ref banc': _emailRefBancariaController.text,
-      'obs ref banc': _obsRefBancariaController.text,
-      'site': _siteController.text,
-
-      '1': _1Controller.text,
-      '2c': _2Controller.text,
-      '3': _3Controller.text,
-      '4': _4Controller.text,
-      '5': _5Controller.text,
-
-      'endereco cobranca': _enderecoCobrancaController.text,
-      'numero cobranca': _numeroCobrancaController.text,
-      'complemento cobranca': _complementoCobrancaController.text,
-      'bairro cobranca': _bairroCobrancaController.text,
-      'cidade cobranca': _cidadeCobrancaController.text,
-      'resp cidade cobranca': _respCidadeCobrancaController.text,
-      'cep cobranca': _cepCobrancaController.text,
-      'att': _attController.text,
-
-      'endereco correspondencia': _enderecoCorrespondenciaController.text,
-      'numero correspondencia': _numeroCorrespondenciaController.text,
-      'complemento correspondencia': _complementoCorrespondenciaController.text,
-      'bairro correspondencia': _bairroCorrespondenciaController.text,
-      'cidade correspondencia': _cidadeCorrespondenciaController.text,
-      'resp cidade correspondencia': _respCidadeCorrespondenciaController.text,
-      'cep correspondencia': _cepCorrespondenciaController.text,
-      'att correspondencia': _attCorrespondenciaController.text,
-
-      'endereco entrega': _enderecoEntregaController.text,
-      'numero entrega': _numeroEntregaController.text,
-      'complemento entrega': _complementoEntregaController.text,
-      'bairro entrega': _bairroEntregaController.text,
-      'cidade entrega': _cidadeEntregaController.text,
-      'resp cidade entrega': _respCidadeEntregaController.text,
-      'cep entrega': _cepEntregaController.text,
-      'att entrega': _attEntregaController.text,
-
-      'sequencia contato': _sequenciaContatoController.text,
-      'nome contato': _nomeContatoController.text,
-      'data nasc contato': _dataNascimentoContatoController.text,
-      'cargo contato': _cargoContatoController.text,
-      'cargo res contato': _resulCargoContatoController.text,
-      'email contato': _emailContatoController.text,
-      'obs contato': _obsContatoController.text,
-
-      'ultima_atualizacao': FieldValue.serverTimestamp(),
-      'atualizado_por': FirebaseAuth.instance.currentUser?.email ?? 'desconhecido',
-    };
-
-    try {
-      final docExists = (await _collectionRef.doc(docId).get()).exists;
-    await _collectionRef.doc(docId).set(dataToSave, SetOptions(merge: true));
-    // --- LOG DE SUCESSO ---
-    await LogService.addLog(
-      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
-      action: docExists ? LogAction.UPDATE : LogAction.CREATE,
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'manut_rg',
-      targetDocId: docId,
-      details: 'Usuário salvou/atualizou os dados gerais para o RG: $docId.',
+  // SUBSTITUA SUA FUNÇÃO INTEIRA POR ESTA
+Future<void> _saveData() async {
+  final docId = _campoComum1Controller.text.trim();
+  if (docId.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('O campo "CPF/CNPJ" é obrigatório para salvar.')),
     );
-    // ----------------------
-      await _fetchAllControlData(); // Atualiza a lista de sugestões
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Dados de controle salvos com sucesso!')),
-      );
-      _setUnsavedChanges(false); // Resetar flag após salvar com sucesso
-    } catch (e) {
-      // --- LOG DE ERRO ---
-    await LogService.addLog(
-      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
-      action: LogAction.ERROR,
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'manut_rg',
-      targetDocId: docId,
-      details: 'FALHA ao salvar dados gerais para o RG: $docId. Erro: ${e.toString()}',
+    return;
+  }
+  if (!(_formKey.currentState?.validate() ?? false)) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Por favor, corrija os erros antes de salvar.')),
     );
-    // -------------------
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao salvar dados: $e')),
-      );
-    } finally {
-      setState(() => _isLoading = false);
-    }
+    return;
   }
 
+  setState(() => _isLoading = true);
+
+  final dataToSave = {
+    // Bloco 1: Identificação
+    'id': docId,
+    'codigo_interno': _campoComum2Controller.text,
+    'razao_social': _campoComum3Controller.text,
+    'codigo_gerado': _codigoGeradoController.text,
+    'data_inclusao': _dataInclusaoController.text.isNotEmpty
+        ? DateFormat('dd/MM/yyyy').parse(_dataInclusaoController.text).toUtc().toIso8601String()
+        : null,
+    
+    // Bloco 2: Endereço Principal
+    'cep': _cepController.text,
+    'endereco': _enderecoController.text,
+    'numero': _numeroController.text,
+    'complemento': _complementoController.text,
+    'bairro': _bairroController.text,
+    'cidade_id': _cidadeController.text,
+    'uf': _ufController.text,
+    'caixa_postal': _cxPostalController.text,
+
+    // Bloco 3: Jurídico
+    'insc_estadual': _inscEstadualController.text,
+    'cnpj_juridico': _cnpjController.text,
+    'contrib_icms': _selectedContribIcms,
+    'revenda': _selectedRevenda,
+
+    // Bloco 4: Complemento
+    'confidencial': _confidencialController.text,
+    'observacao': _observacaoController.text,
+    'observacao_nf': _observacaoNfController.text,
+    'email_principal': _eMailController.text,
+    'email_cobranca': _eMailCobranController.text,
+    'email_nfe': _eMailNfController.text,
+    'site': _siteController.text,
+
+    // Bloco 5: Fantasia
+    'fantasia1': _1Controller.text,
+    'fantasia2': _2Controller.text,
+    'fantasia3': _3Controller.text,
+    'fantasia4': _4Controller.text,
+    'fantasia5': _5Controller.text,
+
+    // Bloco 6: Dados Gerais Adicionais
+    'como_nos_conheceu': _comoNosConheceuController.text,
+    'portador': _portadorController.text,
+    'tab_desconto': _tabDescontoController.text,
+    'insc_suframa': _inscSuframaController.text,
+    'insc_produtor': _inscProdutorController.text,
+    'insc_municipal': _inscMunicipalController.text,
+    'vendedor_id': _vendedorController.text,
+    'atendente_id': _atendenteController.text,
+    'area_id': _areaController.text,
+    'situacao_id': _situacaoController.text,
+
+    // Bloco 7: Endereço Cobrança
+    'possui_end_cobranca': _possuiEndCobran,
+    'cobranca_cep': _cepCobrancaController.text,
+    'cobranca_endereco': _enderecoCobrancaController.text,
+    'cobranca_numero': _numeroCobrancaController.text,
+    'cobranca_complemento': _complementoCobrancaController.text,
+    'cobranca_bairro': _bairroCobrancaController.text,
+    'cobranca_cidade_id': _cidadeCobrancaController.text,
+    'cobranca_att': _attController.text,
+
+    // Bloco 8: Endereço Correspondência (CAMPOS ADICIONADOS)
+    'possui_end_correspondencia': _possuiEndCorrespondencia,
+    'correspondencia_cep': _cepCorrespondenciaController.text,
+    'correspondencia_endereco': _enderecoCorrespondenciaController.text,
+    'correspondencia_numero': _numeroCorrespondenciaController.text,
+    'correspondencia_complemento': _complementoCorrespondenciaController.text,
+    'correspondencia_bairro': _bairroCorrespondenciaController.text,
+    'correspondencia_cidade_id': _cidadeCorrespondenciaController.text,
+    'correspondencia_att': _attCorrespondenciaController.text,
+
+    // Bloco 9: Endereço Entrega (CAMPOS ADICIONADOS)
+    'possui_end_entrega': _possuiEndEntrega,
+    'entrega_cep': _cepEntregaController.text,
+    'entrega_endereco': _enderecoEntregaController.text,
+    'entrega_numero': _numeroEntregaController.text,
+    'entrega_complemento': _complementoEntregaController.text,
+    'entrega_bairro': _bairroEntregaController.text,
+    'entrega_cidade_id': _cidadeEntregaController.text,
+    'entrega_att': _attEntregaController.text,
+
+    // Bloco 10: Auditoria
+    'id_empresa_principal': widget.mainCompanyId,
+    'id_empresa_secundaria': widget.secondaryCompanyId,
+  };
+
+  try {
+    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    if (token == null) throw Exception('Usuário não autenticado.');
+
+    await _manutRgService.saveData(dataToSave, token);
+    await _fetchAllControlData();
+    
+    _setUnsavedChanges(false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Dados salvos com sucesso!')),
+    );
+    await _loadRgData(docId);
+
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Erro ao salvar dados: $e')),
+    );
+  } finally {
+    setState(() => _isLoading = false);
+  }
+}
+
   Future<void> _addSocio() async {
+    final rgId = _campoComum1Controller.text.trim();
     final docId = _campoComum1Controller.text.trim();
     if (docId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1354,87 +1395,60 @@ void _updateCounters() {
     }
 
     final socioData = {
-      'sq': _sqController.text,
-      'socio': _socioController.text,
-      'nome': _nomeController.text,
-      'cpf': _cpfController.text,
-      'cargo': _cargoController.text,
-      'cargo res': _resulCargoController.text,
-      'participacao': _participacaoController.text,
-    };
+    'sequencia': _sqController.text,
+    'socio_id': _socioController.text,
+    'nome': _nomeController.text,
+    'cpf': _cpfController.text,
+    'cargo_id': _cargoController.text,
+    'participacao': _participacaoController.text,
+  };
+  
     String socioNome = _nomeController.text.trim(); // Pega o nome para o log
+    setState(() => _isLoading = true);
 
     try {
-      DocumentReference newDocRef = await _collectionRef.doc(docId).collection('composicao_acionaria').add(socioData);
-      // --- LOG DE SUCESSO ---
-    await LogService.addLog(
-      action: LogAction.CREATE,
-      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'manut_rg/composicao_acionaria', // Coleção/Subcoleção
-      targetDocId: newDocRef.id, // ID do novo sócio
-      details: 'Usuário adicionou o sócio "$socioNome" ao RG: $docId.',
-    );
-    // ----------------------
-      _socioController.clear();
-      _nomeController.clear();
-      _sqController.clear();
-      _cargoController.clear();
-      _resulCargoController.clear();
-      _participacaoController.clear();
-      _cpfController.clear();
-    } catch (e) {
-      // --- LOG DE ERRO ---
-    await LogService.addLog(
-      action: LogAction.ERROR,
-      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'manut_rg/composicao_acionaria',
-      targetDocId: docId, // Log no documento pai, pois o ID do filho falhou
-      details: 'FALHA ao adicionar sócio "$socioNome" ao RG: $docId. Erro: ${e.toString()}',
-    );
-    // -------------------
+    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    if (token == null) throw Exception('Usuário não autenticado.');
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erro ao adicionar sócio: $e')));
-    }
+    await _manutRgService.addSubItem(rgId, 'socios', socioData, token); // <-- LINHA CORRIGIDA
+
+    // Limpa os campos de entrada
+    _sqController.clear();
+    _socioController.clear();
+    // ... limpar outros controllers ...
+
+    // Recarrega todos os dados para atualizar a tabela na UI
+    await _loadRgData(rgId);
+
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao adicionar sócio: $e')));
+  } finally {
+    setState(() => _isLoading = false);
+  }
   }
 
-  Future<void> _deleteSocio(String itemId, String socioId) async {
-    try {
-      await _collectionRef.doc(itemId).collection('composicao_acionaria').doc(socioId).delete();
-      // --- LOG DE SUCESSO ---
-    await LogService.addLog(
-      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
-      action: LogAction.DELETE,
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'manut_rg/composicao_acionaria',
-      targetDocId: socioId,
-      details: 'Usuário excluiu um sócio (ID: $socioId) do RG: $itemId.',
-    );
-    // ----------------------
-    } catch (e) {
-       // --- LOG DE ERRO ---
-    await LogService.addLog(
-      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
-      action: LogAction.ERROR,
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'manut_rg/composicao_acionaria',
-      targetDocId: socioId,
-      details: 'FALHA ao excluir sócio (ID: $socioId) do RG: $itemId. Erro: ${e.toString()}',
-    );
-    // -------------------
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erro ao deletar sócio: $e')));
-    }
+  Future<void> _deleteSocio(String socioId) async {
+  final rgId = _campoComum1Controller.text.trim();
+  setState(() => _isLoading = true);
+  try {
+    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    if (token == null) throw Exception('Usuário não autenticado.');
+
+    await _manutRgService.deleteSubItem(socioId, 'socios', token); // <-- LINHA CORRIGIDA
+    
+    // Recarrega para atualizar a UI
+    await _loadRgData(rgId);
+
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao excluir sócio: $e')));
+  } finally {
+    setState(() => _isLoading = false);
   }
+}
 
   Future<void> _addTelefone() async {
     final docId = _campoComum1Controller.text.trim();
+     final rgId = _campoComum1Controller.text.trim();
     if (docId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Primeiro, busque ou cadastre uma empresa (CPF/CNPJ).')));
@@ -1442,14 +1456,21 @@ void _updateCounters() {
     }
 
     final telefoneData = {
-      'sq': _sqController.text, 'pais': _paisController.text, 'operadora': _operadoraController.text,
-      'ddd': _dddController.text, 'nro': _nroController.text, 'ramal': _ramalController.text,
-      'tipo': _tipoController.text, 'contato': _contatoController.text,
-    };
-    String telefoneNome = _nomeController.text.trim(); 
+  'sequencia': _sqController.text, // <-- CORRIGIDO
+  'pais': _paisController.text,
+  'operadora': _operadoraController.text,
+  'ddd': _dddController.text,
+  'numero': _nroController.text, // <-- CORRIGIDO
+  'ramal': _ramalController.text,
+  'tipo': _tipoController.text,
+  'contato': _contatoController.text,
+};
+    setState(() => _isLoading = true);
+  try {
+    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    if (token == null) throw Exception('Usuário não autenticado.');
 
-    try {
-      DocumentReference newDocRef = await _collectionRef.doc(docId).collection('telefones').add(telefoneData);
+    await _manutRgService.addTelefone(rgId, telefoneData, token);
 
       
       _sqController.clear();
@@ -1460,400 +1481,263 @@ void _updateCounters() {
       _ramalController.clear();
       _tipoController.clear();
       _contatoController.clear();
-      // --- LOG DE SUCESSO ---
-    await LogService.addLog(
-      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
-      action: LogAction.CREATE,
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'manut_rg/telefones', // Coleção/Subcoleção
-      targetDocId: newDocRef.id, // ID do novo sócio
-      details: 'Usuário adicionou o telefone "$telefoneNome" ao RG: $docId.',
-    );
-    // ----------------------
-    } catch (e) {
-      // --- LOG DE ERRO ---
-    await LogService.addLog(
-      action: LogAction.ERROR,
-      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'manut_rg/telefones',
-      targetDocId: docId, // Log no documento pai, pois o ID do filho falhou
-      details: 'FALHA ao adicionar telefone "$telefoneNome" ao RG: $docId. Erro: ${e.toString()}',
-    );
-    // -------------------
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erro ao adicionar telefone: $e')));
-    }
+      await _loadRgData(rgId);
+
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao adicionar sócio: $e')));
+  } finally {
+    setState(() => _isLoading = false);
+  }
   }
 
   Future<void> _deleteTelefone(String itemId, String telefoneId) async {
+    final rgId = _campoComum1Controller.text.trim();
+  setState(() => _isLoading = true);
     try {
-      await _collectionRef.doc(itemId).collection('telefones').doc(telefoneId).delete();
-      // --- LOG DE SUCESSO ---
-    await LogService.addLog(
-      action: LogAction.DELETE,
-      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'manut_rg/telefones',
-      targetDocId: telefoneId,
-      details: 'Usuário excluiu um telefones (ID: $telefoneId) do RG: $itemId.',
-    );
-    // ----------------------
-    } catch (e) {
-      // --- LOG DE ERRO ---
-    await LogService.addLog(
-      action: LogAction.ERROR,
-      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'manut_rg/telefones',
-      targetDocId: telefoneId,
-      details: 'FALHA ao excluir telefones (ID: $telefoneId) do RG: $itemId. Erro: ${e.toString()}',
-    );
-    // -------------------
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erro ao deletar telefone: $e')));
+    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    if (token == null) throw Exception('Usuário não autenticado.');
+
+    await _manutRgService.deleteTelefone(telefoneId, token);
+    
+    // Recarrega para atualizar a UI
+    await _loadRgData(rgId);
+
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao excluir telefone: $e')));
+  } finally {
+    setState(() => _isLoading = false);
+  }
+  }
+
+  /*Future<void> _updateSubcollectionField(
+    String subcollection, Map<String, dynamic> itemData, String field, String newValue) async {
+  
+  final token = Provider.of<AuthProvider>(context, listen: false).token;
+  if (token == null) {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sessão expirada.')));
+    return;
+  }
+
+  // 1. Atualiza o valor no Map local para a UI responder imediatamente.
+  setState(() {
+    itemData[field] = newValue;
+  });
+
+  // 2. Envia a atualização completa para o backend.
+  final String itemId = itemData['id'].toString();
+
+  try {
+    // Decide qual método de atualização chamar baseado na sub-coleção
+    switch (subcollection) {
+      case 'telefones':
+        await _manutRgService.updateTelefone(itemId, itemData, token);
+        break;
+      // case 'socios':
+      //   await _manutRgService.updateSocio(itemId, itemData, token);
+      //   break;
+      // Adicione casos para 'contatos', 'referencias_bancarias', etc.
+      default:
+        throw Exception('Tipo de atualização desconhecido: $subcollection');
     }
-  }
+    // Opcional: mostrar um feedback sutil de sucesso
+    // ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Campo atualizado!'), duration: Duration(seconds: 1)));
 
-  Future<void> _updateSubcollectionField(
-      String subcollection, String parentItemId, String docId, String field, String newValue) async {
-    if (parentItemId.isEmpty) return;
-
-    try {
-      await _collectionRef
-          .doc(parentItemId)
-          .collection(subcollection)
-          .doc(docId)
-          .update({field: newValue});
-          // --- LOG DE SUCESSO ---
-    await LogService.addLog(
-      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
-      action: LogAction.UPDATE,
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'manut_rg/$subcollection',
-      targetDocId: docId,
-      details: 'Usuário atualizou o campo "$field" para "$newValue" no RG: $parentItemId.',
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Erro ao atualizar campo: $e')),
     );
-    // ----------------------
-    } catch (e) {
-      // --- LOG DE ERRO ---
-    await LogService.addLog(
-      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
-      action: LogAction.ERROR,
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'manut_rg/$subcollection',
-      targetDocId: docId,
-      details: 'FALHA ao atualizar o campo "$field" no RG: $parentItemId. Erro: ${e.toString()}',
-    );
-    // -------------------
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao atualizar campo: $e')),
-      );
-    }
+    // Opcional: Reverter a mudança na UI se a chamada à API falhar
+    // _loadRgData(_campoComum1Controller.text.trim());
   }
+}*/
 
-  void _updateStreams() {
-    final docId = _campoComum1Controller.text.trim();
-    setState(() {
-      if (docId.isNotEmpty) {
-        _telefonesStream = _collectionRef.doc(docId).collection('telefones').snapshots();
-        _sociosStream = _collectionRef.doc(docId).collection('composicao_acionaria').snapshots();
-        _referenciasStream = _collectionRef.doc(docId).collection('referencias_bancarias').snapshots();
-        _contatosStream = _collectionRef.doc(docId).collection('contatos').snapshots();
-        _referenciasComerciaisStream = _collectionRef.doc(docId).collection('referencias_comerciais').snapshots(); // NOVO STREAM
-
-      } else {
-        _telefonesStream = null;
-        _sociosStream = null;
-        _referenciasStream = null;
-        _contatosStream = null;
-        _referenciasComerciaisStream = null;
-      }
-    });
-  }
+  
 
   Future<void> _addReferenciaComercial() async {
-    final docId = _campoComum1Controller.text.trim();
-    if (docId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Primeiro, busque ou cadastre uma empresa (CPF/CNPJ).')),
-      );
-      return;
-    }
-
-    final refData = {
-      'sequencia ref comercial': _sequenciaRefComercialController.text,
-      'nome ref comercial': _nomeRefComercialController.text,
-      'resul nome ref comercial': _resulNomeRefComercialController.text, // Campo "..."
-      'endereco ref comercial': _enderecoRefComercialController.text,
-      'cidade ref comercial': _resulcidadeRefComercialController.text,
-      'contato ref comercial': _contatoRefComercialController.text,
-      'telefone ref comercial': _telefoneRefComercialController.text,
-      'email ref comercial': _emailRefComercialController.text,
-      'obs ref comercial': _obsRefComercialController.text,
-    };
-    String refComercialNome = _nomeController.text.trim(); // Pega o nome para o log
-
-    try {
-      DocumentReference newDocRef = await _collectionRef.doc(docId).collection('referencias_comerciais').add(refData);
-      // --- LOG DE SUCESSO ---
-    await LogService.addLog(
-      action: LogAction.CREATE,
-      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'manut_rg/referencias_comerciais', // Coleção/Subcoleção
-      targetDocId: newDocRef.id, // ID do novo sócio
-      details: 'Usuário adicionou a referencias_comerciais "$refComercialNome" ao RG: $docId.',
-    );
-    // ----------------------
-      // Limpar os campos após adicionar
-      _sequenciaRefComercialController.clear();
-      _nomeRefComercialController.clear();
-      _resulNomeRefComercialController.clear();
-      _enderecoRefComercialController.clear();
-      _cidadeRefComercialController.clear();
-      _resulcidadeRefComercialController.clear();
-      _contatoRefComercialController.clear();
-      _telefoneRefComercialController.clear();
-      _emailRefComercialController.clear();
-      _obsRefComercialController.clear();
-      _checkSubcollectionInputChanges(); // Recalcula a flag após limpar
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Referência comercial adicionada com sucesso!')),
-      );
-    } catch (e) {
-      // --- LOG DE ERRO ---
-    await LogService.addLog(
-      action: LogAction.ERROR,
-      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'manut_rg/referencias_comerciais',
-      targetDocId: docId, // Log no documento pai, pois o ID do filho falhou
-      details: 'FALHA ao adicionar referencias_comerciais "$refComercialNome" ao RG: $docId. Erro: ${e.toString()}',
-    );
-    // -------------------
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao adicionar referência comercial: $e')),
-      );
-    }
+  final rgId = _campoComum1Controller.text.trim();
+  if (rgId.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Primeiro, busque ou cadastre uma empresa (CPF/CNPJ).')));
+    return;
   }
+
+  // CORREÇÃO: Chaves do mapa atualizadas para corresponder às colunas do banco de dados
+  final refData = {
+    'sequencia': _sequenciaRefComercialController.text,
+    'nome_empresa': _nomeRefComercialController.text,
+    'endereco': _enderecoRefComercialController.text,
+    'cidade_id': _cidadeRefComercialController.text,
+    'contato': _contatoRefComercialController.text,
+    'telefone': _telefoneRefComercialController.text,
+    'email': _emailRefComercialController.text,
+    'observacao': _obsRefComercialController.text,
+  };
+
+  setState(() => _isLoading = true);
+  try {
+    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    if (token == null) throw Exception('Usuário não autenticado.');
+
+    // CORREÇÃO: Usando a função genérica addSubItem com o caminho correto
+    await _manutRgService.addSubItem(rgId, 'referencias-comerciais', refData, token);
+    
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Referência comercial adicionada com sucesso!')));
+    
+    _clearSubcollectionInputFields(_selectedIndex); // Limpa os campos de entrada
+    await _loadRgData(rgId); // Recarrega os dados para atualizar a tabela
+
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao adicionar referência: $e')));
+  } finally {
+    if (mounted) setState(() => _isLoading = false);
+  }
+}
 
 // NOVO MÉTODO: _deleteReferenciaComercial
-Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
-    try {
-      await _collectionRef.doc(itemId).collection('referencias_comerciais').doc(refId).delete();
-      // --- LOG DE SUCESSO ---
-    await LogService.addLog(
-      action: LogAction.DELETE,
-      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'manut_rg/referencias_comerciais',
-      targetDocId: refId,
-      details: 'Usuário excluiu uma referencias_comerciais (ID: $refId) do RG: $itemId.',
-    );
-    // ----------------------
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Referência comercial deletada com sucesso!')),
-      );
-    } catch (e) {
-      // --- LOG DE ERRO ---
-    await LogService.addLog(
-      action: LogAction.ERROR,
-      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'manut_rg/referencias_comerciais',
-      targetDocId: refId,
-      details: 'FALHA ao excluir referencias_comerciais (ID: $refId) do RG: $itemId. Erro: ${e.toString()}',
-    );
-    // -------------------
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao deletar referência comercial: $e')),
-      );
-    }
+Future<void> _deleteReferenciaComercial(String refId) async {
+  final rgId = _campoComum1Controller.text.trim();
+  if (rgId.isEmpty) return;
+
+  setState(() => _isLoading = true);
+  try {
+    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    if (token == null) throw Exception('Usuário não autenticado.');
+
+    // CORREÇÃO: Usando a função genérica deleteSubItem com o caminho correto
+    await _manutRgService.deleteSubItem(refId, 'referencias-comerciais', token);
+
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Referência comercial excluída com sucesso!')));
+    await _loadRgData(rgId); // Recarrega para atualizar a UI
+
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao excluir referência: $e')));
+  } finally {
+    if (mounted) setState(() => _isLoading = false);
   }
+}
 
   Future<void> _addReferenciaBancaria() async {
-    final docId = _campoComum1Controller.text.trim();
-    if (docId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Primeiro, busque ou cadastre uma empresa (CPF/CNPJ).')));
-      return;
-    }
-
-    final refData = {
-      'sequencia ref banc': _sequenciaController.text, 'nome ref banc': _nomeRefBancariaController.text,
-      'endereco ref banc': _enderecoRefBancariaController.text, 'resul endereco ref banc': _resulEnderecoController.text,
-      'contato ref banc': _contatoRefBancariaController.text, 'telefone ref banc': _telefoneRefBancariaController.text,
-      'email ref banc': _emailRefBancariaController.text, 'obs ref banc': _obsRefBancariaController.text,
-    };
-    String refBancariaNome = _nomeController.text.trim(); // Pega o nome para o log
-
-    try {
-      DocumentReference newDocRef = await _collectionRef.doc(docId).collection('referencias_bancarias').add(refData);
-
-      // --- LOG DE SUCESSO ---
-    await LogService.addLog(
-      action: LogAction.CREATE,
-      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'manut_rg/referencias_bancarias', // Coleção/Subcoleção
-      targetDocId: newDocRef.id, // ID do novo sócio
-      details: 'Usuário adicionou a referencias_bancarias "$refBancariaNome" ao RG: $docId.',
-    );
-    // ----------------------
-      _sequenciaController.clear();
-      _nomeRefBancariaController.clear();
-      _enderecoRefBancariaController.clear();
-      _cidadeRefBancariaController.clear();
-      _resulEnderecoController.clear();
-      _cidadeController.clear();
-      _contatoRefBancariaController.clear();
-      _telefoneRefBancariaController.clear();
-      _emailRefBancariaController.clear();
-      _obsRefBancariaController.clear();
-    } catch (e) {
-      // --- LOG DE ERRO ---
-    await LogService.addLog(
-      action: LogAction.ERROR,
-      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'manut_rg/referencias_bancarias',
-      targetDocId: docId, // Log no documento pai, pois o ID do filho falhou
-      details: 'FALHA ao adicionar referencias_bancarias "$refBancariaNome" ao RG: $docId. Erro: ${e.toString()}',
-    );
-    // -------------------
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erro ao adicionar referência: $e')));
-    }
+  final rgId = _campoComum1Controller.text.trim();
+  if (rgId.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Primeiro, busque ou cadastre uma empresa (CPF/CNPJ).')));
+    return;
   }
 
-  Future<void> _deleteReferenciaBancaria(String itemId, String refId) async {
-    try {
-      await _collectionRef.doc(itemId).collection('referencias_bancarias').doc(refId).delete();
-      // --- LOG DE SUCESSO ---
-    await LogService.addLog(
-      action: LogAction.DELETE,
-      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'manut_rg/referencias_bancarias',
-      targetDocId: refId,
-      details: 'Usuário excluiu uma referencias_bancarias (ID: $refId) do RG: $itemId.',
-    );
-    // ----------------------
-    } catch (e) {
-      // --- LOG DE ERRO ---
-    await LogService.addLog(
-      action: LogAction.ERROR,
-      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'manut_rg/referencias_bancarias',
-      targetDocId: refId,
-      details: 'FALHA ao excluir referencias_bancarias (ID: $refId) do RG: $itemId. Erro: ${e.toString()}',
-    );
-    // -------------------
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erro ao deletar referência: $e')));
-    }
+  // CORREÇÃO: Chaves do mapa atualizadas para corresponder às colunas do banco de dados
+  final refData = {
+    'sequencia': _sequenciaController.text,
+    'nome_banco': _nomeRefBancariaController.text,
+    //'resul_nome': _resulNomeController.text, // O campo '...' não precisa ser salvo
+    'endereco': _enderecoRefBancariaController.text,
+    'cidade_id': _cidadeRefBancariaController.text,
+    'contato': _contatoRefBancariaController.text,
+    'telefone': _telefoneRefBancariaController.text,
+    'email': _emailRefBancariaController.text,
+    'observacao': _obsRefBancariaController.text,
+  };
+
+  setState(() => _isLoading = true);
+  try {
+    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    if (token == null) throw Exception('Usuário não autenticado.');
+
+    // CORREÇÃO: Usando a função genérica addSubItem com o caminho correto
+    await _manutRgService.addSubItem(rgId, 'referencias-bancarias', refData, token);
+
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Referência bancária adicionada com sucesso!')));
+    
+    _clearSubcollectionInputFields(_selectedIndex); // Limpa os campos de entrada
+    await _loadRgData(rgId); // Recarrega todos os dados para atualizar a tabela
+
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao adicionar referência: $e')));
+  } finally {
+    if (mounted) setState(() => _isLoading = false);
   }
+}
+
+  Future<void> _deleteReferenciaBancaria(String refId) async {
+  final rgId = _campoComum1Controller.text.trim();
+  if (rgId.isEmpty) return;
+
+  setState(() => _isLoading = true);
+  try {
+    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    if (token == null) throw Exception('Usuário não autenticado.');
+
+    // CORREÇÃO: Usando a função genérica deleteSubItem com o caminho correto
+    await _manutRgService.deleteSubItem(refId, 'referencias-bancarias', token);
+    
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Referência bancária excluída com sucesso!')));
+    await _loadRgData(rgId); // Recarrega para atualizar a UI
+
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao excluir referência: $e')));
+  } finally {
+    if (mounted) setState(() => _isLoading = false);
+  }
+}
 
   Future<void> _addContato() async {
-    final docId = _campoComum1Controller.text.trim();
-    if (docId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Primeiro, busque ou cadastre uma empresa (CPF/CNPJ).')));
-      return;
-    }
-
-    final refData = {
-      'sequencia contato': _sequenciaContatoController.text, 'nome contato': _nomeContatoController.text,
-      'data nasc contato': _dataNascimentoContatoController.text, 'cargo contato': _cargoContatoController.text,
-      'cargo res contato': _resulCargoContatoController.text,
-      'email contato': _emailContatoController.text, 'obs contato': _obsContatoController.text,
-    };
-
-    String contatoNome = _nomeController.text.trim(); // Pega o nome para o log
-
-    try {
-      DocumentReference newDocRef = await _collectionRef.doc(docId).collection('contatos').add(refData);
-      // --- LOG DE SUCESSO ---
-    await LogService.addLog(
-      action: LogAction.CREATE,
-      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'manut_rg/contatos', // Coleção/Subcoleção
-      targetDocId: newDocRef.id, // ID do novo sócio
-      details: 'Usuário adicionou o contatos "$contatoNome" ao RG: $docId.',
-    );
-    // ----------------------
-      _sequenciaContatoController.clear();
-      _nomeContatoController.clear();
-      _dataNascimentoContatoController.clear();
-      _cargoContatoController.clear();
-      _resulCargoContatoController.clear();
-      _emailContatoController.clear();
-      _obsContatoController.clear();
-    } catch (e) {
-      // --- LOG DE ERRO ---
-    await LogService.addLog(
-      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
-      action: LogAction.ERROR,
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'manut_rg/contatos',
-      targetDocId: docId, // Log no documento pai, pois o ID do filho falhou
-      details: 'FALHA ao adicionar contatos "$contatoNome" ao RG: $docId. Erro: ${e.toString()}',
-    );
-    // -------------------
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erro ao adicionar referência: $e')));
-    }
+  final rgId = _campoComum1Controller.text.trim();
+  if (rgId.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Primeiro, busque ou cadastre uma empresa (CPF/CNPJ).')));
+    return;
   }
 
-  Future<void> _deleteContato(String itemId, String refId) async {
-    try {
-      await _collectionRef.doc(itemId).collection('contatos').doc(refId).delete();
-      // --- LOG DE SUCESSO ---
-    await LogService.addLog(
-      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
-      action: LogAction.DELETE,
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'manut_rg/contatos',
-      targetDocId: refId,
-      details: 'Usuário excluiu um contato (ID: $refId) do RG: $itemId.',
-    );
-    // ----------------------
-    } catch (e) {
-      // --- LOG DE ERRO ---
-    await LogService.addLog(
-      modulo: LogModule.REGISTRO_GERAL, // <-- ADICIONADO
-      action: LogAction.ERROR,
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'manut_rg/contatos',
-      targetDocId: refId,
-      details: 'FALHA ao excluir contato (ID: $refId) do RG: $itemId. Erro: ${e.toString()}',
-    );
-    // -------------------
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erro ao deletar referência: $e')));
-    }
+  // CORREÇÃO: Chaves do mapa atualizadas para corresponder às colunas do banco de dados
+  final contatoData = {
+    'sequencia': _sequenciaContatoController.text,
+    'nome': _nomeContatoController.text,
+    'data_nascimento': _dataNascimentoContatoController.text,
+    'cargo_id': _cargoContatoController.text,
+    'email': _emailContatoController.text,
+    'observacao': _obsContatoController.text,
+  };
+
+  setState(() => _isLoading = true);
+  try {
+    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    if (token == null) throw Exception('Usuário não autenticado.');
+
+    // CORREÇÃO: Usando a função genérica addSubItem com o caminho correto
+    await _manutRgService.addSubItem(rgId, 'contatos', contatoData, token);
+
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Contato adicionado com sucesso!')));
+    
+    _clearSubcollectionInputFields(_selectedIndex); // Limpa os campos de entrada
+    await _loadRgData(rgId); // Recarrega os dados para atualizar a tabela
+
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao adicionar contato: $e')));
+  } finally {
+    if (mounted) setState(() => _isLoading = false);
   }
+}
+
+  Future<void> _deleteContato(String contatoId) async {
+  final rgId = _campoComum1Controller.text.trim();
+  if (rgId.isEmpty) return;
+
+  setState(() => _isLoading = true);
+  try {
+    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    if (token == null) throw Exception('Usuário não autenticado.');
+
+    // CORREÇÃO: Usando a função genérica deleteSubItem com o caminho correto
+    await _manutRgService.deleteSubItem(contatoId, 'contatos', token);
+    
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Contato excluído com sucesso!')));
+    await _loadRgData(rgId); // Recarrega para atualizar a UI
+
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao excluir contato: $e')));
+  } finally {
+    if (mounted) setState(() => _isLoading = false);
+  }
+}
 
   String? _cpfCnpjValidator(String? value) {
   if (value == null || value.isEmpty) {
@@ -2386,41 +2270,38 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
   Widget _buildAutocompleteField(
     TextEditingController controller,
     String label,
-    String fieldKey, {
+    String fieldKey, { // fieldKey agora será 'id', 'codigo_interno', 'razao_social'
     bool isRequired = false,
     String? Function(String?)? validator,
     List<TextInputFormatter>? inputFormatters,
     int? maxLength,
-    VoidCallback? onUserInteraction,
-}) {
+  }) {
     return Autocomplete<Map<String, dynamic>>(
-        displayStringForOption: (option) => option[fieldKey] as String,
+      // MOSTRA o valor da chave correta no dropdown
+      displayStringForOption: (option) => option[fieldKey] as String? ?? '',
+        // FILTRA a lista _allControlData usando a chave correta
         optionsBuilder: (textEditingValue) {
-            if (textEditingValue.text.isEmpty) {
-                // Reset selection status if the field is cleared
-                _isFieldSelectedFromDropdown[fieldKey] = false; // NEW
-                return const Iterable.empty();
-            }
-            return _allControlData.where((option) {
-                final fieldValue = option[fieldKey]?.toString().toLowerCase() ?? '';
-                return fieldValue.contains(textEditingValue.text.toLowerCase());
-            });
-        },
-        onSelected: (selection) {
-          _populateAllFields(selection);
-          FocusScope.of(context).unfocus();
-          setState(() {
-            // NOVO: Quando uma opção é selecionada em QUALQUER campo de busca,
-            // consideramos que TODO o registro foi carregado e os campos de busca
-            // devem ser tratados como "selecionados" para evitar a validação de duplicidade.
-            _isFieldSelectedFromDropdown['campoComum1'] = true;
-            _isFieldSelectedFromDropdown['campoComum2'] = true;
-            _isFieldSelectedFromDropdown['campoComum3'] = true;
-
-            // Resetar flags de alterações para um estado "limpo" após carregar um registro.
-            _hasUnsavedChanges = false;
-            _hasSubcollectionInputChanges = false;
+          if (textEditingValue.text.isEmpty) {
+            return const Iterable.empty();
+          }
+          return _allControlData.where((option) {
+            final fieldValue = option[fieldKey]?.toString().toLowerCase() ?? '';
+            return fieldValue.contains(textEditingValue.text.toLowerCase());
           });
+        },
+        // QUANDO UM ITEM É SELECIONADO...
+        onSelected: (selection) {
+          final String rgId = selection['id'] as String? ?? '';
+          
+          // AVISA AO APP QUE UMA SELEÇÃO VÁLIDA FOI FEITA
+          setState(() {
+            _isFieldSelectedFromDropdown['id'] = true;
+            _isFieldSelectedFromDropdown['codigo_interno'] = true;
+            _isFieldSelectedFromDropdown['razao_social'] = true;
+          });
+
+          _loadRgData(rgId);
+          FocusScope.of(context).unfocus();
         },
         fieldViewBuilder: (context, fieldController, focusNode, onFieldSubmitted) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -2462,29 +2343,17 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                 },
                 inputFormatters: inputFormatters,
                 maxLength: maxLength,
-                onUserInteraction: onUserInteraction,
+                //onUserInteraction: onUserInteraction,
                 onChanged: (value) {
-                  controller.text = value;
-                  // REMOVIDO: A lógica abaixo, pois queremos que _isFieldSelectedFromDropdown seja true
-                  // apenas se houver uma seleção explícita, e false caso contrário (se o usuário digitar).
-                  /*
-                  if (_isFieldSelectedFromDropdown[fieldKey] == true) {
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      setState(() {
-                        _isFieldSelectedFromDropdown[fieldKey] = false; // Remova esta linha
-                      });
-                    });
-                  }
-                  */
-                  // ADICIONADO: Se o usuário digita, a "seleção" se perde, então marque como false.
-                  // Isso é crucial para que a validação dispare se o valor digitado corresponder a um existente
-                  // E o usuário não selecionar do dropdown.
-                  setState(() {
-                      _isFieldSelectedFromDropdown[fieldKey] = false;
-                  });
-
-                  _formKey.currentState?.validate(); // Force validation check
-                },
+          controller.text = value;
+          // Se o usuário está digitando, invalida a seleção anterior
+          setState(() {
+            _isFieldSelectedFromDropdown['id'] = false;
+            _isFieldSelectedFromDropdown['codigo_interno'] = false;
+            _isFieldSelectedFromDropdown['razao_social'] = false;
+          });
+          _formKey.currentState?.validate();
+        },
             );
         },
     );
@@ -2515,23 +2384,23 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                           child: _buildAutocompleteField(
                               _campoComum1Controller,
                               "CPF/CNPJ",
-                              'campoComum1',
+                              'id',
                               isRequired: true,
                               validator: _cpfCnpjValidator, // Use the unified validator
                               inputFormatters: [FilteringTextInputFormatter.digitsOnly, CpfCnpjFormatter()], // Use the unified formatter
                               maxLength: 18, 
-                              onUserInteraction: () => _setUnsavedChanges(true),
+                              //onUserInteraction: () => _setUnsavedChanges(true),
                           )),
                                 
                         const SizedBox(width: 10),
                         Expanded(
                             flex: 2,
-                            child: _buildAutocompleteField(_campoComum2Controller, "Código", 'campoComum2')),
+                            child: _buildAutocompleteField(_campoComum2Controller, "Código", 'codigo_interno')),
                         const SizedBox(width: 10),
                         Expanded(
                             flex: 3,
                             child: _buildAutocompleteField(
-                                _campoComum3Controller, "Razao Social", 'campoComum3')),
+                                _campoComum3Controller, "Razao Social", 'razao_social')),
                       ],
                     ),
                   ),
@@ -2808,49 +2677,47 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
 
   // Modificado para aceitar maxLengh e inputFormatters
   DataCell _buildEditableCell(
-    String subcollection, DocumentSnapshot doc, String field, String initialValue,
-    {int? maxLength, List<TextInputFormatter>? inputFormatters}) {
-  final docId = doc.id;
-  final parentItemId = _campoComum1Controller.text.trim();
-  final isEditing =
-      _editingCell != null && _editingCell!['docId'] == docId && _editingCell!['field'] == field;
+    String subcollection, Map<String, dynamic> docData, String field, String initialValue, String uniqueRowId,
+  {int? maxLength, List<TextInputFormatter>? inputFormatters}) {
+    
+    final docId = docData['id'].toString();
+    final isEditing =
+      _editingCell != null && _editingCell!['docId'] == uniqueRowId && _editingCell!['field'] == field;
 
-  return DataCell(
-    isEditing
-        ? TextField(
-            controller: _cellEditController,
-            focusNode: _cellFocusNode,
-            autofocus: true,
-            maxLength: maxLength,
-            inputFormatters: inputFormatters,
-            onSubmitted: (newValue) {
-              _updateSubcollectionField(subcollection, parentItemId, docId, field, newValue);
-              setState(() {
-                _editingCell = null;
-              });
-            },
-            onTapOutside: (_) {
-              _updateSubcollectionField(subcollection, parentItemId, docId, field, _cellEditController.text);
-              if (mounted) {
-                setState(() {
-                  _editingCell = null;
-                });
-              }
-            },
-          )
-        : SizedBox(
-            // Manter SizedBox com largura fixa aqui
-            width: _getColumnWidth(field),
-            child: Text(initialValue, overflow: TextOverflow.ellipsis)), // Adicionado overflow: TextOverflow.ellipsis
-    onTap: () {
-      setState(() {
-        _editingCell = {'docId': docId, 'field': field};
-        _cellEditController.text = initialValue;
-        _cellFocusNode.requestFocus();
-      });
-    },
-  );
-}
+    return DataCell(
+      isEditing
+          ? TextField(
+              controller: _cellEditController,
+              focusNode: _cellFocusNode,
+              autofocus: true,
+              maxLength: maxLength,
+              inputFormatters: inputFormatters,
+              onSubmitted: (newValue) {
+                // CORREÇÃO NA CHAMADA
+                _updateSubcollectionField(subcollection, docData, field, newValue);
+                setState(() { _editingCell = null; });
+              },
+              onTapOutside: (_) {
+                // CORREÇÃO NA CHAMADA
+                _updateSubcollectionField(subcollection, docData, field, _cellEditController.text);
+                if (mounted) {
+                  setState(() { _editingCell = null; });
+                }
+              },
+            )
+          : SizedBox(
+              width: _getColumnWidth(field),
+              child: Text(initialValue, overflow: TextOverflow.ellipsis)),
+      onTap: () {
+    setState(() {
+      _editingCell = {'docId': uniqueRowId, 'field': field};
+      // Pega o valor original (o ID) do mapa de dados, em vez do valor de exibição.
+      _cellEditController.text = docData[field]?.toString() ?? ''; // <-- LINHA CORRIGIDA
+      _cellFocusNode.requestFocus();
+    });
+  },
+    );
+  }
 
   // Função auxiliar para definir larguras de coluna
   double _getColumnWidth(String field) {
@@ -2959,17 +2826,17 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                           Expanded(
                               flex: 1,
                               child: _buildAutocompleteField(
-                                  _campoComum1Controller, "CPF/CNPJ", 'campoComum1',
+                                  _campoComum1Controller, "CPF/CNPJ", 'id',
                                   isRequired: true)),
                           const SizedBox(width: 10),
                           Expanded(
                               flex: 2,
-                              child: _buildAutocompleteField(_campoComum2Controller, "Código", 'campoComum2')),
+                              child: _buildAutocompleteField(_campoComum2Controller, "Código", 'codigo_interno')),
                           const SizedBox(width: 10),
                           Expanded(
                               flex: 3,
                               child: _buildAutocompleteField(
-                                  _campoComum3Controller, "Razao Social", 'campoComum3')),
+                                  _campoComum3Controller, "Razao Social", 'razao_social')),
                         ],
                       ),
                     ),
@@ -2999,13 +2866,9 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                     const SizedBox(width: 10),
                     Expanded(
                         flex: 3,
-                        child: CustomInputField(
-                            controller: _paisController,
-                            label: "País",onUserInteraction: () => _checkSubcollectionInputChanges(), 
-                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                          maxLength: 2,
-                          suffixText: '${_paisController.text.length}/2',
-                            validator: (v) => v!.isEmpty ? 'Campo obrigatório' : null)),
+                        child: _buildPaisAutocomplete(
+    onUserInteraction: () => _checkSubcollectionInputChanges(),
+  )),
                     const SizedBox(width: 10),
                     Expanded(
                         flex: 1,
@@ -3082,78 +2945,88 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                 ),onPressed: _addTelefone, child: const Text("Adicionar Telefone")),
                 
                 Divider(thickness: 2, color: Colors.blue, height: 10, indent: 40, endIndent: 40),
-                StreamBuilder<QuerySnapshot>(
-                  stream: _telefonesStream,
-                  builder: (context, snapshot) {
-                    if (_campoComum1Controller.text.trim().isEmpty) {
-                      return const Center(child: Text("Busque por um CPF/CNPJ para ver os telefones."));
-                    }
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                      return const Center(child: Text("Nenhum telefone cadastrado para esta empresa."));
-                    }
-                    if (snapshot.hasError) {
-                      return Center(child: Text("Erro: ${snapshot.error}"));
-                    }
                 
-                    final telefones = snapshot.data!.docs;
                 
-                    return SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      
-                      child: Align(alignment: Alignment.center,
-                        child: DataTable(
-                          headingRowColor: WidgetStateProperty.all<Color>(Colors.blue[200]!), // Cor do cabeçalho
-                          dataRowColor: WidgetStateProperty.all<Color>(Colors.white),       // Cor do corpo da tabela
-                          // --- FIM DAS MODIFICAÇÕES ---
-                          border: TableBorder(
-                            top: BorderSide(color: Colors.black),
-                            right: BorderSide(color: Colors.black),
-                            left: BorderSide(color: Colors.black),
-                            bottom: BorderSide(color: Colors.black),
-                            horizontalInside: BorderSide(color: Colors.blue)),
-                          columns: [
-                            DataColumn(label: SizedBox(width: _getColumnWidth('sq'), child: Text('SQ', overflow: TextOverflow.ellipsis,))),
-                            DataColumn(label: SizedBox(width: _getColumnWidth('pais'), child: Text('País', overflow: TextOverflow.ellipsis,))),
-                            DataColumn(label: SizedBox(width: _getColumnWidth('operadora'), child: Text('Operadora', overflow: TextOverflow.ellipsis,))),
-                            DataColumn(label: SizedBox(width: _getColumnWidth('ddd'), child: Text('DDD', overflow: TextOverflow.ellipsis,))),
-                            DataColumn(label: SizedBox(width: _getColumnWidth('nro'), child: Text('Número', overflow: TextOverflow.ellipsis,))),
-                            DataColumn(label: SizedBox(width: _getColumnWidth('ramal'), child: Text('Ramal', overflow: TextOverflow.ellipsis,))),
-                            DataColumn(label: SizedBox(width: _getColumnWidth('tipo'), child: Text('Tipo', overflow: TextOverflow.ellipsis,))),
-                            DataColumn(label: SizedBox(width: _getColumnWidth('contato'), child: Text('Contato', overflow: TextOverflow.ellipsis,))),
-                            DataColumn(label: Text('Ação')),
-                          ],
-                          rows: telefones.map((doc) {
-                            final data = doc.data() as Map<String, dynamic>;
-                            return DataRow(cells: [
-                              _buildEditableCell('telefones', doc, 'sq', data['sq'] ?? '',
-                                  maxLength: 2, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
-                              _buildEditableCell('telefones', doc, 'pais', data['pais'] ?? '', maxLength: 30),
-                              _buildEditableCell('telefones', doc, 'operadora', data['operadora'] ?? '', maxLength: 30),
-                              _buildEditableCell('telefones', doc, 'ddd', data['ddd'] ?? '',
-                                  maxLength: 3, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
-                              _buildEditableCell('telefones', doc, 'nro', data['nro'] ?? '',
-                                  maxLength: 10, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
-                              _buildEditableCell('telefones', doc, 'ramal', data['ramal'] ?? '',
-                                  maxLength: 10, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
-                              _buildEditableCell('telefones', doc, 'tipo', data['tipo'] ?? '',
-                                  maxLength: 30),
-                              _buildEditableCell('telefones', doc, 'contato', data['contato'] ?? '',
-                                  maxLength: 30),
-                              DataCell(IconButton(
-                                icon: const Icon(Icons.delete, color: Colors.red),
-                                onPressed: () =>
-                                    _deleteTelefone(_campoComum1Controller.text.trim(), doc.id),
-                              )),
-                            ]);
-                          }).toList(),
-                        ),
-                      ),
-                    );
-                  },
-                )
+Builder(
+  builder: (context) {
+    // Garante que estamos lendo a chave correta: 'telefones'
+    final telefones = _rgData?['telefones'] as List<dynamic>? ?? [];
+
+    if (_campoComum1Controller.text.trim().isEmpty && !_isLoading) {
+      return const Center(child: Text("Busque por um CPF/CNPJ para ver os telefones."));
+    }
+    if (_isLoading && telefones.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (telefones.isEmpty) {
+      return const Center(child: Text("Nenhum telefone cadastrado para esta empresa."));
+    }
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: DataTable(
+        headingRowColor: WidgetStateProperty.all<Color>(Colors.blue[200]!),
+        dataRowColor: WidgetStateProperty.all<Color>(Colors.white),
+        border: TableBorder.all(color: Colors.black),
+        columns: const [
+          DataColumn(label: Text('SQ')),
+          DataColumn(label: Text('País')),
+          DataColumn(label: Text('Operadora')),
+          DataColumn(label: Text('DDD')),
+          DataColumn(label: Text('Número')),
+          DataColumn(label: Text('Ramal')),
+          DataColumn(label: Text('Tipo')),
+          DataColumn(label: Text('Contato')),
+          DataColumn(label: Text('Ação')),
+        ],
+        // Substitua todo o bloco 'rows' por este:
+rows: telefones.map((telefoneData) {
+  final data = telefoneData as Map<String, dynamic>;
+  final uniqueRowId = data['id'].toString();
+
+  // --- LÓGICA PARA "TRADUZIR" O ID DO PAÍS PARA O NOME ---
+
+  // 1. Pega o ID do país da linha atual (ex: '1111')
+  final paisId = data['pais']?.toString() ?? '';
+
+  // 2. Procura na lista de todos os países (_allPaises) qual mapa corresponde a esse ID.
+  //    Se não encontrar, retorna um mapa vazio para não dar erro.
+  final paisMap = _allPaises.firstWhere(
+    (p) => p['id']?.toString() == paisId,
+    orElse: () => {},
+  );
+
+  // 3. Define o texto que vai aparecer na tela.
+  //    Se o mapa encontrado tiver a chave 'nome' (ex: 'Estados Unidos'), usa esse valor.
+  //    Senão, como último recurso, mostra o próprio ID.
+  final paisDisplayText = paisMap['nome']?.toString() ?? paisId;
+
+  // --- FIM DA LÓGICA ---
+
+  // 4. Constrói a linha da tabela, usando a variável 'paisDisplayText' na célula correta.
+  return DataRow(cells: [
+    _buildEditableCell('telefones', data, 'sequencia', data['sequencia']?.toString() ?? '', uniqueRowId),
+    
+    // AQUI ESTÁ A MÁGICA: Passamos o NOME para ser exibido
+    _buildEditableCell('telefones', data, 'pais', paisDisplayText, uniqueRowId), 
+    
+    _buildEditableCell('telefones', data, 'operadora', data['operadora']?.toString() ?? '', uniqueRowId),
+    _buildEditableCell('telefones', data, 'ddd', data['ddd']?.toString() ?? '', uniqueRowId),
+    _buildEditableCell('telefones', data, 'numero', data['numero']?.toString() ?? '', uniqueRowId),
+    _buildEditableCell('telefones', data, 'ramal', data['ramal']?.toString() ?? '', uniqueRowId),
+    _buildEditableCell('telefones', data, 'tipo', data['tipo']?.toString() ?? '', uniqueRowId),
+    _buildEditableCell('telefones', data, 'contato', data['contato']?.toString() ?? '', uniqueRowId),
+    DataCell(IconButton(
+      icon: const Icon(Icons.delete, color: Colors.red),
+      onPressed: () => _deleteSubItem(uniqueRowId, 'telefones'),
+    )),
+  ]);
+}).toList(),
+
+      ),
+    );
+  },
+),
               ],
             ),
           ),
@@ -3185,17 +3058,17 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                         Expanded(
                             flex: 1,
                             child: _buildAutocompleteField(
-                                _campoComum1Controller, "CPF/CNPJ", 'campoComum1',
+                                _campoComum1Controller, "CPF/CNPJ", 'id',
                                 isRequired: true)),
                         const SizedBox(width: 10),
                         Expanded(
                             flex: 2,
-                            child: _buildAutocompleteField(_campoComum2Controller, "Código", 'campoComum2')),
+                            child: _buildAutocompleteField(_campoComum2Controller, "Código", 'codigo_interno')),
                         const SizedBox(width: 10),
                         Expanded(
                             flex: 3,
                             child: _buildAutocompleteField(
-                                _campoComum3Controller, "Razao Social", 'campoComum3')),
+                                _campoComum3Controller, "Razao Social", 'razao_social')),
                       ],
                     ),
                   ),
@@ -3320,17 +3193,17 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                         Expanded(
                             flex: 1,
                             child: _buildAutocompleteField(
-                                _campoComum1Controller, "CPF/CNPJ", 'campoComum1',
+                                _campoComum1Controller, "CPF/CNPJ", 'id',
                                 isRequired: true)),
                         const SizedBox(width: 10),
                         Expanded(
                             flex: 2,
-                            child: _buildAutocompleteField(_campoComum2Controller, "Código", 'campoComum2')),
+                            child: _buildAutocompleteField(_campoComum2Controller, "Código", 'codigo_interno')),
                         const SizedBox(width: 10),
                         Expanded(
                             flex: 3,
                             child: _buildAutocompleteField(
-                                _campoComum3Controller, "Razao Social", 'campoComum3')),
+                                _campoComum3Controller, "Razao Social", 'razao_social')),
                       ],
                     ),
                   ),
@@ -3548,27 +3421,25 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
         Divider(thickness: 2, color: Colors.blue, height: 10, indent: 40, endIndent: 40),
 
         // Tabela de dados
-        StreamBuilder<QuerySnapshot>(
-          stream: _sociosStream,
-          /*stream: _campoComum1Controller.text.trim().isNotEmpty
-                 ? _collectionRef.doc(_campoComum1Controller.text.trim()).collection('composicao_acionaria').snapshots()
-                 : null,*/
-          builder: (context, snapshot) {
-            if (_campoComum1Controller.text.trim().isEmpty) {
-              return const Center(child: Text("Busque por um CPF/CNPJ para ver os sócios."));
-            }
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-              return const Center(child: Text("Nenhum sócio cadastrado para esta empresa."));
-            }
+        Builder(
+  builder: (context) {
+    // Pega a lista de telefones da nossa variável de estado _rgData
+    final socios = _rgData?['socios'] as List<dynamic>? ?? [];
 
-            final socios = snapshot.data!.docs;
+    if (_campoComum1Controller.text.trim().isEmpty) {
+      return const Center(child: Text("Busque por um CPF/CNPJ para ver os socios."));
+    }
+    if (_isLoading) {
+       return const Center(child: CircularProgressIndicator());
+    }
+    if (socios.isEmpty) {
+      return const Center(child: Text("Nenhum telefone cadastrado para esta empresa."));
+    }
 
-            return SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
+    // O DataTable continua o mesmo, mas agora mapeia a lista 'telefones'
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: DataTable(
                               headingRowColor: WidgetStateProperty.all<Color>(Colors.blue[200]!), // Cor do cabeçalho
                               dataRowColor: WidgetStateProperty.all<Color>(Colors.white),       // Cor do corpo da tabela
                               // --- FIM DAS MODIFICAÇÕES ---
@@ -3578,55 +3449,41 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                                 left: BorderSide(color: Colors.black),
                                 bottom: BorderSide(color: Colors.black),
                                 horizontalInside: BorderSide(color: Colors.blue)),
-                              columns: [
-                  DataColumn(label: SizedBox(width: _getColumnWidth('sq'), child: Text('Sq'))),
-                  DataColumn(label: SizedBox(width: _getColumnWidth('socio'), child: Text('Sócio'))),
-                  DataColumn(label: SizedBox(width: _getColumnWidth('nome'), child: Text('Nome'))),
-                  DataColumn(label: SizedBox(width: _getColumnWidth('cpf'), child: Text('CPF'))),
-                  DataColumn(label: SizedBox(width: _getColumnWidth('cargo'), child: Text('Cargo'))),
-                  DataColumn(label: SizedBox(width: _getColumnWidth('cargo res'), child: Text('Cargo res'))),
-                  DataColumn(
-                      label: SizedBox(width: _getColumnWidth('participacao'), child: Text('participacao'))),
-                  DataColumn(label: Text('Ação')),
-                ],
+                              columns: const [
+          DataColumn(label: Text('Sq')),
+          DataColumn(label: Text('Sócio')),
+          DataColumn(label: Text('Nome')),
+          DataColumn(label: Text('CPF')),
+          DataColumn(label: Text('Cargo')),
+          DataColumn(label: Text('Participação (%)')),
+          DataColumn(label: Text('Ação')),
+        ],
                 /*rows: socios.map((socioDoc) {
                     final socioData = socioDoc.data() as Map<String, dynamic>;*/
-                rows: socios.map((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  return DataRow(cells: [
-                    _buildEditableCell('composicao_acionaria', doc, 'sq', data['sq'] ?? '',
-                        maxLength: 1, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
-                    _buildEditableCell('composicao_acionaria', doc, 'socio', data['socio'] ?? '',
-                        maxLength: 5),
-                    _buildEditableCell('composicao_acionaria', doc, 'nome', data['nome'] ?? '',
-                        maxLength: 60),
-                    _buildEditableCell('composicao_acionaria', doc, 'cpf', data['cpf'] ?? '',
-                        maxLength: 14, inputFormatters: [CpfInputFormatter()]), // Usar CpfInputFormatter
-                    _buildEditableCell('composicao_acionaria', doc, 'cargo', data['cargo'] ?? '',
-                        maxLength: 5, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
-                    _buildEditableCell('composicao_acionaria', doc, 'cargo res', data['cargo res'] ?? '',
-                        maxLength: 35),
-                    _buildEditableCell(
-                        'composicao_acionaria', doc, 'participacao', data['participacao'] ?? '',
-                        maxLength: 5, inputFormatters: [PercentageInputFormatter()]),
-                    /*DataCell(Text(socioData['sq'] ?? '')),
-                          DataCell(Text(socioData['socio'] ?? '')),
-                          DataCell(Text(socioData['nome'] ?? '')),
-                          DataCell(Text(socioData['cpf'] ?? '')),
-                          DataCell(Text(socioData['cargo'] ?? '')),
-                          DataCell(Text(socioData['cargo res'] ?? '')),
-                          DataCell(Text(socioData['participacao'] ?? '')),*/
-                    DataCell(IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () =>
-                          _deleteSocio(_campoComum1Controller.text.trim(), doc.id),
-                    )),
-                  ]);
+                rows: socios.map((socioData) { // Renomeei 'doc' para 'socioData' para clareza
+  final data = socioData as Map<String, dynamic>; // <-- CORRIGIDO! 'socioData' JÁ É O MAPA
+  final uniqueRowId = data['id'].toString();
+  return DataRow(cells: [
+            _buildEditableCell('socios', data, 'sequencia', data['sequencia']?.toString() ?? '', uniqueRowId),
+            _buildEditableCell('socios', data, 'socio_id', data['socio_id']?.toString() ?? '', uniqueRowId),
+            _buildEditableCell('socios', data, 'nome', data['nome']?.toString() ?? '', uniqueRowId),
+            _buildEditableCell('socios', data, 'cpf', data['cpf']?.toString() ?? '', uniqueRowId),
+            _buildEditableCell('socios', data, 'cargo_id', data['cargo_id']?.toString() ?? '', uniqueRowId),
+            _buildEditableCell('socios', data, 'participacao', data['participacao']?.toString() ?? '', uniqueRowId),
+            DataCell(IconButton(
+              icon: const Icon(Icons.delete, color: Colors.red),
+              onPressed: () {
+                final socioId = data['id'].toString();
+                _deleteSubItem(socioId, 'socios'); // Chama a função genérica
+              },
+            )),
+          ]);
                 }).toList(),
               ),
-            );
-          },
-        )
+    );
+  },
+)
+        
       ],
     );
   }
@@ -3655,17 +3512,17 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
                         Expanded(
                             flex: 1,
                             child: _buildAutocompleteField(
-                                _campoComum1Controller, "CPF/CNPJ", 'campoComum1',
+                                _campoComum1Controller, "CPF/CNPJ", 'id',
                                 isRequired: true)),
                         const SizedBox(width: 10),
                         Expanded(
                             flex: 2,
-                            child: _buildAutocompleteField(_campoComum2Controller, "Código", 'campoComum2')),
+                            child: _buildAutocompleteField(_campoComum2Controller, "Código", 'codigo_interno')),
                         const SizedBox(width: 10),
                         Expanded(
                             flex: 3,
                             child: _buildAutocompleteField(
-                                _campoComum3Controller, "Razao Social", 'campoComum3')),
+                                _campoComum3Controller, "Razao Social", 'razao_social')),
                       ],
                     ),
                   ),
@@ -3889,99 +3746,64 @@ Future<void> _deleteReferenciaComercial(String itemId, String refId) async {
         Divider(thickness: 2, color: Colors.blue, height: 10, indent: 40, endIndent: 40),
 
         // Tabela de dados
-        StreamBuilder<QuerySnapshot>(
-          stream: _referenciasStream,
-          /*stream: _campoComum1Controller.text.trim().isNotEmpty
-                 ? _collectionRef.doc(_campoComum1Controller.text.trim()).collection('referencias_bancarias').snapshots()
-                 : null,*/
-          builder: (context, snapshot) {
-            if (_campoComum1Controller.text.trim().isEmpty) {
-              return const Center(child: Text("Busque por um CPF/CNPJ para ver as referências."));
-            }
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-              return const Center(child: Text("Nenhuma referência bancária cadastrada."));
-            }
-            if (snapshot.hasError) {
-              return Center(child: Text("Erro: ${snapshot.error}"));
-            }
+        
+        Builder(
+  builder: (context) {
+    // CORREÇÃO: Lê da chave 'referencias_bancarias', que é a chave enviada pelo servidor
+    final referencias = _rgData?['referencias_bancarias'] as List<dynamic>? ?? [];
 
-            final referencias = snapshot.data!.docs;
+    if (_campoComum1Controller.text.trim().isEmpty && !_isLoading) {
+      return const Center(child: Text("Busque por um CPF/CNPJ para ver as referências."));
+    }
+    if (_isLoading && referencias.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (referencias.isEmpty) {
+      return const Center(child: Text("Nenhuma referência bancária cadastrada."));
+    }
 
-            return SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
-                headingRowColor: WidgetStateProperty.all<Color>(Colors.blue[200]!), // Cor do cabeçalho
-                dataRowColor: WidgetStateProperty.all<Color>(Colors.white),       // Cor do corpo da tabela
-                // --- FIM DAS MODIFICAÇÕES ---
-                border: TableBorder(
-                  top: BorderSide(color: Colors.black),
-                  right: BorderSide(color: Colors.black),
-                  left: BorderSide(color: Colors.black),
-                  bottom: BorderSide(color: Colors.black),
-                  horizontalInside: BorderSide(color: Colors.blue)),
-                columns: [
-                  DataColumn(
-                      label: SizedBox(width: _getColumnWidth('sequencia ref banc'), child: Text('Seq.'))),
-                  DataColumn(
-                      label: SizedBox(width: _getColumnWidth('nome ref banc'), child: Text('Nome'))),
-                  DataColumn(
-                      label: SizedBox(width: _getColumnWidth('endereco ref banc'), child: Text('Endereço.'))),
-                  DataColumn(
-                      label: SizedBox(width: _getColumnWidth('resul endereco ref banc'), child: Text('Cidade'))),
-                  DataColumn(
-                      label: SizedBox(width: _getColumnWidth('contato ref banc'), child: Text('Contato'))),
-                  DataColumn(
-                      label: SizedBox(width: _getColumnWidth('telefone ref banc'), child: Text('Telefone'))),
-                  DataColumn(
-                      label: SizedBox(width: _getColumnWidth('email ref banc'), child: Text('E-mail'))),
-                  DataColumn(label: SizedBox(width: _getColumnWidth('obs ref banc'), child: Text('Obs.'))),
-                  DataColumn(label: Text('Ação')),
-                ],
-                rows: referencias.map((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  return DataRow(cells: [
-                    _buildEditableCell('referencias_bancarias', doc, 'sequencia ref banc',
-                        data['sequencia ref banc'] ?? '',
-                        maxLength: 2, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
-                    _buildEditableCell(
-                        'referencias_bancarias', doc, 'nome ref banc', data['nome ref banc'] ?? '',
-                        maxLength: 60),
-                    _buildEditableCell('referencias_bancarias', doc, 'endereco ref banc',
-                        data['endereco ref banc'] ?? '',
-                        maxLength: 45),
-                    _buildEditableCell('referencias_bancarias', doc, 'resul endereco ref banc',
-                        data['resul endereco ref banc'] ?? '',
-                        maxLength: 5, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
-                    _buildEditableCell('referencias_bancarias', doc, 'contato ref banc',
-                        data['contato ref banc'] ?? '',
-                        maxLength: 20),
-                    _buildEditableCell('referencias_bancarias', doc, 'telefone ref banc',
-                        data['telefone ref banc'] ?? '',
-                        maxLength: 20),
-                    _buildEditableCell('referencias_bancarias', doc, 'email ref banc',
-                        data['email ref banc'] ?? '',
-                        maxLength: 40),
-                    _buildEditableCell(
-                        'referencias_bancarias', doc, 'obs ref banc', data['obs ref banc'] ?? '',
-                        maxLength: 40),
-                    /*DataCell(Text(data['sequencia ref banc'] ?? '')), DataCell(Text(data['nome ref banc'] ?? '')),
-                          DataCell(Text(data['endereco ref banc'] ?? '')), DataCell(Text(data['cidade ref banc'] ?? '')),
-                          DataCell(Text(data['contato ref banc'] ?? '')), DataCell(Text(data['telefone ref banc'] ?? '')),
-                          DataCell(Text(data['email ref banc'] ?? '')), DataCell(Text(data['obs ref banc'] ?? '')),*/
-                    DataCell(IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () => _deleteReferenciaBancaria(
-                          _campoComum1Controller.text.trim(), doc.id),
-                    )),
-                  ]);
-                }).toList(),
-              ),
-            );
-          },
-        ),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: DataTable(
+        headingRowColor: WidgetStateProperty.all<Color>(Colors.blue[200]!),
+        dataRowColor: WidgetStateProperty.all<Color>(Colors.white),
+        border: TableBorder.all(color: Colors.black),
+        columns: const [
+          DataColumn(label: Text('Seq.')),
+          DataColumn(label: Text('Nome')),
+          DataColumn(label: Text('Endereço')),
+          DataColumn(label: Text('Cidade')),
+          DataColumn(label: Text('Contato')),
+          DataColumn(label: Text('Telefone')),
+          DataColumn(label: Text('E-mail')),
+          DataColumn(label: Text('Obs.')),
+          DataColumn(label: Text('Ação')),
+        ],
+        rows: referencias.map((refData) {
+          // CORREÇÃO: refData já é o mapa, não precisa de .data()
+          final data = refData as Map<String, dynamic>;
+          final uniqueRowId = data['id'].toString();
+          
+          return DataRow(cells: [
+            _buildEditableCell('referencias-bancarias', data, 'sequencia', data['sequencia']?.toString() ?? '', uniqueRowId),
+            _buildEditableCell('referencias-bancarias', data, 'nome_banco', data['nome_banco']?.toString() ?? '', uniqueRowId),
+            _buildEditableCell('referencias-bancarias', data, 'endereco', data['endereco']?.toString() ?? '', uniqueRowId),
+            _buildEditableCell('referencias-bancarias', data, 'cidade_id', data['cidade_id']?.toString() ?? '', uniqueRowId),
+            _buildEditableCell('referencias-bancarias', data, 'contato', data['contato']?.toString() ?? '', uniqueRowId),
+            _buildEditableCell('referencias-bancarias', data, 'telefone', data['telefone']?.toString() ?? '', uniqueRowId),
+            _buildEditableCell('referencias-bancarias', data, 'email', data['email']?.toString() ?? '', uniqueRowId),
+            _buildEditableCell('referencias-bancarias', data, 'observacao', data['observacao']?.toString() ?? '', uniqueRowId),
+            DataCell(IconButton(
+              icon: const Icon(Icons.delete, color: Colors.red),
+              // CORREÇÃO: Chama a função _deleteReferenciaBancaria corrigida
+              onPressed: () => _deleteReferenciaBancaria(uniqueRowId),
+            )),
+          ]);
+        }).toList(),
+      ),
+    );
+  },
+),
       ],
     );
   }
@@ -4144,75 +3966,64 @@ Widget _buildAbaReferenciaComercial({Key? key}) {
         ),
         Divider(thickness: 2, color: Colors.blue, height: 10, indent: 40, endIndent: 40),
 
-        StreamBuilder<QuerySnapshot>(
-          stream: _referenciasComerciaisStream,
-          builder: (context, snapshot) {
-            if (_campoComum1Controller.text.trim().isEmpty) {
-              return const Center(child: Text("Busque por um CPF/CNPJ para ver as referências comerciais."));
-            }
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-              return const Center(child: Text("Nenhuma referência comercial cadastrada."));
-            }
-            if (snapshot.hasError) {
-              return Center(child: Text("Erro: ${snapshot.error}"));
-            }
+        
+        Builder(
+  builder: (context) {
+    // CORREÇÃO: Lê da chave 'referencias_comerciais', que é a chave enviada pelo servidor
+    final referencias = _rgData?['referencias_comerciais'] as List<dynamic>? ?? [];
 
-            final referencias = snapshot.data!.docs;
+    if (_campoComum1Controller.text.trim().isEmpty && !_isLoading) {
+      return const Center(child: Text("Busque por um CPF/CNPJ para ver as referências."));
+    }
+    if (_isLoading && referencias.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (referencias.isEmpty) {
+      return const Center(child: Text("Nenhuma referência comercial cadastrada."));
+    }
 
-            return SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
-                headingRowColor: WidgetStateProperty.all<Color>(Colors.blue[200]!),
-                dataRowColor: WidgetStateProperty.all<Color>(Colors.white),
-                border: const TableBorder(
-                    top: BorderSide(color: Colors.black),
-                    right: BorderSide(color: Colors.black),
-                    left: BorderSide(color: Colors.black),
-                    bottom: BorderSide(color: Colors.black),
-                    horizontalInside: BorderSide(color: Colors.blue)),
-                columns: [
-                  DataColumn(label: SizedBox(width: _getColumnWidth('sequencia ref comercial'), child: Text('Seq.'))),
-                  DataColumn(label: SizedBox(width: _getColumnWidth('resul nome ref comercial'), child: Text('Nome'))),
-                  DataColumn(label: SizedBox(width: _getColumnWidth('endereco ref comercial'), child: Text('Endereço.'))),
-                  DataColumn(label: SizedBox(width: _getColumnWidth('cidade ref comercial'), child: Text('Cidade'))),
-                  DataColumn(label: SizedBox(width: _getColumnWidth('contato ref comercial'), child: Text('Contato'))),
-                  DataColumn(label: SizedBox(width: _getColumnWidth('telefone ref comercial'), child: Text('Telefone'))),
-                  DataColumn(label: SizedBox(width: _getColumnWidth('email ref comercial'), child: Text('E-mail'))),
-                  DataColumn(label: SizedBox(width: _getColumnWidth('obs ref comercial'), child: Text('Obs.'))),
-                  const DataColumn(label: Text('Ação')),
-                ],
-                rows: referencias.map((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  return DataRow(cells: [
-                    _buildEditableCell('referencias_comerciais', doc, 'sequencia ref comercial', data['sequencia ref comercial'] ?? '',
-                        maxLength: 2, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
-                    _buildEditableCell('referencias_comerciais', doc, 'resul nome ref comercial', data['resul nome ref comercial'] ?? '',
-                        maxLength: 60),
-                    _buildEditableCell('referencias_comerciais', doc, 'endereco ref comercial', data['endereco ref comercial'] ?? '',
-                        maxLength: 45),
-                    _buildEditableCell('referencias_comerciais', doc, 'cidade ref comercial', data['cidade ref comercial'] ?? '',
-                        maxLength: 5, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
-                    _buildEditableCell('referencias_comerciais', doc, 'contato ref comercial', data['contato ref comercial'] ?? '',
-                        maxLength: 20),
-                    _buildEditableCell('referencias_comerciais', doc, 'telefone ref comercial', data['telefone ref comercial'] ?? '',
-                        maxLength: 20),
-                    _buildEditableCell('referencias_comerciais', doc, 'email ref comercial', data['email ref comercial'] ?? '',
-                        maxLength: 40),
-                    _buildEditableCell('referencias_comerciais', doc, 'obs ref comercial', data['obs ref comercial'] ?? '',
-                        maxLength: 40),
-                    DataCell(IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () => _deleteReferenciaComercial(_campoComum1Controller.text.trim(), doc.id),
-                    )),
-                  ]);
-                }).toList(),
-              ),
-            );
-          },
-        ),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: DataTable(
+        headingRowColor: WidgetStateProperty.all<Color>(Colors.blue[200]!),
+        dataRowColor: WidgetStateProperty.all<Color>(Colors.white),
+        border: TableBorder.all(color: Colors.black),
+        columns: const [
+          DataColumn(label: Text('Seq.')),
+          DataColumn(label: Text('Nome')),
+          DataColumn(label: Text('Endereço')),
+          DataColumn(label: Text('Cidade')),
+          DataColumn(label: Text('Contato')),
+          DataColumn(label: Text('Telefone')),
+          DataColumn(label: Text('E-mail')),
+          DataColumn(label: Text('Obs.')),
+          DataColumn(label: Text('Ação')),
+        ],
+        rows: referencias.map((refData) {
+          // CORREÇÃO: refData já é o mapa, não precisa de .data()
+          final data = refData as Map<String, dynamic>;
+          final uniqueRowId = data['id'].toString();
+
+          return DataRow(cells: [
+            _buildEditableCell('referencias-comerciais', data, 'sequencia', data['sequencia']?.toString() ?? '', uniqueRowId),
+            _buildEditableCell('referencias-comerciais', data, 'nome_empresa', data['nome_empresa']?.toString() ?? '', uniqueRowId),
+            _buildEditableCell('referencias-comerciais', data, 'endereco', data['endereco']?.toString() ?? '', uniqueRowId),
+            _buildEditableCell('referencias-comerciais', data, 'cidade_id', data['cidade_id']?.toString() ?? '', uniqueRowId),
+            _buildEditableCell('referencias-comerciais', data, 'contato', data['contato']?.toString() ?? '', uniqueRowId),
+            _buildEditableCell('referencias-comerciais', data, 'telefone', data['telefone']?.toString() ?? '', uniqueRowId),
+            _buildEditableCell('referencias-comerciais', data, 'email', data['email']?.toString() ?? '', uniqueRowId),
+            _buildEditableCell('referencias-comerciais', data, 'observacao', data['observacao']?.toString() ?? '', uniqueRowId),
+            DataCell(IconButton(
+              icon: const Icon(Icons.delete, color: Colors.red),
+              // CORREÇÃO: Chama a função _deleteReferenciaComercial corrigida
+              onPressed: () => _deleteReferenciaComercial(uniqueRowId),
+            )),
+          ]);
+        }).toList(),
+      ),
+    );
+  },
+),
       ],
     );
   }
@@ -4679,17 +4490,17 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                         Expanded(
                             flex: 1,
                             child: _buildAutocompleteField(
-                                _campoComum1Controller, "CPF/CNPJ", 'campoComum1',
+                                _campoComum1Controller, "CPF/CNPJ", 'id',
                                 isRequired: true)),
                         const SizedBox(width: 10),
                         Expanded(
                             flex: 2,
-                            child: _buildAutocompleteField(_campoComum2Controller, "Código", 'campoComum2')),
+                            child: _buildAutocompleteField(_campoComum2Controller, "Código", 'codigo_interno')),
                         const SizedBox(width: 10),
                         Expanded(
                             flex: 3,
                             child: _buildAutocompleteField(
-                                _campoComum3Controller, "Razao Social", 'campoComum3')),
+                                _campoComum3Controller, "Razao Social", 'razao_social')),
                       ],
                     ),
                   ),
@@ -5588,89 +5399,68 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
         Divider(thickness: 2, color: Colors.blue, height: 10, indent: 40, endIndent: 40),
 
         // Tabela de dados
-        StreamBuilder<QuerySnapshot>(
-          stream: _contatosStream,
-          builder: (context, snapshot) {
-            if (_campoComum1Controller.text.trim().isEmpty) {
-              return const Center(child: Text("Busque por um CPF/CNPJ para ver as referências."));
-            }
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-              return const Center(child: Text("Nenhum contato cadastrado."));
-            }
-            if (snapshot.hasError) {
-              return Center(child: Text("Erro: ${snapshot.error}"));
-            }
+        
+        Builder(
+  builder: (context) {
+    // CORREÇÃO: Lê da chave 'contatos', que é a chave correta enviada pelo servidor
+    final contatos = _rgData?['contatos'] as List<dynamic>? ?? [];
 
-            final referencias = snapshot.data!.docs;
+    if (_campoComum1Controller.text.trim().isEmpty && !_isLoading) {
+      return const Center(child: Text("Busque por um CPF/CNPJ para ver os contatos."));
+    }
+    if (_isLoading && contatos.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (contatos.isEmpty) {
+      return const Center(child: Text("Nenhum contato cadastrado."));
+    }
 
-            return SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
-              headingRowColor: WidgetStateProperty.all<Color>(Colors.blue[200]!), // Cor do cabeçalho
-              dataRowColor: WidgetStateProperty.all<Color>(Colors.white),       // Cor do corpo da tabela
-              // --- FIM DAS MODIFICAÇÕES ---
-              border: TableBorder(
-                top: BorderSide(color: Colors.black),
-                right: BorderSide(color: Colors.black),
-                left: BorderSide(color: Colors.black),
-                bottom: BorderSide(color: Colors.black),
-                horizontalInside: BorderSide(color: Colors.blue)),
-              columns: [
-                  DataColumn(
-                      label: SizedBox(width: _getColumnWidth('sequencia contato'), child: Text('Seq.'))),
-                  DataColumn(
-                      label: SizedBox(width: _getColumnWidth('nome contato'), child: Text('Nome'))),
-                  DataColumn(
-                      label:
-                          SizedBox(width: _getColumnWidth('data nasc contato'), child: Text('Data Nasc.'))),
-                  DataColumn(
-                      label: SizedBox(width: _getColumnWidth('cargo contato'), child: Text('Cd. Cargo'))),
-                  DataColumn(
-                      label: SizedBox(width: _getColumnWidth('cargo res contato'), child: Text('Cargo'))),
-                  DataColumn(
-                      label: SizedBox(width: _getColumnWidth('email contato'), child: Text('E-mail'))),
-                  DataColumn(label: SizedBox(width: _getColumnWidth('obs contato'), child: Text('Obs.'))),
-                  DataColumn(label: Text('Ação')),
-                ],
-                rows: referencias.map((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  return DataRow(cells: [
-                    _buildEditableCell('contatos', doc, 'sequencia contato', data['sequencia contato'] ?? '',
-                        maxLength: 2, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
-                    _buildEditableCell(
-                        'contatos', doc, 'nome contato', data['nome contato'] ?? '',
-                        maxLength: 40),
-                    _buildEditableCell('contatos', doc, 'data nasc contato',
-                        data['data nasc contato'] ?? '',
-                        maxLength: 5, inputFormatters: [DateInputFormatter()]),
-                    _buildEditableCell(
-                        'contatos', doc, 'cargo contato', data['cargo contato'] ?? '',
-                        maxLength: 5, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
-                    _buildEditableCell('contatos', doc, 'cargo res contato',
-                        data['cargo res contato'] ?? '',
-                        maxLength: 35),
-                    _buildEditableCell('contatos', doc, 'email contato', data['email contato'] ?? '',
-                        maxLength: 40),
-                    _buildEditableCell('contatos', doc, 'obs contato', data['obs contato'] ?? '',
-                        maxLength: 40),
-                    /*DataCell(Text(data['sequencia contato'] ?? '')), DataCell(Text(data['nome contato'] ?? '')),
-                          DataCell(Text(data['data nasc contato'] ?? '')), DataCell(Text(data['cargo contato'] ?? '')),
-                          DataCell(Text(data['cargo res contato'] ?? '')),
-                          DataCell(Text(data['email contato'] ?? '')), DataCell(Text(data['obs contato'] ?? '')),*/
-                    DataCell(IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () =>
-                          _deleteContato(_campoComum1Controller.text.trim(), doc.id),
-                    )),
-                  ]);
-                }).toList(),
-              ),
-            );
-          },
-        ),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: DataTable(
+        headingRowColor: WidgetStateProperty.all<Color>(Colors.blue[200]!),
+        dataRowColor: WidgetStateProperty.all<Color>(Colors.white),
+        border: TableBorder.all(color: Colors.black),
+        columns: const [
+          DataColumn(label: Text('Seq.')),
+          DataColumn(label: Text('Nome')),
+          DataColumn(label: Text('Dt. Nasc.')),
+          DataColumn(label: Text('Cargo')),
+          DataColumn(label: Text('E-mail')),
+          DataColumn(label: Text('Obs.')),
+          DataColumn(label: Text('Ação')),
+        ],
+        rows: contatos.map((contatoData) {
+          // CORREÇÃO: contatoData já é o mapa, não precisa de .data()
+          final data = contatoData as Map<String, dynamic>;
+          final uniqueRowId = data['id'].toString();
+
+          // Lógica Bônus: Traduzir o ID do cargo para o nome do cargo
+          final cargoId = data['cargo_id']?.toString() ?? '';
+          final cargoMap = _allCargos.firstWhere(
+            (c) => c['id']?.toString() == cargoId,
+            orElse: () => {},
+          );
+          final cargoDisplayText = cargoMap['descricao']?.toString() ?? cargoId;
+
+          return DataRow(cells: [
+            _buildEditableCell('contatos', data, 'sequencia', data['sequencia']?.toString() ?? '', uniqueRowId),
+            _buildEditableCell('contatos', data, 'nome', data['nome']?.toString() ?? '', uniqueRowId),
+            _buildEditableCell('contatos', data, 'data_nascimento', data['data_nascimento']?.toString() ?? '', uniqueRowId),
+            _buildEditableCell('contatos', data, 'cargo_id', cargoDisplayText, uniqueRowId), // Mostra o nome do cargo
+            _buildEditableCell('contatos', data, 'email', data['email']?.toString() ?? '', uniqueRowId),
+            _buildEditableCell('contatos', data, 'observacao', data['observacao']?.toString() ?? '', uniqueRowId),
+            DataCell(IconButton(
+              icon: const Icon(Icons.delete, color: Colors.red),
+              // CORREÇÃO: Chama a função _deleteContato corrigida
+              onPressed: () => _deleteContato(uniqueRowId),
+            )),
+          ]);
+        }).toList(),
+      ),
+    );
+  },
+),
       ],
     );
   }

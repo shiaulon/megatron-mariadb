@@ -21,6 +21,7 @@ import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaT
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tipoTelefone.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/credito/tab_documento.dart';
 import 'package:flutter_application_1/registroGeral/manut_rg.dart';
+import 'package:flutter_application_1/registroGeral/naturea_X_rg.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_application_1/providers/permission_provider.dart';
 
@@ -289,6 +290,8 @@ class AppDrawer extends StatelessWidget {
                   _buildMenuItemWithSubitems(context, 'Registro Geral (Manut.)', Icons.app_registration, [
                     if (permissionProvider.hasAccess(['registro_geral', 'registro_geral_manut', 'manut_rg']))
                       _buildSubMenuItem(context, 'Manut RG', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => PaginaComAbasLaterais(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId)))),
+                    if (permissionProvider.hasAccess(['registro_geral', 'manut_rg', 'natureza_x_rg']))
+                      _buildSubMenuItem(context, 'Natureza X RG', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => NaturezaXRgScreen(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId)))),
                   ]),
               ],
             ),

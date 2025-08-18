@@ -1,14 +1,13 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_application_1/providers/auth_provider.dart';
 import 'package:flutter_application_1/reutilizaveis/barraSuperior.dart';
 import 'package:flutter_application_1/reutilizaveis/customImputField.dart';
 import 'package:flutter_application_1/reutilizaveis/menuLateral.dart';
 import 'package:flutter_application_1/reutilizaveis/tela_base.dart';
-
-import 'package:flutter_application_1/services/log_services.dart';
+import 'package:flutter_application_1/services/natureza_rendimento_service.dart';
 import 'package:flutter_application_1/submenus.dart';
+import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -27,306 +26,211 @@ class TabelaNaturezaRendimento extends StatefulWidget {
   });
 
   @override
-  State<TabelaNaturezaRendimento> createState() =>
-      _TabelaNaturezaRendimentoState();
+  State<TabelaNaturezaRendimento> createState() => _TabelaNaturezaRendimentoState();
 }
 
 class _TabelaNaturezaRendimentoState extends State<TabelaNaturezaRendimento> {
+  final NaturezaRendimentoService _service = NaturezaRendimentoService();
   static const double _breakpoint = 700.0;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   late String _currentDate;
 
   final TextEditingController _codigoNatRendimento = TextEditingController();
   final TextEditingController _descricaoController = TextEditingController();
-
+  
+  List<Map<String, dynamic>> _allData = [];
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
     _currentDate = DateFormat('dd/MM/yyyy').format(DateTime.now());
+    _fetchAllData();
     _codigoNatRendimento.addListener(_onCodigoChanged);
   }
-
-  CollectionReference get _collectionRef => FirebaseFirestore.instance
-      .collection('companies')
-      .doc(widget.mainCompanyId)
-      .collection('secondaryCompanies')
-      .doc(widget.secondaryCompanyId)
-      .collection('data')
-      .doc('natureza_rendimento')
-      .collection('items');
-
-  void _clearFields({bool clearCode = false}) {
-    if (clearCode) {
-      _codigoNatRendimento.clear();
-    }
-    _descricaoController.clear();
-  }
-
-  Future<void> _onCodigoChanged() async {
-    final codigo = _codigoNatRendimento.text.trim();
-    if (codigo.isEmpty) {
-      _clearFields(clearCode: false);
-      return;
-    }
-
-    setState(() => _isLoading = true);
-    try {
-      final docSnapshot = await _collectionRef.doc(codigo).get();
-
-      await LogService.addLog(
-        modulo: LogModule.TABELA, // <-- ADICIONADO
-        action: LogAction.VIEW,
-        mainCompanyId: widget.mainCompanyId,
-        secondaryCompanyId: widget.secondaryCompanyId,
-        targetCollection: 'natureza_rendimento',
-        targetDocId: codigo,
-        details:
-            'Usuário consultou a Natureza de Rendimento cód. "$codigo". Resultado: ${docSnapshot.exists ? "Encontrado" : "Não encontrado"}.',
-      );
-
-      if (docSnapshot.exists) {
-        final data = docSnapshot.data() as Map<String, dynamic>;
-        setState(() {
-          _descricaoController.text = data['descricao'] ?? '';
-        });
-      } else {
-        _clearFields(clearCode: false);
-      }
-    } catch (e) {
-      await LogService.addLog(
-        modulo: LogModule.TABELA, // <-- ADICIONADO
-          action: LogAction.ERROR,
-          mainCompanyId: widget.mainCompanyId,
-          secondaryCompanyId: widget.secondaryCompanyId,
-          targetCollection: 'natureza_rendimento',
-          targetDocId: codigo,
-          details:
-              'FALHA ao consultar Nat. Rendimento cód. "$codigo". Erro: ${e.toString()}');
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erro ao consultar: $e')));
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _saveData() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
-
-    final docId = _codigoNatRendimento.text.trim();
-    setState(() => _isLoading = true);
-
-    final dataToSave = {
-      'descricao': _descricaoController.text.trim(),
-      'ultima_atualizacao': FieldValue.serverTimestamp(),
-      'criado_por': FirebaseAuth.instance.currentUser?.email ?? 'desconhecido',
-    };
-
-    try {
-      final docExists = (await _collectionRef.doc(docId).get()).exists;
-      await _collectionRef.doc(docId).set(dataToSave);
-
-      await LogService.addLog(
-        modulo: LogModule.TABELA, // <-- ADICIONADO
-        action: docExists ? LogAction.UPDATE : LogAction.CREATE,
-        mainCompanyId: widget.mainCompanyId,
-        secondaryCompanyId: widget.secondaryCompanyId,
-        targetCollection: 'natureza_rendimento',
-        targetDocId: docId,
-        details:
-            'Usuário salvou/atualizou a Natureza de Rendimento: $docId - ${_descricaoController.text}.',
-      );
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Salvo com sucesso!')));
-    } catch (e) {
-      await LogService.addLog(
-        modulo: LogModule.TABELA, // <-- ADICIONADO
-          action: LogAction.ERROR,
-          mainCompanyId: widget.mainCompanyId,
-          secondaryCompanyId: widget.secondaryCompanyId,
-          targetCollection: 'natureza_rendimento',
-          targetDocId: docId,
-          details:
-              'FALHA ao salvar Nat. Rendimento $docId. Erro: ${e.toString()}');
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ocorreu um erro ao salvar.')));
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _deleteData() async {
-    final docId = _codigoNatRendimento.text.trim();
-    if (docId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Preencha o código para excluir.')));
-      return;
-    }
-
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Confirmar Exclusão'),
-        content: Text('Deseja excluir a Natureza de Rendimento $docId?'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('Cancelar')),
-          TextButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('Excluir'),
-              style: TextButton.styleFrom(foregroundColor: Colors.red)),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
-
-    setState(() => _isLoading = true);
-    try {
-      await _collectionRef.doc(docId).delete();
-
-      await LogService.addLog(
-          action: LogAction.DELETE,
-          modulo: LogModule.TABELA, // <-- ADICIONADO
-          mainCompanyId: widget.mainCompanyId,
-          secondaryCompanyId: widget.secondaryCompanyId,
-          targetCollection: 'natureza_rendimento',
-          targetDocId: docId,
-          details: 'Usuário excluiu a Nat. Rendimento cód. $docId.');
-
-      _clearFields(clearCode: true);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Excluído com sucesso!')));
-    } catch (e) {
-      await LogService.addLog(
-        modulo: LogModule.TABELA, // <-- ADICIONADO
-          action: LogAction.ERROR,
-          mainCompanyId: widget.mainCompanyId,
-          secondaryCompanyId: widget.secondaryCompanyId,
-          targetCollection: 'natureza_rendimento',
-          targetDocId: docId,
-          details:
-              'FALHA ao excluir Nat. Rendimento $docId. Erro: ${e.toString()}');
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ocorreu um erro ao excluir.')));
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _generateReport() async {
-    setState(() => _isLoading = true);
-    try {
-      final querySnapshot = await _collectionRef.orderBy(FieldPath.documentId).get();
-      if (querySnapshot.docs.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Nenhum dado para gerar relatório.')));
-        setState(() => _isLoading = false);
-        return;
-      }
-
-      final pdf = pw.Document();
-      final headers = ['Código', 'Descrição'];
-      final data = querySnapshot.docs.map((doc) {
-        final item = doc.data() as Map<String, dynamic>;
-        return [doc.id, item['descricao'] ?? ''];
-      }).toList();
-
-      pdf.addPage(
-        pw.MultiPage(
-          pageFormat: PdfPageFormat.a4,
-          header: (context) => pw.Header(
-              level: 0,
-              child: pw.Text(
-                  'Relatório de Natureza de Rendimento - ${widget.secondaryCompanyId}',
-                  style: pw.TextStyle(
-                      fontSize: 18, fontWeight: pw.FontWeight.bold))),
-          build: (context) => [
-            pw.Table.fromTextArray(
-                headers: headers,
-                data: data,
-                border: pw.TableBorder.all(),
-                headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold))
-          ],
-        ),
-      );
-
-      await LogService.addLog(
-        modulo: LogModule.TABELA, // <-- ADICIONADO
-          action: LogAction.GENERATE_REPORT,
-          mainCompanyId: widget.mainCompanyId,
-          secondaryCompanyId: widget.secondaryCompanyId,
-          targetCollection: 'natureza_rendimento',
-          details:
-              'Usuário gerou um relatório da tabela de Nat. Rendimento.');
-
-      await Printing.layoutPdf(onLayout: (format) async => pdf.save());
-    } catch (e) {
-      await LogService.addLog(
-        modulo: LogModule.TABELA, // <-- ADICIONADO
-          action: LogAction.ERROR,
-          mainCompanyId: widget.mainCompanyId,
-          secondaryCompanyId: widget.secondaryCompanyId,
-          targetCollection: 'natureza_rendimento',
-          details:
-              'FALHA ao gerar relatório de Nat. Rendimento. Erro: ${e.toString()}');
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erro ao gerar PDF: $e')));
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  void _updateEmpresaCounter() => setState(() {});
 
   @override
   void dispose() {
     _codigoNatRendimento.removeListener(_onCodigoChanged);
-    _codigoNatRendimento.removeListener(_updateEmpresaCounter);
-    _descricaoController.removeListener(_updateEmpresaCounter);
     _codigoNatRendimento.dispose();
     _descricaoController.dispose();
     super.dispose();
   }
+  
+  void _onCodigoChanged() {
+    final text = _codigoNatRendimento.text;
+    if (text.isEmpty) {
+      _clearFields(clearCode: false);
+      return;
+    }
+    final exactMatches = _allData.where((item) => item['id'].toString() == text).toList();
+    if (exactMatches.length == 1) {
+      _populateForm(exactMatches.first);
+    } else {
+      _clearFields(clearCode: false);
+    }
+  }
+
+  Future<void> _fetchAllData() async {
+    setState(() => _isLoading = true);
+    try {
+      final token = Provider.of<AuthProvider>(context, listen: false).token;
+      if (token == null) throw Exception("Usuário não autenticado.");
+      final data = await _service.getAll(token);
+      if (mounted) {
+        setState(() {
+          _allData = data;
+        });
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao carregar dados: $e'), backgroundColor: Colors.red));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _populateForm(Map<String, dynamic> data) {
+    setState(() {
+      _codigoNatRendimento.text = data['id']?.toString() ?? '';
+      _descricaoController.text = data['descricao']?.toString() ?? '';
+    });
+  }
+
+  void _clearFields({bool clearCode = true}) {
+    if (clearCode) _codigoNatRendimento.clear();
+    _descricaoController.clear();
+  }
+
+  Future<void> _saveData() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    
+    setState(() => _isLoading = true);
+    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    if (token == null) { /* Lida com erro de token */ return; }
+
+    final dataToSave = {
+      'id': _codigoNatRendimento.text.trim(),
+      'descricao': _descricaoController.text.trim(),
+    };
+
+    try {
+      await _service.saveData(dataToSave, token);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Salvo com sucesso!'), backgroundColor: Colors.green));
+      await _fetchAllData();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao salvar: $e'), backgroundColor: Colors.red));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _deleteData() async {
+  final docId = _codigoNatRendimento.text.trim();
+  if (docId.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Preencha o código para excluir.')),
+    );
+    return;
+  }
+
+  // --- CORREÇÃO AQUI ---
+  // Adiciona o contexto e o builder para criar o diálogo
+  final confirm = await showDialog<bool>(
+    context: context, // O contexto da tela
+    builder: (ctx) => AlertDialog( // O construtor do diálogo
+      title: const Text('Confirmar Exclusão'),
+      content: Text('Deseja excluir a Natureza de Rendimento com código "$docId"?'),
+      actions: [
+        TextButton(
+          child: const Text('Cancelar'),
+          onPressed: () => Navigator.of(ctx).pop(false), // Fecha e retorna 'false'
+        ),
+        TextButton(
+          style: TextButton.styleFrom(foregroundColor: Colors.red),
+          child: const Text('Excluir'),
+          onPressed: () => Navigator.of(ctx).pop(true), // Fecha e retorna 'true'
+        ),
+      ],
+    ),
+  );
+  // --- FIM DA CORREÇÃO ---
+  if (confirm != true) return;
+
+    setState(() => _isLoading = true);
+    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    if (token == null) { /* Lida com erro de token */ return; }
+
+    try {
+      await _service.deleteData(docId, token);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Excluído com sucesso!')));
+      _clearFields(clearCode: true);
+      await _fetchAllData();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao excluir: $e')));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+  
+  Future<void> _generateReport() async {
+    setState(() => _isLoading = true);
+    try {
+      if (_allData.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nenhum dado para gerar relatório.')));
+        return;
+      }
+      _allData.sort((a, b) => a['id'].toString().compareTo(b['id'].toString()));
+      final pdf = pw.Document();
+      final headers = ['Código', 'Descrição'];
+      final data = _allData.map((item) => [item['id']?.toString() ?? '', item['descricao']?.toString() ?? '']).toList();
+      pdf.addPage(pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        header: (context) => pw.Header(level: 0, child: pw.Text('Relatório de Natureza de Rendimento')),
+        build: (context) => [pw.Table.fromTextArray(headers: headers, data: data)],
+      ));
+      await Printing.layoutPdf(onLayout: (format) async => pdf.save());
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao gerar PDF: $e')));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    // A UI que você já tinha, mas agora conectada aos novos métodos.
+    // O código da UI original (com TelaBase, LayoutBuilder, etc.) pode ser mantido.
+    // Apenas garanta que os botões chamem as funções corretas: _saveData, _deleteData, _generateReport.
     return TelaBase(
-      body: Column(
+      body: Stack(
         children: [
-          TopAppBar(
-            onBackPressed: () {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => TelaSubPrincipal(
-                          mainCompanyId: widget.mainCompanyId,
-                          secondaryCompanyId: widget.secondaryCompanyId,
-                          userRole: widget.userRole,
-                        )),
-              );
-            },
-            currentDate: _currentDate,
+          Column(
+            children: [
+              TopAppBar(
+                onBackPressed: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => TelaSubPrincipal(mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId))),
+                currentDate: _currentDate,
+              ),
+              Expanded(
+                child: LayoutBuilder(builder: (context, constraints) {
+                  if (constraints.maxWidth > _breakpoint) {
+                    return _buildDesktopLayout(constraints);
+                  } else {
+                    return _buildMobileLayout(constraints);
+                  }
+                }),
+              ),
+            ],
           ),
-          Expanded(
-            child: LayoutBuilder(
-              builder: (BuildContext context, BoxConstraints constraints) {
-                if (constraints.maxWidth > _breakpoint) {
-                  return _buildDesktopLayout(constraints);
-                } else {
-                  return _buildMobileLayout(constraints);
-                }
-              },
-            ),
-          ),
+          if (_isLoading)
+            Container(color: Colors.black.withOpacity(0.5), child: const Center(child: CircularProgressIndicator())),
         ],
       ),
     );
   }
 
+  // Cole seus widgets de UI aqui (_buildDesktopLayout, _buildMobileLayout, _buildCentralInputArea, etc)
+  // Exemplo da área central:
+  
   Widget _buildDesktopLayout(BoxConstraints constraints) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,

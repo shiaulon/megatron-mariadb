@@ -260,6 +260,8 @@ class CustomInputField extends StatelessWidget {
   final String? initialValue;
   final bool readOnly;
   final TextInputType? keyboardType;
+
+  final bool enabled; 
   
   final int? maxLength;
   final TextCapitalization textCapitalization;
@@ -288,6 +290,8 @@ class CustomInputField extends StatelessWidget {
     this.readOnly = false,
     this.keyboardType,
     this.inputFormatters,
+
+    this.enabled = true, 
     
     this.validator,
     this.maxLength,
@@ -352,6 +356,8 @@ class CustomInputField extends StatelessWidget {
         textCapitalization: textCapitalization,
         maxLines: maxLines,
         minLines: minLines,
+
+        enabled: enabled, 
         
         autovalidateMode: AutovalidateMode.onUserInteraction,
         onChanged: (value) {

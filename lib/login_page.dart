@@ -1,12 +1,12 @@
+// lib/login_page.dart (Versão Final e Limpa)
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter_application_1/reutilizaveis/tela_base.dart';
-import 'package:flutter_application_1/menu.dart';
-import 'package:flutter_application_1/secondary_company_selection_page.dart';
 import 'package:flutter_application_1/services/log_services.dart';
-import 'package:provider/provider.dart'; // Importe o Provider
-import 'package:flutter_application_1/providers/permission_provider.dart'; // Importe o PermissionProvider
+import 'package:provider/provider.dart';
+
+import 'reutilizaveis/tela_base.dart';
+import 'secondary_company_selection_page.dart';
+import 'providers/auth_provider.dart';
+import 'menu.dart'; // TelaPrincipal
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -20,6 +20,7 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
   String? _errorMessage;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -30,124 +31,60 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _signIn() async {
     setState(() {
+      _isLoading = true;
       _errorMessage = null;
     });
-    String? mainCompanyIdForLog; // Variável para guardar o ID para o log de erro
+
     try {
-      UserCredential userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      await authProvider.login(
+        _emailController.text.trim(),
+        _passwordController.text.trim(),
       );
 
-      User? user = userCredential.user;
+      if (!mounted) return;
 
-      if (user != null && mounted) {
-        String userId = user.uid;
+      final mainCompanyId = authProvider.mainCompanyId;
+      final allowedCompanies = authProvider.allowedSecondaryCompanies;
 
-        // 1. Buscar informações do usuário no Firestore
-        DocumentSnapshot userDoc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(userId)
-            .get();
+     
 
-        if (userDoc.exists) {
-          mainCompanyIdForLog = userDoc['mainCompanyId'];
-          String? mainCompanyId = userDoc['mainCompanyId'];
-          List<dynamic>? allowedSecondaryCompaniesRaw = userDoc['allowedSecondaryCompanies'];
-          // String? userRole = userDoc['role']; // Este campo não será mais usado diretamente para permissões
 
-          List<String> allowedSecondaryCompanies = allowedSecondaryCompaniesRaw?.map((item) => item.toString()).toList() ?? [];
-
-          // NOVO: Carregar as permissões do usuário (sem activeSecondaryCompanyId)
-          final permissionProvider = Provider.of<PermissionProvider>(context, listen: false);
-          if (mainCompanyId != null && mainCompanyId.isNotEmpty) {
-            await LogService.addLog(
-            action: LogAction.LOGIN,
-            modulo: LogModule.LOGIN, // <-- ADICIONADO
-            mainCompanyId: mainCompanyId,
-            details: 'Usuário ${user.email} realizou login com sucesso.',
-            // secondaryCompanyId pode ser adicionado após a seleção da filial
-          );
-      if (allowedSecondaryCompanies.isNotEmpty) {
-        if (allowedSecondaryCompanies.length == 1) {
-          final activeCompanyId = allowedSecondaryCompanies.first;
-          // AGORA: Carrega as permissões para a única filial permitida
-          await permissionProvider.loadUserPermissions(userId, activeCompanyId);
-
+      if (allowedCompanies.isNotEmpty) {
+        if (allowedCompanies.length == 1) {
           Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => TelaPrincipal(
-                      mainCompanyId: mainCompanyId,
-                      secondaryCompanyId: allowedSecondaryCompanies.first, // Usa a única empresa
-                    ),
-                  ),
-                );
-              } else {
-                // Navega para a tela de seleção, as permissões serão carregadas lá
+            context,
+            MaterialPageRoute(
+              builder: (context) => TelaPrincipal(
+                mainCompanyId: mainCompanyId!,
+                secondaryCompanyId: allowedCompanies.first,
+              ),
+            ),
+          );
+        } else {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
               builder: (context) => SecondaryCompanySelectionPage(
-                mainCompanyId: mainCompanyId,
+                mainCompanyId: mainCompanyId!,
               ),
             ),
           );
         }
-            } else {
-              // Caso o allowedSecondaryCompanies seja nulo ou vazio
-              setState(() {
-                _errorMessage = 'Este usuário não tem empresas secundárias associadas. Contate o suporte.';
-              });
-              await FirebaseAuth.instance.signOut(); // Desloga o usuário
-            }
-          } else {
-            // Caso mainCompanyId não esteja definido no perfil do usuário
-            setState(() {
-              _errorMessage = 'Usuário não associado a nenhuma empresa principal. Contate o suporte.';
-            });
-            await FirebaseAuth.instance.signOut(); // Desloga o usuário
-          }
-        } else {
-          setState(() {
-            _errorMessage = 'Dados do perfil do usuário não encontrados. Contate o suporte.';
-          });
-          await FirebaseAuth.instance.signOut(); // Desloga o usuário
-        }
+      } else {
+        throw Exception('Este usuário não tem empresas secundárias associadas.');
       }
-    } on FirebaseAuthException catch (e) {
-      await LogService.addLog(
-        modulo: LogModule.LOGIN, // <-- ADICIONADO
-        action: LogAction.ERROR,
-        // Se já tivermos o ID da empresa, usamos. Senão, pode ser nulo.
-        mainCompanyId: mainCompanyIdForLog,
-        details: 'FALHA na tentativa de login para o email ${_emailController.text}. Erro: ${e.message}',
-      );
-      setState(() {
-        if (e.code == 'user-not-found') {
-          _errorMessage = 'Nenhum usuário encontrado para esse e-mail.';
-        } else if (e.code == 'wrong-password') {
-          _errorMessage = 'Senha incorreta.';
-        } else if (e.code == 'invalid-email') {
-          _errorMessage = 'O formato do e-mail é inválido.';
-        } else if (e.code == 'user-disabled') {
-          _errorMessage = 'Esta conta de usuário foi desativada.';
-        } else {
-          _errorMessage = 'Erro de login: ${e.message}';
-        }
-      });
-      print('Erro Firebase Auth: ${e.code} - ${e.message}');
+
     } catch (e) {
-        await LogService.addLog(
-          modulo: LogModule.LOGIN, // <-- ADICIONADO
-        action: LogAction.ERROR,
-        mainCompanyId: mainCompanyIdForLog,
-        details: 'FALHA inesperada no login para o email ${_emailController.text}. Erro: ${e.toString()}',
-      );
       setState(() {
-        _errorMessage = 'Ocorreu um erro inesperado. Tente novamente.';
+        _errorMessage = e.toString().replaceFirst('Exception: ', '');
       });
-      print('Erro geral: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -158,18 +95,18 @@ class _LoginPageState extends State<LoginPage> {
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('Esqueceu sua senha?'),
-          content: Text('Entre em contato com o gerenciador do sistema por meio dos números na parte inferior da pagina'),
+          content: const Text('Entre em contato com o gerenciador do sistema por meio dos números na parte inferior da pagina'),
           actions: <Widget>[
             TextButton(
               child: const Text('Ok'),
               onPressed: () {
-                Navigator.of(context).pop(true); // Retorna true (quer excluir)
+                Navigator.of(context).pop(true);
               },
             ),
           ],
         );
       },
-    ) ?? false; // Retorna false se o diálogo for fechado de outra forma
+    ) ?? false;
   }
 
   @override
@@ -182,11 +119,7 @@ class _LoginPageState extends State<LoginPage> {
             children: [
               Padding(
                 padding: const EdgeInsets.only(bottom: 20),
-                child: Image.asset(
-                  'assets/images/logo16.png',
-                  width: 330,
-                  height: 330,
-                ),
+                child: Image.asset('assets/images/logo16.png', width: 330, height: 330),
               ),
               SizedBox(
                 width: 300,
@@ -217,10 +150,7 @@ class _LoginPageState extends State<LoginPage> {
                     filled: true,
                     fillColor: Colors.white,
                     suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                        size: 18,
-                      ),
+                      icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility, size: 18),
                       onPressed: () {
                         setState(() {
                           _obscurePassword = !_obscurePassword;
@@ -244,25 +174,20 @@ class _LoginPageState extends State<LoginPage> {
               SizedBox(
                 width: 200,
                 height: 40,
-                child: OutlinedButton(
-                  onPressed: _signIn,
-                  style: OutlinedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                  child: const Text('ENTRAR', style: TextStyle(color: Colors.black)),
-                ),
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : OutlinedButton(
+                        onPressed: _signIn,
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                        ),
+                        child: const Text('ENTRAR', style: TextStyle(color: Colors.black)),
+                      ),
               ),
               TextButton(
-                onPressed: () {
-                  _showAlert();
-                },
-                child: const Text(
-                  'Esqueceu sua senha?',
-                  style: TextStyle(color: Colors.black),
-                ),
+                onPressed: _showAlert,
+                child: const Text('Esqueceu sua senha?', style: TextStyle(color: Colors.black)),
               ),
             ],
           ),
