@@ -521,6 +521,7 @@ class _TabelaControleState extends State<TabelaControle> {
 Set<String> _integracaoSelections = {};
   // NOVO MÉTODO: Constrói a área central com campos de entrada de dados
   Widget _buildCentralInputArea() {
+    final theme = Theme.of(context);
     return Form( // Envolve toda a área de entrada de dados com um Form
       key: _formKey, // Atribui a GlobalKey ao Form
       child: Padding(
@@ -528,9 +529,9 @@ Set<String> _integracaoSelections = {};
         child: Container(
           padding: const EdgeInsets.all(0.0), // Padding interno do container azul
           decoration: BoxDecoration(
-            color: Colors.blue[100], // Fundo azul claro
-            border: Border.all(color: Colors.black, width: 1.0), // Borda preta
-            borderRadius: BorderRadius.circular(10.0), // Cantos arredondados
+            color: theme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(color: theme.colorScheme.primary, width: 1.0),
           ),
           child: SingleChildScrollView( // Para permitir rolagem se os campos forem muitos
             child: Column(
@@ -773,16 +774,16 @@ Set<String> _integracaoSelections = {};
                           padding: const EdgeInsets.symmetric(horizontal: 8.0),
                           child: Container(
                             decoration: BoxDecoration(
-                              color: const Color.fromARGB(255, 153, 205, 248), // Cor de fundo do container de integração
-                              borderRadius: BorderRadius.circular(5),
-                              border: Border.all(color: Colors.blue, width: 2.0),
+                              color: theme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(color: theme.colorScheme.primary, width: 1.0),
                             ),
                             child: Padding(
                               padding: const EdgeInsets.all(6.0), // Padding interno para o conteúdo
                               child: Row( // <-- Voltando para Row para manter o texto 'Integração' ao lado
                                 crossAxisAlignment: CrossAxisAlignment.center, // Centraliza verticalmente o conteúdo da Row
                                 children: [
-                                  const Text('Integração:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
+                                   Text('Integração:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
                                   // Removido SizedBox(width: 16) para compactar mais, você pode ajustar
                                   Expanded( // <-- O Expanded é importante para dar espaço aos CheckboxListTile
                                     child: Column( // Column para empilhar os CheckboxListTile
@@ -790,7 +791,7 @@ Set<String> _integracaoSelections = {};
                                       mainAxisAlignment: MainAxisAlignment.center, // Centraliza os checkboxes na coluna
                                       children: [
                                         CheckboxListTile(
-                                          title: const Text('CRM', style: TextStyle(color: Colors.black)),
+                                          title:  Text('CRM', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
                                           value: _integracaoSelections.contains('CRM'),
                                           checkboxShape: CircleBorder(),
                                           onChanged: (bool? value) {
@@ -809,7 +810,7 @@ Set<String> _integracaoSelections = {};
                                           controlAffinity: ListTileControlAffinity.leading, // Força o checkbox para a esquerda
                                         ),
                                         CheckboxListTile(
-                                          title: const Text('WEB', style: TextStyle(color: Colors.black)),
+                                          title:  Text('WEB', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
                                           value: _integracaoSelections.contains('WEB'),
                                           checkboxShape: CircleBorder(),
                                           onChanged: (bool? value) {
@@ -907,16 +908,16 @@ Set<String> _integracaoSelections = {};
                           padding: const EdgeInsets.symmetric(horizontal: 8.0),
                           child: Container(
                             decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(5),
-                              border: Border.all(color: Colors.blue, width: 2.0),
-                              color: const Color.fromARGB(255, 153, 205, 248),// Cor de fundo do container NRG RG ERP
+                              color: theme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(color: theme.colorScheme.primary, width: 1.0),
                             ),
                             child: Padding(
                               padding: const EdgeInsets.all(6.0), // Padding interno para o conteúdo
                               child: Row( // <-- Voltando para Row para manter o texto 'Nrg RG ERP' ao lado
                                 crossAxisAlignment: CrossAxisAlignment.center, // Centraliza verticalmente o conteúdo da Row
                                 children: [
-                                  const Text('Nrg RG ERP:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)), // Título corrigido
+                                   Text('Nrg RG ERP:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
                                   // Removido SizedBox(width: 16) para compactar mais, você pode ajustar
                                   Expanded( // <-- O Expanded é importante para dar espaço aos RadioListTile
                                     child: Column( // Column para empilhar os RadioListTile
@@ -924,7 +925,7 @@ Set<String> _integracaoSelections = {};
                                       mainAxisAlignment: MainAxisAlignment.center, // Centraliza os rádios na coluna
                                       children: [
                                         RadioListTile<String>(
-                                          title: const Text('Normal', style: TextStyle(color: Colors.black)),
+                                          title:  Text('Normal', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
                                           value: 'Normal',
                                           groupValue: _integracaoSelection,
                                           onChanged: (String? value) {
@@ -937,7 +938,7 @@ Set<String> _integracaoSelections = {};
                                           activeColor: Colors.black,
                                         ),
                                         RadioListTile<String>(
-                                          title: const Text('Par', style: TextStyle(color: Colors.black)),
+                                          title:  Text('Par', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
                                           value: 'Par',
                                           groupValue: _integracaoSelection,
                                           onChanged: (String? value) {
@@ -950,7 +951,7 @@ Set<String> _integracaoSelections = {};
                                           activeColor: Colors.black,
                                         ),
                                         RadioListTile<String>(
-                                          title: const Text('Ímpar', style: TextStyle(color: Colors.black)),
+                                          title:  Text('Ímpar', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
                                           value: 'ìmpar',
                                           groupValue: _integracaoSelection,
                                           onChanged: (String? value) {

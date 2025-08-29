@@ -19,9 +19,14 @@ import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaS
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaTipoBemCredito.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaTipoHistorico.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tipoTelefone.dart';
+import 'package:flutter_application_1/paginasiguais/RegistroGeral/credito/credito_faixa_x_documento.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/credito/tab_documento.dart';
+import 'package:flutter_application_1/registroGeral/cnpj_iscricao.dart';
+import 'package:flutter_application_1/registroGeral/consulta_rg_page.dart';
 import 'package:flutter_application_1/registroGeral/manut_rg.dart';
 import 'package:flutter_application_1/registroGeral/naturea_X_rg.dart';
+import 'package:flutter_application_1/registroGeral/natureza_caracteristica.dart';
+import 'package:flutter_application_1/reutilizaveis/settings_page.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_application_1/providers/permission_provider.dart';
 
@@ -50,10 +55,12 @@ class _HoverMenuItemState extends State<HoverMenuItem> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     // Define as cores e tamanhos de fonte baseados no estado de hover e se é sub-item
-    final Color backgroundColor = _isHovering ? Colors.blue[700]! : Colors.blue[50]!;
-    final Color textColor = _isHovering ? Colors.white : Colors.black;
-    final Color iconColor = _isHovering ? Colors.white : Colors.black;
+    final Color backgroundColor = _isHovering ? colorScheme.primary : colorScheme.surface.withOpacity(0.5);
+    final Color textColor = _isHovering ? colorScheme.onPrimary : colorScheme.onSurface;
+    final Color iconColor = _isHovering ? colorScheme.onPrimary : colorScheme.onSurface;
     final double fontSize = widget.isSubItem
         ? (_isHovering ? 15.0 : 13.0)
         : (_isHovering ? 16.0 : 14.0);
@@ -125,9 +132,11 @@ class _HoverExpansionTileState extends State<HoverExpansionTile> {
 
   @override
   Widget build(BuildContext context) {
-    final Color backgroundColor = _isHovering ? Colors.blue[700]! : Colors.blue[50]!;
-    final Color textColor = _isHovering ? Colors.white : Colors.black;
-    final Color iconColor = _isHovering ? Colors.white : Colors.black;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final Color backgroundColor = _isHovering ? colorScheme.primary : colorScheme.surface.withOpacity(0.5);
+    final Color textColor = _isHovering ? colorScheme.onPrimary : colorScheme.onSurface;
+    final Color iconColor = _isHovering ? colorScheme.onPrimary : colorScheme.onSurface;
     final double fontSize = _isHovering ? 16.0 : 14.0;
 
     return MouseRegion(
@@ -217,6 +226,7 @@ class AppDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+     final theme = Theme.of(context); // Pega o tema
     final permissionProvider = Provider.of<PermissionProvider>(context); // Acessa o provider
 
     return Container(
@@ -224,9 +234,9 @@ class AppDrawer extends StatelessWidget {
           ? const EdgeInsets.only(right: 10.0, top: 10.0, bottom: 10.0)
           : EdgeInsets.zero,
       decoration: BoxDecoration(
-        color: Colors.blue[50],
+        color: theme.colorScheme.surface.withOpacity(0.8), 
         borderRadius: BorderRadius.circular(10.0),
-        border: Border.all(color: Colors.black, width: 1.0),
+        border: Border.all(color: theme.dividerColor, width: 1.0),
       ),
       child: ListView(
         padding: EdgeInsets.zero,
@@ -236,11 +246,15 @@ class AppDrawer extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Padding(
+                 Padding(
                   padding: EdgeInsets.symmetric(vertical: 16.0, horizontal: 12.0),
                   child: Text(
                     'REGISTRO GERAL',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black),
+                    style: TextStyle(
+                      fontSize: 18, 
+                      fontWeight: FontWeight.bold, 
+                      color: theme.colorScheme.onSurface, // Usa a cor de texto do tema
+                    ),
                   ),
                 ),
                 // Submenu "Tabelas"
@@ -292,6 +306,30 @@ class AppDrawer extends StatelessWidget {
                       _buildSubMenuItem(context, 'Manut RG', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => PaginaComAbasLaterais(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId)))),
                     if (permissionProvider.hasAccess(['registro_geral', 'manut_rg', 'natureza_x_rg']))
                       _buildSubMenuItem(context, 'Natureza X RG', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => NaturezaXRgScreen(mainCompanyId: mainCompanyId, secondaryCompanyId: secondaryCompanyId)))),
+                      _buildSubMenuItem(
+                        context, 
+                        'Natureza/Caracteristica', 
+                        () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => NaturezaCaracteristicaScreen(
+                          mainCompanyId: mainCompanyId, 
+                          secondaryCompanyId: secondaryCompanyId
+                        )))
+                      ),
+                      _buildSubMenuItem(
+                        context, 
+                        'RG X CNPJ', 
+                        () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => ManutRgCnpjInscricao(
+                          mainCompanyId: mainCompanyId, 
+                          secondaryCompanyId: secondaryCompanyId
+                        )))
+                      ),
+                      _buildSubMenuItem(
+                        context, 
+                        'Relatorios', 
+                        () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => ConsultaRgPage (
+                          mainCompanyId: mainCompanyId, 
+                          secondaryCompanyId: secondaryCompanyId
+                        )))
+                      ),
                   ]),
               ],
             ),
@@ -311,6 +349,14 @@ class AppDrawer extends StatelessWidget {
                     ),
                   ),
                 ),
+                _buildSubMenuItem(
+                        context, 
+                        'Tab Crédito X Documento', 
+                        () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => TabelaCreditoFaixas (
+                          mainCompanyId: mainCompanyId, 
+                          secondaryCompanyId: secondaryCompanyId
+                        )))
+                      ),
             ]),
 
           if (permissionProvider.hasAccess(['relatorio', 'acesso']))
@@ -335,6 +381,16 @@ class AppDrawer extends StatelessWidget {
             _buildMenuItem(context, 'CRM', Icons.support_agent, () => print('Clicou em CRM')),
           if (permissionProvider.hasAccess(['follow_up', 'acesso']))
             _buildMenuItem(context, 'Follow-up', Icons.follow_the_signs, () => print('Clicou em Follow-up')),
+          // Em reutilizaveis/menuLateral.dart (exemplo)
+_buildMenuItem(
+  context,
+  'Configurações',
+  Icons.settings,
+  () => Navigator.push(
+    context,
+    MaterialPageRoute(builder: (context) => const SettingsPage()),
+  ),
+),
           // Botão de administração de usuários (já tratado no _buildButtonsData da TelaPrincipal)
           // ...
         ],

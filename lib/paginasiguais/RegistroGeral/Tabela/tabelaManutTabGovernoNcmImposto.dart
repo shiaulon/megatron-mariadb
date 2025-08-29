@@ -239,6 +239,7 @@ Navigator.pushReplacement(
   }
 
   Widget _buildCentralInputArea() {
+    final theme = Theme.of(context);
     return Form(
       key: _formKey,
       child: Padding(
@@ -246,10 +247,10 @@ Navigator.pushReplacement(
         child: Container(
           padding: const EdgeInsets.all(0.0), // Remove o padding externo
           decoration: BoxDecoration(
-            color: Colors.blue[100],
-            border: Border.all(color: Colors.black, width: 1.0),
-            borderRadius: BorderRadius.circular(10.0),
-          ),
+            color: theme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(color: theme.colorScheme.primary, width: 1.0),
+                  ),
           // UM ÚNICO SingleChildScrollView para toda a área de conteúdo que rola
           child: Column( // A coluna que contém todo o conteúdo rolante e fixo
             crossAxisAlignment: CrossAxisAlignment.start,

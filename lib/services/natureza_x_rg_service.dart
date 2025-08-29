@@ -14,14 +14,14 @@ class NaturezaXRgService {
     };
   }
 
-  Future<Map<String, dynamic>> getData(String rgId, String token) async {
-    final url = Uri.parse('$_baseUrl/$rgId');
+  Future<Map<String, dynamic>> getData(String rgId, String naturezaId, String token) async {
+    final url = Uri.parse('$_baseUrl/$rgId/$naturezaId');
     final response = await http.get(url, headers: _getHeaders(token));
     
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     } else if (response.statusCode == 404) {
-      return {}; // Retorna um mapa vazio se não encontrar dados salvos
+      return {};
     } else {
       throw Exception('Falha ao carregar dados da API.');
     }
@@ -36,10 +36,9 @@ class NaturezaXRgService {
     }
   }
 
-  // ▼▼▼ NOVO MÉTODO PARA EXCLUSÃO ▼▼▼
-  Future<void> deleteData(String rgId, String secondaryCompanyId, String token) async {
-    // Adicionamos o secondaryCompanyId como um parâmetro de query para o log no backend
-    final url = Uri.parse('$_baseUrl/$rgId?secondaryCompanyId=$secondaryCompanyId');
+  // ▼▼▼ FUNÇÃO DE EXCLUSÃO ADICIONADA ▼▼▼
+  Future<void> deleteData(String rgId, String naturezaId, String secondaryCompanyId, String token) async {
+    final url = Uri.parse('$_baseUrl/$rgId/$naturezaId?secondaryCompanyId=$secondaryCompanyId');
     final response = await http.delete(url, headers: _getHeaders(token));
     
     if (response.statusCode != 200) {

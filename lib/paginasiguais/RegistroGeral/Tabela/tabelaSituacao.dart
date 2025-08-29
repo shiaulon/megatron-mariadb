@@ -374,15 +374,16 @@ class _TabelaSituacaoState extends State<TabelaSituacao> {
   }
 
   Widget _buildCentralInputArea() {
+    final theme = Theme.of(context);
     return Form(
       key: _formKey,
       child: Padding(
         padding: const EdgeInsets.all(25),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.blue[100],
-            border: Border.all(color: Colors.black),
-            borderRadius: BorderRadius.circular(10),
+            color: theme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(color: theme.colorScheme.primary, width: 1.0),
           ),
           child: Column(
             children: [
@@ -433,13 +434,14 @@ class _TabelaSituacaoState extends State<TabelaSituacao> {
   }
   
   Widget _buildBloqueioOptions() {
+    final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: const Color.fromARGB(255, 153, 205, 248),
-        borderRadius: BorderRadius.circular(5),
-        border: Border.all(color: Colors.blue, width: 2.0),
-      ),
+        color: theme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(color: theme.colorScheme.primary, width: 1.0),
+                  ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [

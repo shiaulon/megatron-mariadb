@@ -1,35 +1,26 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-
-// Seus imports existentes
-import 'package:flutter_application_1/providers/permission_provider.dart';
-import 'login_page.dart';
-
-// NOVO: Importe o AuthProvider que criamos
+import 'package:flutter_application_1/config/app_theme.dart';
+import 'package:flutter_application_1/login_page.dart';
 import 'package:flutter_application_1/providers/auth_provider.dart';
-
-// REMOVIDO: Os imports do Firebase não são mais necessários aqui
-// import 'package:firebase_core/firebase_core.dart';
-// import 'package:flutter_application_1/firebase_options.dart';
-
+import 'package:flutter_application_1/providers/permission_provider.dart';
+import 'package:flutter_application_1/providers/theme_provider.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // IMPORTE O PACOTE
 
 void main() async {
-  // Garante que os widgets do Flutter estejam inicializados
-  WidgetsFlutterBinding.ensureInitialized(); 
+  WidgetsFlutterBinding.ensureInitialized();
   
-  // REMOVIDO: A inicialização do Firebase não é mais necessária para o fluxo de login
-  // await Firebase.initializeApp(
-  //   options: DefaultFirebaseOptions.currentPlatform,
-  // );
+  // 1. Buscamos a instância do SharedPreferences aqui, antes de rodar o app.
+  final prefs = await SharedPreferences.getInstance();
 
   runApp(
     MultiProvider(
       providers: [
-        // ADICIONADO: O AuthProvider agora está disponível para todo o app
         ChangeNotifierProvider(create: (_) => AuthProvider()),
-        
-        // MANTIDO: O PermissionProvider continua aqui para as outras partes do seu app
         ChangeNotifierProvider(create: (_) => PermissionProvider()),
+        
+        // 2. Passamos a instância 'prefs' para o ThemeProvider.
+        ChangeNotifierProvider(create: (_) => ThemeProvider(prefs)),
       ],
       child: const MyApp(),
     ),
@@ -41,13 +32,17 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Megatron Login',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
-      home: const LoginPage(), // A tela inicial continua sendo a de Login
-      debugShowCheckedModeBanner: false,
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, child) {
+        return MaterialApp(
+          title: 'Megatron ERP',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.lightTheme,
+          darkTheme: AppTheme.darkTheme,
+          themeMode: themeProvider.themeMode,
+          home: const LoginPage(),
+        );
+      },
     );
   }
 }

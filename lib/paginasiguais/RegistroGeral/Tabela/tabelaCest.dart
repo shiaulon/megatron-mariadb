@@ -364,16 +364,17 @@ class _TabelaCestState extends State<TabelaCest> {
   }
 
   Widget _buildCentralInputArea() {
+    final theme = Theme.of(context);
     return Form(
       key: _formKey,
       child: Padding(
         padding: const EdgeInsets.all(25),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.blue[100],
-            border: Border.all(color: Colors.black, width: 1.0),
-            borderRadius: BorderRadius.circular(10.0),
-          ),
+            color: theme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(color: theme.colorScheme.primary, width: 1.0),
+                  ),
           child: Stack(
             children: [
               Column(

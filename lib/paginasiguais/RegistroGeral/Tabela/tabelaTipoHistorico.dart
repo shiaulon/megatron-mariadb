@@ -199,6 +199,7 @@ class _TabelaTipoHistoricoState extends State<TabelaTipoHistorico> {
 
 
   Widget _buildCentralInputArea() {
+    final theme = Theme.of(context);
     return Form(
       // Envolve toda a área de entrada de dados com um Form
       key: _formKey, // Atribui a GlobalKey ao Form
@@ -207,10 +208,10 @@ class _TabelaTipoHistoricoState extends State<TabelaTipoHistorico> {
         child: Container(
           padding: const EdgeInsets.all(0.0), // Padding interno do container azul
           decoration: BoxDecoration(
-            color: Colors.blue[100], // Fundo azul claro
-            border: Border.all(color: Colors.black, width: 1.0), // Borda preta
-            borderRadius: BorderRadius.circular(10.0), // Cantos arredondados
-          ),
+            color: theme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(color: theme.colorScheme.primary, width: 1.0),
+                  ),
           child: Column(
             // Use Column para empilhar os elementos e permitir o posicionamento no final
             crossAxisAlignment: CrossAxisAlignment.start,

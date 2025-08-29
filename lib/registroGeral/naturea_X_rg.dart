@@ -1,4 +1,4 @@
-// lib/telas/natureza_x_rg.dart
+
 
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/providers/auth_provider.dart';
@@ -36,28 +36,27 @@ class _NaturezaXRgScreenState extends State<NaturezaXRgScreen> {
   final NaturezaService _naturezaService = NaturezaService();
   final NaturezaXRgService _naturezaXRgService = NaturezaXRgService();
   final ManutRgService _manutRgService = ManutRgService();
+  
   List<Map<String, dynamic>> _allNaturezas = [];
   List<Map<String, dynamic>> _allRgs = [];
   Map<String, dynamic>? _selectedNatureza;
-  String? _selectedRgId; // Armazena o ID (CPF/CNPJ) do RG selecionado
-  bool _isLoading = false;
+  String? _selectedRgId;
   List<Map<String, dynamic>> _caracteristicasState = [];
+  bool _isLoading = false;
 
   static const double _breakpoint = 900.0;
   late String _currentDate;
 
   final _naturezaController = TextEditingController();
   final _nomeNaturezaController = TextEditingController();
-  final _rgCodigoInternoController = TextEditingController(); // Para o código interno
-  final _rgNomeController = TextEditingController();
+  final _rgIdController = TextEditingController(); // Agora para o CPF/CNPJ
+  final _rgNomeController = TextEditingController(); // Para a Razão Social
+  
+  // Controllers do formulário
   final _setorController = TextEditingController();
-  final _nomeSetorController = TextEditingController();
   final _contaFinanceiraController = TextEditingController();
-  final _nomeContaFinController = TextEditingController();
   final _aplicacaoController = TextEditingController();
-  final _nomeAplicacaoController = TextEditingController();
   final _natRendimentoController = TextEditingController();
-  final _nomeNatRendController = TextEditingController();
   final _opcaoNatRendimentoController = TextEditingController();
 
   @override
@@ -67,20 +66,42 @@ class _NaturezaXRgScreenState extends State<NaturezaXRgScreen> {
     _loadInitialData();
   }
 
+  void _clearForm() {
+    _setorController.clear();
+    _contaFinanceiraController.clear();
+    _aplicacaoController.clear();
+    _natRendimentoController.clear();
+    _opcaoNatRendimentoController.clear();
+    _caracteristicasState.forEach((c) => c['valorSelecionado'] = null);
+    setState(() {});
+  }
+
+  Future<void> _onRgSelected(Map<String, dynamic> rg) async {
+    _selectedRgId = rg['id']?.toString();
+    setState(() {
+      _rgIdController.text = rg['codigo_interno']?.toString() ?? '';
+      _rgNomeController.text = rg['razao_social']?.toString() ?? '';
+    });
+    
+    if (_selectedNatureza != null) {
+      await _loadSavedConfig(_selectedRgId!);
+    }
+  }
+
   @override
   void dispose() {
     _naturezaController.dispose();
     _nomeNaturezaController.dispose();
-    _rgCodigoInternoController.dispose();
+    //_rgCodigoInternoController.dispose();
     _rgNomeController.dispose();
     _setorController.dispose();
-    _nomeSetorController.dispose();
+    //_nomeSetorController.dispose();
     _contaFinanceiraController.dispose();
-    _nomeContaFinController.dispose();
+    //_nomeContaFinController.dispose();
     _aplicacaoController.dispose();
-    _nomeAplicacaoController.dispose();
+   // _nomeAplicacaoController.dispose();
     _natRendimentoController.dispose();
-    _nomeNatRendController.dispose();
+    //_nomeNatRendController.dispose();
     _opcaoNatRendimentoController.dispose();
     super.dispose();
   }
@@ -99,19 +120,10 @@ class _NaturezaXRgScreenState extends State<NaturezaXRgScreen> {
     }
   }
 
-  Future<void> _onRgSelected(Map<String, dynamic> rg) async {
-    _selectedRgId = rg['id']?.toString();
-    setState(() {
-      _rgCodigoInternoController.text = rg['codigo_interno']?.toString() ?? '';
-      _rgNomeController.text = rg['razao_social']?.toString() ?? '';
-    });
-    
-    if (_selectedNatureza != null && _selectedRgId != null) {
-      await _loadSavedConfig(_selectedRgId!);
-    }
-  }
+  
 
-  Future<void> _onNaturezaSelected(Map<String, dynamic> natureza) async {
+   Future<void> _onNaturezaSelected(Map<String, dynamic> natureza) async {
+    _clearForm();
     setState(() {
       _selectedNatureza = natureza;
       _naturezaController.text = natureza['id']?.toString() ?? '';
@@ -119,10 +131,9 @@ class _NaturezaXRgScreenState extends State<NaturezaXRgScreen> {
       
       final List<dynamic> caracteristicas = natureza['caracteristicas'] ?? [];
       _caracteristicasState = caracteristicas.map((carac) {
-        final List<dynamic> sequencias = carac['sequencias'] ?? [];
         return {
           'nome': carac['nome'],
-          'opcoesSequencia': sequencias.map((s) => s.toString()).toList(),
+          'opcoesSequencia': (carac['sequencias'] as List<dynamic>).map((s) => s.toString()).toList(),
           'valorSelecionado': null,
         };
       }).toList();
@@ -133,35 +144,34 @@ class _NaturezaXRgScreenState extends State<NaturezaXRgScreen> {
     }
   }
 
-  Future<void> _loadSavedConfig(String rgId) async {
-    if (rgId.isEmpty || _naturezaController.text.isEmpty) return;
+ 
+  
+
+   Future<void> _loadSavedConfig(String rgId) async {
+    if (rgId.isEmpty || _selectedNatureza == null) return;
+    
     setState(() => _isLoading = true);
     try {
-      final token = Provider.of<AuthProvider>(context, listen: false).token;
-      if (token == null) throw Exception("Usuário não autenticado.");
+      final token = Provider.of<AuthProvider>(context, listen: false).token!;
+      final naturezaId = _selectedNatureza!['id'];
+      final savedData = await _naturezaXRgService.getData(rgId, naturezaId, token);
       
-      final savedData = await _naturezaXRgService.getData(rgId, token);
-      
-      _caracteristicasState.forEach((c) => c['valorSelecionado'] = null);
-
       if (savedData.isNotEmpty && mounted) {
-        if (savedData['natureza_id'] == _naturezaController.text) {
-          setState(() {
-            _setorController.text = savedData['setor_id'] ?? '';
-            _contaFinanceiraController.text = savedData['conta_financeira_id'] ?? '';
-            _aplicacaoController.text = savedData['aplicacao_id'] ?? '';
-            _natRendimentoController.text = savedData['nat_rendimento_id'] ?? '';
-            _opcaoNatRendimentoController.text = savedData['opcao_nat_rendimento'] ?? '';
+        setState(() {
+          _setorController.text = savedData['setor_id'] ?? '';
+          _contaFinanceiraController.text = savedData['conta_financeira_id'] ?? '';
+          _aplicacaoController.text = savedData['aplicacao_id'] ?? '';
+          _natRendimentoController.text = savedData['nat_rendimento_id'] ?? '';
+          _opcaoNatRendimentoController.text = savedData['opcao_nat_rendimento'] ?? '';
 
-            final List<dynamic> savedCaracteristicas = savedData['caracteristicas_salvas'] ?? [];
-            for (var savedCarac in savedCaracteristicas) {
-              final index = _caracteristicasState.indexWhere((sc) => sc['nome'] == savedCarac['caracteristica']);
-              if (index != -1) {
-                _caracteristicasState[index]['valorSelecionado'] = savedCarac['sequencia'];
-              }
+          final List<dynamic> savedCaracteristicas = savedData['caracteristicas_salvas'] ?? [];
+          for (var savedCarac in savedCaracteristicas) {
+            final index = _caracteristicasState.indexWhere((stateCarac) => stateCarac['nome'] == savedCarac['caracteristica']);
+            if (index != -1) {
+              _caracteristicasState[index]['valorSelecionado'] = savedCarac['sequencia'];
             }
-          });
-        }
+          }
+        });
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao carregar configuração salva: $e')));
@@ -171,28 +181,21 @@ class _NaturezaXRgScreenState extends State<NaturezaXRgScreen> {
   }
 
   Future<void> _saveData() async {
-    if (_selectedRgId == null || _selectedRgId!.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Selecione um RG (Código Interno ou Nome) para salvar.')));
+    if (_selectedRgId == null || _selectedNatureza == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Selecione um RG e uma Natureza para salvar.')));
       return;
     }
-    if (_naturezaController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('O campo "Natureza" é obrigatório.')));
-      return;
-    }
-
+    
     setState(() => _isLoading = true);
     try {
-      final token = Provider.of<AuthProvider>(context, listen: false).token;
-      if (token == null) throw Exception("Usuário não autenticado.");
-      
-      final List<Map<String, String>> caracteristicasSelecionadas = [];
-      _caracteristicasState.take(5).forEach((carac) {
-        if (carac['valorSelecionado'] != null) {
-          caracteristicasSelecionadas.add({
-            'caracteristica': carac['nome'],
-            'sequencia': carac['valorSelecionado'],
-          });
-        }
+      final token = Provider.of<AuthProvider>(context, listen: false).token!;
+      final List<Map<String, String?>> caracteristicasSelecionadas = [];
+      _caracteristicasState.forEach((carac) {
+        // Salva mesmo que a sequência não esteja selecionada, para manter a característica
+        caracteristicasSelecionadas.add({
+          'caracteristica': carac['nome'],
+          'sequencia': carac['valorSelecionado'],
+        });
       });
 
       final dataToSave = {
@@ -208,12 +211,16 @@ class _NaturezaXRgScreenState extends State<NaturezaXRgScreen> {
 
       await _naturezaXRgService.saveData(_selectedRgId!, dataToSave, token);
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Dados salvos com sucesso!'), backgroundColor: Colors.green));
+
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao salvar dados: $e'), backgroundColor: Colors.red));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
+
+  
+
 
   Future<void> _deleteData() async {
     final rgId = _selectedRgId;
@@ -235,9 +242,11 @@ class _NaturezaXRgScreenState extends State<NaturezaXRgScreen> {
     setState(() => _isLoading = true);
     try {
       final token = Provider.of<AuthProvider>(context, listen: false).token;
+      final naturezaId = _selectedNatureza!['id'];
       if (token == null) throw Exception("Usuário não autenticado.");
       
-      await _naturezaXRgService.deleteData(rgId, widget.secondaryCompanyId, token);
+      await _naturezaXRgService.deleteData(rgId, naturezaId, widget.secondaryCompanyId, token);
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Registro excluído com sucesso!')));
         _clearAllFields();
@@ -252,16 +261,17 @@ class _NaturezaXRgScreenState extends State<NaturezaXRgScreen> {
   void _clearAllFields() {
     _naturezaController.clear();
     _nomeNaturezaController.clear();
-    _rgCodigoInternoController.clear();
+    _rgIdController.clear();
+    //_rgCodigoInternoController.clear();
     _rgNomeController.clear();
     _setorController.clear();
-    _nomeSetorController.clear();
+    //_nomeSetorController.clear();
     _contaFinanceiraController.clear();
-    _nomeContaFinController.clear();
+    //_nomeContaFinController.clear();
     _aplicacaoController.clear();
-    _nomeAplicacaoController.clear();
+    //_nomeAplicacaoController.clear();
     _natRendimentoController.clear();
-    _nomeNatRendController.clear();
+    //_nomeNatRendController.clear();
     _opcaoNatRendimentoController.clear();
     _clearNaturezaSelection();
     _clearRgSelection();
@@ -275,11 +285,11 @@ class _NaturezaXRgScreenState extends State<NaturezaXRgScreen> {
     }
     setState(() => _isLoading = true);
     try {
-      final token = Provider.of<AuthProvider>(context, listen: false).token;
-      if (token == null) throw Exception("Usuário não autenticado.");
+      final token = Provider.of<AuthProvider>(context, listen: false).token!;
       final logService = LogService(token);
+      final naturezaId = _selectedNatureza!['id'];
 
-      final data = await _naturezaXRgService.getData(_selectedRgId!, token);
+      final data = await _naturezaXRgService.getData(rgId, naturezaId, token);
       if (data.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nenhum dado salvo para este RG.')));
         return;
@@ -299,7 +309,7 @@ class _NaturezaXRgScreenState extends State<NaturezaXRgScreen> {
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
               pw.Header(level: 0, child: pw.Text('Relatório - Natureza X RG', style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold))),
-              pw.Text('RG (Cód. Interno): ${_rgCodigoInternoController.text} - ${rgInfo['razao_social'] ?? 'N/A'}'),
+              pw.Text('RG (Cód. Interno): ${_rgIdController.text} - ${rgInfo['razao_social'] ?? 'N/A'}'),
               pw.Divider(thickness: 2),
               pw.SizedBox(height: 10),
               
@@ -380,7 +390,7 @@ class _NaturezaXRgScreenState extends State<NaturezaXRgScreen> {
   void _clearRgSelection() {
     setState(() {
       _selectedRgId = null;
-      _rgCodigoInternoController.clear();
+      _rgIdController.clear();
       _rgNomeController.clear();
       _clearNaturezaSelection();
     });
@@ -457,9 +467,13 @@ class _NaturezaXRgScreenState extends State<NaturezaXRgScreen> {
   }
 
   Widget _buildMainForm() {
+    final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.all(20.0),
-      decoration: BoxDecoration(color: Colors.blue[100], border: Border.all(color: Colors.black, width: 1.0), borderRadius: BorderRadius.circular(10.0)),
+      decoration: BoxDecoration(color: theme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(color: theme.colorScheme.primary, width: 1.0),
+                  ),
       child: Column(
         children: [
           Expanded(
@@ -511,13 +525,14 @@ class _NaturezaXRgScreenState extends State<NaturezaXRgScreen> {
   }
 
   Widget _buildLeftInputFields() {
+    // ▼▼▼ CORREÇÃO AQUI - Removido os campos duplicados de "Nome" ▼▼▼
     return SingleChildScrollView(
       child: Column(
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(child: _buildAutocompleteField(controller: _rgCodigoInternoController, label: 'Código RG', fieldKey: 'codigo_interno', options: _allRgs, onSelected: _onRgSelected, onClear: _clearRgSelection)),
+              Expanded(child: _buildAutocompleteField(controller: _rgIdController, label: 'Código RG', fieldKey: 'codigo_interno', options: _allRgs, onSelected: _onRgSelected, onClear: _clearRgSelection)),
               const SizedBox(width: 10),
               Expanded(child: _buildAutocompleteField(controller: _rgNomeController, label: 'Nome RG', fieldKey: 'razao_social', options: _allRgs, onSelected: _onRgSelected, onClear: _clearRgSelection)),
             ],
@@ -532,37 +547,13 @@ class _NaturezaXRgScreenState extends State<NaturezaXRgScreen> {
             ],
           ),
           const SizedBox(height: 15),
-          Row(
-            children: [
-              Expanded(child: CustomInputField(controller: _setorController, label: 'Setor')),
-              const SizedBox(width: 10),
-              Expanded(child: CustomInputField(controller: _nomeSetorController, label: 'Nome Setor')),
-            ],
-          ),
+          CustomInputField(controller: _setorController, label: 'Setor'),
           const SizedBox(height: 15),
-          Row(
-            children: [
-              Expanded(child: CustomInputField(controller: _contaFinanceiraController, label: 'Conta financeira')),
-              const SizedBox(width: 10),
-              Expanded(child: CustomInputField(controller: _nomeContaFinController, label: 'Nome Conta financeira')),
-            ],
-          ),
+          CustomInputField(controller: _contaFinanceiraController, label: 'Conta financeira'),
           const SizedBox(height: 15),
-          Row(
-            children: [
-              Expanded(child: CustomInputField(controller: _aplicacaoController, label: 'Aplicação')),
-              const SizedBox(width: 10),
-              Expanded(child: CustomInputField(controller: _nomeAplicacaoController, label: 'Nome Aplicacao')),
-            ],
-          ),
+          CustomInputField(controller: _aplicacaoController, label: 'Aplicação'),
           const SizedBox(height: 15),
-          Row(
-            children: [
-              Expanded(child: CustomInputField(controller: _natRendimentoController, label: 'Nat de rendimento')),
-              const SizedBox(width: 10),
-              Expanded(child: CustomInputField(controller: _nomeNatRendController, label: 'Nome Nat de rendimento')),
-            ],
-          ),
+          CustomInputField(controller: _natRendimentoController, label: 'Nat de rendimento'),
         ],
       ),
     );
@@ -607,7 +598,7 @@ class _NaturezaXRgScreenState extends State<NaturezaXRgScreen> {
                           border: OutlineInputBorder(),
                           contentPadding: EdgeInsets.symmetric(horizontal: 10),
                           filled: true,
-                          fillColor: Colors.white,
+                          //fillColor: Colors.white,
                         ),
                         hint: const Text('Selecione'),
                         items: (carac['opcoesSequencia'] as List<String>).map((String value) {

@@ -332,12 +332,15 @@ class _TabelaEstadoState extends State<TabelaEstado> {
   }
 
   Widget _buildCentralInputArea() {
+    final theme = Theme.of(context); 
     return Form(
       key: _formKey,
       child: Padding(
         padding: const EdgeInsets.all(25),
         child: Container(
-          decoration: BoxDecoration(color: Colors.blue[100], border: Border.all(color: Colors.black), borderRadius: BorderRadius.circular(10)),
+          decoration: BoxDecoration(color: theme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(color: theme.colorScheme.primary, width: 1.0),),
           child: Column(
             children: [
               Expanded(
@@ -373,7 +376,7 @@ class _TabelaEstadoState extends State<TabelaEstado> {
         labelText: 'País',
         border: const OutlineInputBorder(),
         filled: true,
-        fillColor: isNotExterior ? Colors.grey[300] : Colors.white,
+        //fillColor: isNotExterior ? Colors.grey[300] : Colors.white,
       ),
       items: _allPaises.map<DropdownMenuItem<String>>((pais) {
         return DropdownMenuItem<String>(

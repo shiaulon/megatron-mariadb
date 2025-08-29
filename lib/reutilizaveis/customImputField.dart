@@ -253,141 +253,112 @@ String? ufValidator(String? value) {
 
 /// Um campo de entrada de texto padronizado para uso em formulários.
 class CustomInputField extends StatelessWidget {
+  // --- Parâmetros Funcionais ---
   final TextEditingController controller;
-  final List<TextInputFormatter>? inputFormatters; // ADD THIS PARAMETER
-  final String? Function(String?)? validator; // ADD THIS PARAMETER
-  final String label;
-  final String? initialValue;
-  final bool readOnly;
-  final TextInputType? keyboardType;
+  final FocusNode? focusNode;
+  final String? Function(String?)? validator;
+  final ValueChanged<String>? onChanged;
+  final VoidCallback? onTap;
+  final VoidCallback? onUserInteraction; // Notifica o pai sobre qualquer alteração ou toque
 
-  final bool enabled; 
-  
+  // --- Parâmetros de Comportamento ---
+  final bool readOnly;
+  final bool enabled;
   final int? maxLength;
+  final int? maxLines;
+  final int? minLines;
+  final TextInputType? keyboardType;
+  final List<TextInputFormatter>? inputFormatters;
   final TextCapitalization textCapitalization;
+
+  final VoidCallback? onEditingComplete;
+
+  // --- Parâmetros de Estilo (sobrescrevem o tema se fornecidos) ---
+  final String label;
   final String? suffixText;
   final String? hintText;
-  final bool isDense; 
-  final Color? fillColor; // <--- Adicione esta linha
-  final FocusNode? focusNode;
-  final VoidCallback? onTap;
-  final int? maxLines;
-  final int?minLines;
-  final ValueChanged<String>? onChanged;
-  final bool trackUnsavedChanges; // NOVO: Flag para rastrear alterações não salvas
-  //final bool isMainFormInput;
-  //final bool isSubcollectionInput;
-  // NOVO: Callback para notificar o pai sobre alterações que precisam ser rastreadas
-  final VoidCallback? onUserInteraction; // Chamado quando o usuário altera o campo
-
+  final bool isDense;
+  final Color? fillColor; // Permite sobrescrever a cor de fundo do tema
 
   const CustomInputField({
+
+    this.onEditingComplete,
+
     Key? key,
-    this.onTap, // <--- ADICIONE AQUI NO CONSTRUTOR
     required this.controller,
     required this.label,
-    this.initialValue,
+    this.focusNode,
+    this.validator,
+    this.onChanged,
+    this.onTap,
+    this.onUserInteraction,
     this.readOnly = false,
+    this.enabled = true,
+    this.maxLength,
+    this.maxLines = 1,
+    this.minLines,
     this.keyboardType,
     this.inputFormatters,
-
-    this.enabled = true, 
-    
-    this.validator,
-    this.maxLength,
     this.textCapitalization = TextCapitalization.none,
     this.suffixText,
     this.hintText,
-    this.isDense = true, // Valor padrão como true, como no seu código
+    this.isDense = true,
     this.fillColor,
-    this.focusNode, // <--- Adicione aqui
-    this.maxLines = 1,
-    this.minLines,
-    this.onChanged,
-    this.trackUnsavedChanges = false, // NOVO: Default para false
-    this.onUserInteraction, 
-    //this.isMainFormInput = false, // Default é false
-    //this.isSubcollectionInput = false, // Default é false
-    
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    // CORREÇÃO AQUI: Use o operador ?? para garantir um valor não-nulo,
-    // ou inicialize o controlador de forma diferente se a intenção for apenas
-    // definir o texto uma vez ao criar o widget.
-    // A melhor prática para `TextEditingController` em `StatelessWidget`
-    // é inicializar seu `text` no construtor do `TextEditingController`
-    // se o `initialValue` for uma propriedade do widget.
-
-    // Opção 1: Inicializar o controller no Widget pai e passar ele.
-    // Se o controller é criado no pai, você pode fazer:
-    // TextEditingController myController = TextEditingController(text: initialValue);
-    // Mas como o controller já vem como required, a inicialização deve estar no pai.
-
-    // O problema é que você está tentando ATRIBUIR a `controller.text` dentro do `build`
-    // de um `StatelessWidget` quando o `controller` já foi passado.
-    // Se a ideia é que o `initialValue` apenas forneça um valor inicial para
-    // o `controller` se ele não tiver sido definido externamente,
-    // você precisa garantir que essa lógica esteja no código que CRIA o controller.
-
-    // Para resolver o erro de tipo, você pode forçar a conversão para String,
-    // mas isso não é seguro se initialValue for realmente null e o campo não aceitar null.
-    // controller.text = initialValue!; // Inseguro!
-
-    // Se o controller já tem um valor, e você quer que initialValue o sobrescreva APENAS SE initialValue não for nulo E o controller estiver vazio:
-    // Esta é a abordagem mais provável para o seu caso de uso.
-    if (initialValue != null && controller.text.isEmpty) {
-      controller.text = initialValue!;
-    }
-
+    // Pega o tema de decoração de input definido no AppTheme
+    final themeInputDecoration = Theme.of(context).inputDecorationTheme;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: TextFormField(
-        onTap: onTap,
+        // --- Conexões Funcionais ---
         controller: controller,
         focusNode: focusNode,
-        readOnly: readOnly,
-        keyboardType: keyboardType,
-        inputFormatters: inputFormatters,
         validator: validator,
+        onTap: () {
+          onTap?.call();
+          onUserInteraction?.call();
+        },
+        onChanged: (value) {
+          onChanged?.call(value);
+          if (!readOnly) {
+            onUserInteraction?.call();
+          }
+        },
+
+        onEditingComplete: onEditingComplete, // ALTERAÇÃO 3: Adicione esta linha
+        
+        // --- Comportamento ---
+        readOnly: readOnly,
+        enabled: enabled,
         maxLength: maxLength,
-        textCapitalization: textCapitalization,
         maxLines: maxLines,
         minLines: minLines,
-
-        enabled: enabled, 
-        
+        keyboardType: keyboardType,
+        inputFormatters: inputFormatters,
+        textCapitalization: textCapitalization,
         autovalidateMode: AutovalidateMode.onUserInteraction,
-        onChanged: (value) {
-        // Chame o onChanged personalizado se ele existir
-        onChanged?.call(value);
-
-        // Se o campo NÃO for readOnly (ou seja, o usuário pode digitar nele)
-        // e se um callback de interação foi fornecido, chame-o.
-        if (!readOnly && onUserInteraction != null) {
-          onUserInteraction!(); // Notifica o pai sobre a interação do usuário
-        }
-      },
+        
+        // --- Estilo ---
+        style: const TextStyle(fontSize: 14.0),
         decoration: InputDecoration(
-          isDense: isDense,
-          alignLabelWithHint: true,
           labelText: label,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8.0),
-          ),
-          filled: true,
-          fillColor: fillColor ?? Colors.white,
-          
-          contentPadding:
-              const EdgeInsets.symmetric(vertical: 10.0, horizontal: 12.0),
-          counterText: '',
           hintText: hintText,
           suffixText: suffixText,
+          counterText: '', // Oculta o contador padrão
+          
+          // Usa a cor do tema, mas permite que seja sobrescrita se 'fillColor' for passado
+          fillColor: fillColor, 
+          
+          // Usa a densidade do tema, mas permite que seja sobrescrita
+          isDense: isDense,
+          
+          // A cor para o estado desabilitado será gerenciada automaticamente pelo tema,
+          // que já define uma cor de preenchimento diferente para campos desabilitados.
         ),
-        
-        style: const TextStyle(fontSize: 14.0),
       ),
     );
   }

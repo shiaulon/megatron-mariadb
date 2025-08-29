@@ -461,13 +461,14 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
 
     // Constrói a lista de botões VÍSIVEIS com base nas permissões
     final List<ButtonData> visibleButtons = _buildButtonsData(permissionProvider);
+    final theme = Theme.of(context);
 
     return TelaBase(
       body: Column(
         children: [
           // Barra superior ocupando a largura total (permanece a mesma, ajustando o nome do usuário)
           Container(
-            color: Colors.lightBlue,
+            color: theme.appBarTheme.backgroundColor, 
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -475,7 +476,7 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
                 Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.arrow_back, color: Colors.black), // Ícone de voltar
+                       icon: Icon(Icons.arrow_back, color: theme.appBarTheme.iconTheme?.color),
                       tooltip: 'Voltar para seleção de empresa',
                       onPressed: () {
                         // Navega de volta para a SecondaryCompanySelectionPage
@@ -499,14 +500,14 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
                     ),
                     const SizedBox(width: 8),
                     // Exibir o nome de usuário dinamicamente
-                    Text(_userName, style: const TextStyle(fontSize: 16, color: Colors.black)),
+                    Text(_userName, style: theme.appBarTheme.titleTextStyle),
                   ],
                 ),
                 Align(
                   alignment: Alignment.centerRight,
                   child: Padding(
                     padding: const EdgeInsets.only(right: 20.0),
-                    child: Text(_currentDate, style: const TextStyle(color: Colors.black)),
+                    child: Text(_currentDate, style: theme.appBarTheme.titleTextStyle),
                   ),
                 ),
               ],
@@ -553,7 +554,9 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
     );
   }
 
-  Widget _buildMainContent({required bool isMobile, required List<ButtonData> visibleButtons}) { // Adicione visibleButtons
+  Widget _buildMainContent({required bool isMobile, required List<ButtonData> visibleButtons}) {
+    final theme = Theme.of(context);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -561,47 +564,28 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
         Padding(
           padding: const EdgeInsets.all(8.0),
           child: Card(
-            color: Colors.blue[100],
+            // ANTES: color: Colors.blue[100],
+            // DEPOIS: Usa a cor de superfície do tema, com uma leve transparência se desejar
+            color: theme.colorScheme.surface.withOpacity(0.8),
             elevation: 4,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
               child: Row(
                 children: [
-                  Image.asset(
-                    'assets/images/logo16.png',
-                    width: 75,
-                    height: 75,
-                  ),
+                  Image.asset('assets/images/logo16.png', width: 75, height: 75),
                   const SizedBox(width: 10),
                   Flexible(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Empresa Principal ID: ${widget.mainCompanyId}',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                        ),
-                        Text(
-                          'Empresa Secundária Ativa: ${widget.secondaryCompanyId}',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                        ),
-                        const Text(
-                          'MEGATRON TREINAMENTO E DESENVOLVIMENTO LTDA',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                        ),
-                        const Text(
-                          'CNPJ 12.395.757/0001-00',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                        ),
-                        const Text(
-                          'PRAÇA JOSÉ FRANCISCO JUCATELLI, 151 - JD. BOTÂNICO',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                        ),
-                        const Text(
-                          'RIBEIRÃO PRETO - SP',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                        ),
+                        // O texto agora usa a cor 'onSurface' para garantir contraste
+                        Text('Empresa Principal ID: ${widget.mainCompanyId}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: theme.colorScheme.onSurface)),
+                        Text('Empresa Secundária Ativa: ${widget.secondaryCompanyId}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: theme.colorScheme.onSurface)),
+                        Text('MEGATRON TREINAMENTO E DESENVOLVIMENTO LTDA', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: theme.colorScheme.onSurface)),
+                        Text('CNPJ 12.395.757/0001-00', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: theme.colorScheme.onSurface)),
+                        Text('PRAÇA JOSÉ FRANCISCO JUCATELLI, 151 - JD. BOTÂNICO', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: theme.colorScheme.onSurface)),
+                        Text('RIBEIRÃO PRETO - SP', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: theme.colorScheme.onSurface)),
                       ],
                     ),
                   ),
@@ -611,16 +595,16 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
           ),
         ),
         const SizedBox(height: 30),
-        // NOVO: Passa `visibleButtons` para _buildBotoesResponsive
         _buildBotoesResponsive(isMobile: isMobile, buttonsToDisplay: visibleButtons),
         const SizedBox(height: 40),
       ],
     );
   }
 
+
   Widget _buildBotoesResponsive({required bool isMobile, required List<ButtonData> buttonsToDisplay}) {
     final int buttonsPerRow = isMobile ? 2 : 5;
-
+    final theme = Theme.of(context);
     List<Widget> rowsOfButtons = [];
 
     // USA buttonsToDisplay AQUI
@@ -637,7 +621,7 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
                 child: Container(
                   height: 70,
                   decoration: BoxDecoration(
-                    color: Colors.blueGrey[100],
+                    color: theme.colorScheme.surface,
                     border: Border.all(
                       color: button.borderColor,
                       width: 2,
@@ -652,14 +636,15 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
                         Icon(
                           button.iconData,
                           size: 35,
-                          color: Colors.blueAccent,
+                          color: theme.colorScheme.primary,
                         ),
                       if (button.iconData != null)
                         const SizedBox(width: 8),
                       Flexible(
                         child: Text(
                           button.text,
-                          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 14),
+                          style: TextStyle(color: theme.colorScheme.onSurface, fontWeight: FontWeight.bold, fontSize: 14),
+    //       ),
                           textAlign: TextAlign.center,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -687,37 +672,34 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
   }
 
   Widget _buildAnnotationSection() {
+    final theme = Theme.of(context);
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(40.0, 30.0, 20.0, 20),
       child: Container(
-        constraints: const BoxConstraints(
-          minHeight: 150,
-          maxHeight: 540,
-        ),
+        constraints: const BoxConstraints(minHeight: 150, maxHeight: 540),
         decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: Colors.black, width: 1.0),
+          // ANTES: color: Colors.white,
+          // DEPOIS:
+          color: theme.colorScheme.surface,
+          border: Border.all(color: theme.dividerColor, width: 1.0),
           borderRadius: BorderRadius.circular(10.0),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(12.0, 12.0, 12.0, 0),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12.0, 12.0, 12.0, 0),
               child: Row(
                 children: [
-                  Icon(
-                    Icons.sticky_note_2,
-                    size: 30,
-                    color: Colors.black87,
-                  ),
-                  SizedBox(width: 8),
+                  Icon(Icons.sticky_note_2, size: 30, color: theme.colorScheme.onSurface),
+                  const SizedBox(width: 8),
                   Text(
                     'LEMBRETES',
                     style: TextStyle(
                       fontSize: 30,
                       fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                      color: theme.colorScheme.onSurface,
                     ),
                   ),
                 ],
@@ -726,7 +708,7 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
             const SizedBox(height: 8),
             Container(
               height: 1.0,
-              color: Colors.black,
+              color: theme.dividerColor,
               margin: const EdgeInsets.symmetric(horizontal: 12.0),
             ),
             Expanded(
@@ -734,32 +716,23 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
                 padding: const EdgeInsets.all(12.0),
                 itemCount: _annotations.length,
                 itemBuilder: (context, index) {
-                  return Padding( // Adicionando Padding para espaçamento
+                  return Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4.0),
                     child: Row(
                       children: [
-                        // Checkbox
                         Checkbox(
                           value: _annotations[index].isChecked,
-                          onChanged: (newValue) async { // Agora é um método async
-                            _toggleCheckbox(index, newValue);
-                          },
+                          onChanged: (newValue) => _toggleCheckbox(index, newValue),
                         ),
-                        // Texto da anotação
                         Expanded(
                           child: Text(
                             _annotations[index].text,
                             style: TextStyle(
-                              decoration: _annotations[index].isChecked
-                                  ? TextDecoration.lineThrough
-                                  : TextDecoration.none,
-                              color: _annotations[index].isChecked
-                                  ? Colors.grey
-                                  : Colors.black,
+                              decoration: _annotations[index].isChecked ? TextDecoration.lineThrough : TextDecoration.none,
+                              color: _annotations[index].isChecked ? Colors.grey : theme.colorScheme.onSurface,
                             ),
                           ),
                         ),
-                        // O botão de exclusão foi removido daqui
                       ],
                     ),
                   );
@@ -775,11 +748,10 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
                   icon: const Icon(Icons.add),
                   label: const Text('Adicionar Anotação'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue[700], // Cor de fundo do botão
-                    foregroundColor: Colors.white, // Cor do texto e ícone
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8.0),
-                    ),
+                    // Usa as cores do tema para o botão
+                    backgroundColor: theme.colorScheme.primary,
+                    foregroundColor: theme.colorScheme.onPrimary,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
                   ),
                 ),
               ),

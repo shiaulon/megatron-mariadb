@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -110,6 +111,44 @@ class DateInputFormatter extends TextInputFormatter {
     return newValue.copyWith(
       text: string,
       selection: TextSelection.collapsed(offset: string.length),
+    );
+  }
+}
+
+class DateInputFormatterDDMMYYYY extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    // Se o novo valor estiver vazio, não faça nada
+    if (newValue.text.isEmpty) {
+      return newValue.copyWith(text: '');
+    }
+
+    // Remove tudo que não for dígito
+    String cleanText = newValue.text.replaceAll(RegExp(r'\D'), '');
+    
+    // Limita o tamanho para 8 dígitos (DDMMYYYY)
+    if (cleanText.length > 8) {
+      cleanText = cleanText.substring(0, 8);
+    }
+
+    var buffer = StringBuffer();
+    for (int i = 0; i < cleanText.length; i++) {
+      buffer.write(cleanText[i]);
+      // Adiciona a primeira barra depois do dia (2 dígitos)
+      if (i == 1 && cleanText.length > 2) {
+        buffer.write('/');
+      }
+      // Adiciona a segunda barra depois do mês (4 dígitos)
+      if (i == 3 && cleanText.length > 4) {
+        buffer.write('/');
+      }
+    }
+
+    String formattedText = buffer.toString();
+    return newValue.copyWith(
+      text: formattedText,
+      selection: TextSelection.collapsed(offset: formattedText.length),
     );
   }
 }
@@ -227,7 +266,7 @@ class PaginaComAbasLaterais extends StatefulWidget {
   final String mainCompanyId;
   final String secondaryCompanyId;
   final String? userRole;
-
+  final String? initialRgId;  
   
 
   const PaginaComAbasLaterais({
@@ -235,6 +274,7 @@ class PaginaComAbasLaterais extends StatefulWidget {
     required this.mainCompanyId,
     required this.secondaryCompanyId,
     this.userRole,
+    this.initialRgId,
   });
 
   @override
@@ -247,6 +287,12 @@ class _PaginaComAbasLateraisState extends State<PaginaComAbasLaterais> {
   late String _currentDate;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final ManutRgService _manutRgService = ManutRgService();
+
+  final TextEditingController _tipoPessoaController = TextEditingController();
+  String? _tipoPessoa; // Armazena 'fisica' ou 'juridica'
+
+  bool _isCodigoEditable = true; // Controla se o campo "Código" pode ser editado
+  Timer? _debounce; // Controla o tempo de espera após o usuário parar de digitar no CPF/CNPJ
 
   int _selectedIndex = 0;
   bool _isLoading = false;
@@ -373,6 +419,14 @@ class _PaginaComAbasLateraisState extends State<PaginaComAbasLaterais> {
   final TextEditingController _emailRefComercialController = TextEditingController();
   final TextEditingController _obsRefComercialController = TextEditingController();
 
+  // ▼▼▼ ADICIONE ESTES CONTROLLERS ▼▼▼
+final TextEditingController _estadoCivilController = TextEditingController();
+final TextEditingController _rgController = TextEditingController();
+final TextEditingController _dataExpedicaoController = TextEditingController();
+final TextEditingController _dataNascimentoController = TextEditingController();
+final TextEditingController _profissaoController = TextEditingController();
+// ▲▲▲ FIM DA ADIÇÃO ▲▲▲
+
   String? _selectedContribIcms;
   String? _selectedRevenda;
 
@@ -399,6 +453,16 @@ class _PaginaComAbasLateraisState extends State<PaginaComAbasLaterais> {
  // _fetchAllCargos();
   //_fetchAllSituacoes(); 
 
+  // ▼▼▼ ADICIONE ESTA LÓGICA DE VERIFICAÇÃO INICIAL ▼▼▼
+    // Se a página foi aberta com um ID, carrega os dados dele.
+    if (widget.initialRgId != null && widget.initialRgId!.isNotEmpty) {
+      // Usamos um post-frame callback para garantir que o contexto está pronto
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _loadInitialRecord(widget.initialRgId!);
+      });
+    }
+    // ▲▲▲ FIM DA ADIÇÃO ▲▲▲
+
   _isFieldSelectedFromDropdown = {
         'campoComum1': false,
         'campoComum2': false,
@@ -407,6 +471,13 @@ class _PaginaComAbasLateraisState extends State<PaginaComAbasLaterais> {
 
   // Mantenha os listeners para os campos de busca que controlam a população/limpeza
   //_campoComum1Controller.addListener(_updateStreams);
+  _campoComum1Controller.addListener(() {
+      if (_debounce?.isActive ?? false) _debounce!.cancel();
+      _debounce = Timer(const Duration(milliseconds: 1500), () {
+        _handleCpfCnpjExit();
+      });
+      _determinarTipoPessoa();
+    });
   _campoComum2Controller.addListener(_handleClearCheck);
   _campoComum3Controller.addListener(_handleClearCheck);
   _codigoGeradoController.addListener(_handleClearCheck);
@@ -572,9 +643,36 @@ class _PaginaComAbasLateraisState extends State<PaginaComAbasLaterais> {
   //_campoComum1Controller.addListener(_loadCheckboxStates);
 }
 
+// ▼▼▼ ADICIONE ESTE NOVO MÉTODO À CLASSE _PaginaComAbasLateraisState ▼▼▼
+  /// Carrega um registro inicial e bloqueia os campos de busca.
+  Future<void> _loadInitialRecord(String rgId) async {
+    _campoComum1Controller.text = rgId; // Preenche o campo de CPF/CNPJ
+    _determinarTipoPessoa();
+    setState(() {
+      _isCodigoEditable = false; // Bloqueia o campo de código
+    });
+    await _loadRgData(rgId); // Chama a função que já busca e preenche os dados
+  }
+
 void _updateCounters() {
     setState(() {});
   }
+
+  /*Future<void> _loadDataByCodigo(String codigo) async {
+    if (codigo.isEmpty) return;
+
+    final rgSuggestion = _allControlData.firstWhereOrNull(
+      (rg) => rg['codigo_interno'] == codigo
+    );
+
+    if (rgSuggestion != null) {
+      await _loadRgData(rgSuggestion['id']);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Código não encontrado.'))
+      );
+    }
+  }*/
 
   bool _hasSubcollectionInputChanges = false;
 
@@ -646,6 +744,63 @@ void _updateCounters() {
       setState(() {
         _hasSubcollectionInputChanges = anyFieldHasContent;
       });
+    }
+  }
+
+  void _determinarTipoPessoa() {
+  final cleanValue = _campoComum1Controller.text.replaceAll(RegExp(r'\D'), '');
+  if (mounted) {
+    setState(() {
+      if (cleanValue.length == 11) {
+        _tipoPessoaController.text = 'Física';
+        _tipoPessoa = 'fisica';
+      } else if (cleanValue.length == 14) {
+        _tipoPessoaController.text = 'Jurídica';
+        _tipoPessoa = 'juridica';
+      } else {
+        _tipoPessoaController.text = '';
+        _tipoPessoa = null;
+      }
+    });
+  }
+}
+
+Future<void> _handleCpfCnpjExit() async {
+    final cpfCnpj = _campoComum1Controller.text.trim();
+    if (cpfCnpj.isEmpty || (_cpfCnpjValidator(cpfCnpj) != null)) {
+      return; // Sai se o campo estiver vazio ou for inválido
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      final token = Provider.of<AuthProvider>(context, listen: false).token!;
+      final data = await _manutRgService.getRgCompleto(cpfCnpj, token);
+
+      if (data.isNotEmpty) {
+        // --- CASO 1: CPF/CNPJ EXISTE ---
+        _populateAllFields(data);
+        setState(() {
+          _isCodigoEditable = false; // Bloqueia o campo Código pois o registro já existe
+        });
+      } else {
+        // --- CASO 2: CPF/CNPJ É NOVO ---
+        _clearDependentFields(); // Limpa campos de um registro anterior
+        _campoComum1Controller.text = cpfCnpj; // Repõe o CPF/CNPJ que foi limpo
+        _determinarTipoPessoa();
+        
+        // Gera o novo código interno
+        final newCode = await _manutRgService.getNextCodigoInterno(token);
+        
+        setState(() {
+          _campoComum2Controller.text = newCode;
+          _dataInclusaoController.text = DateFormat('dd/MM/yyyy').format(DateTime.now());
+          _isCodigoEditable = false; // Bloqueia o campo Código pois um novo será criado
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro na verificação: $e')));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -876,6 +1031,17 @@ Future<void> _loadRgData(String rgId) async {
     _campoComum2Controller.text = data['codigo_interno'] ?? '';
     _campoComum3Controller.text = data['razao_social'] ?? '';
     _codigoGeradoController.text = data['codigo_gerado']?.toString() ?? '';
+
+    // LÓGICA ATUALIZADA AQUI
+    _tipoPessoa = data['tipo_pessoa'];
+    if (_tipoPessoa == 'fisica') {
+      _tipoPessoaController.text = 'Física';
+    } else if (_tipoPessoa == 'juridica') {
+      _tipoPessoaController.text = 'Jurídica';
+    } else {
+      _tipoPessoaController.text = '';
+    }
+    // FIM DA LÓGICA ATUALIZADA
     
     if (data['data_inclusao'] != null) {
       final dataInclusao = DateTime.tryParse(data['data_inclusao']);
@@ -960,6 +1126,31 @@ Future<void> _loadRgData(String rgId) async {
     _cepEntregaController.text = data['entrega_cep'] ?? '';
     _attEntregaController.text = data['entrega_att'] ?? '';
 
+    // ▼▼▼ ADICIONE ESTE NOVO BLOCO ▼▼▼
+// --- Aba Física ---
+_estadoCivilController.text = data['estado_civil'] ?? '';
+_rgController.text = data['rg'] ?? '';
+_profissaoController.text = data['profissao'] ?? '';
+
+if (data['data_expedicao_rg'] != null) {
+  final dataExp = DateTime.tryParse(data['data_expedicao_rg']);
+  if (dataExp != null) {
+    _dataExpedicaoController.text = DateFormat('dd/MM/yyyy').format(dataExp);
+  }
+} else {
+  _dataExpedicaoController.clear();
+}
+
+if (data['data_nascimento'] != null) {
+  final dataNasc = DateTime.tryParse(data['data_nascimento']);
+  if (dataNasc != null) {
+    _dataNascimentoController.text = DateFormat('dd/MM/yyyy').format(dataNasc);
+  }
+} else {
+  _dataNascimentoController.clear();
+}
+// ▲▲▲ FIM DO NOVO BLOCO ▲▲▲
+
     // Resetar flags de alteração
     _hasUnsavedChanges = false;
     _hasSubcollectionInputChanges = false;
@@ -1027,6 +1218,8 @@ Future<void> _loadRgData(String rgId) async {
   // Limpa os campos dependentes quando a busca é limpa
   void _clearDependentFields() {
     // ... (limpeza de todos os controladores existentes)
+
+    _tipoPessoaController.clear();
 
     _sequenciaRefComercialController.clear();
     _nomeRefComercialController.clear();
@@ -1135,8 +1328,17 @@ Future<void> _loadRgData(String rgId) async {
     _obsContatoController.clear();
     _dataInclusaoController.clear();
 
+    // ▼▼▼ ADICIONE ESTE NOVO BLOCO ▼▼▼
+_estadoCivilController.clear();
+_rgController.clear();
+_dataExpedicaoController.clear();
+_dataNascimentoController.clear();
+_profissaoController.clear();
+// ▲▲▲ FIM DO NOVO BLOCO ▲▲▲
+
 
     setState(() {
+      _tipoPessoa = null;
     _selectedContribIcms = null;
     _selectedRevenda = null;
     _possuiEndCobran = false;
@@ -1153,13 +1355,15 @@ Future<void> _loadRgData(String rgId) async {
     _campoComum2Controller.clear();
     _campoComum3Controller.clear();
     _codigoGeradoController.clear();
-    // NEW: Clear selection status for search fields
+    _clearDependentFields(); // Limpa todo o resto do formulário
+    
     setState(() {
-        _isFieldSelectedFromDropdown['campoComum1'] = false;
-        _isFieldSelectedFromDropdown['campoComum2'] = false;
-        _isFieldSelectedFromDropdown['campoComum3'] = false;
+      _isFieldSelectedFromDropdown['campoComum1'] = false;
+      _isFieldSelectedFromDropdown['campoComum2'] = false;
+      _isFieldSelectedFromDropdown['campoComum3'] = false;
+      _isCodigoEditable = true; // ALTERAÇÃO: Libera o campo Código para pesquisa
     });
-}
+  }
 
   // Verifica se os campos de busca estão vazios para limpar o formulário
   void _handleClearCheck() {
@@ -1279,10 +1483,24 @@ Future<void> _saveData() async {
     'id': docId,
     'codigo_interno': _campoComum2Controller.text,
     'razao_social': _campoComum3Controller.text,
+    'tipo_pessoa': _tipoPessoa, // <<< ADICIONE ESTA LINHA
     'codigo_gerado': _codigoGeradoController.text,
     'data_inclusao': _dataInclusaoController.text.isNotEmpty
         ? DateFormat('dd/MM/yyyy').parse(_dataInclusaoController.text).toUtc().toIso8601String()
         : null,
+
+    // ▼▼▼ ADICIONE ESTE NOVO BLOCO ▼▼▼
+    // Bloco 1.5: Dados Pessoa Física
+    'estado_civil': _estadoCivilController.text,
+    'rg': _rgController.text,
+    'profissao': _profissaoController.text,
+    'data_expedicao_rg': _dataExpedicaoController.text.isNotEmpty
+        ? DateFormat('dd/MM/yyyy').parse(_dataExpedicaoController.text).toUtc().toIso8601String()
+        : null,
+    'data_nascimento': _dataNascimentoController.text.isNotEmpty
+        ? DateFormat('dd/MM/yyyy').parse(_dataNascimentoController.text).toUtc().toIso8601String()
+        : null,
+    // ▲▲▲ FIM DO NOVO BLOCO ▲▲▲
     
     // Bloco 2: Endereço Principal
     'cep': _cepController.text,
@@ -1870,6 +2088,7 @@ Future<void> _deleteReferenciaComercial(String refId) async {
   }
 
   Widget _buildDesktopLayout(BoxConstraints constraints) {
+    final theme = Theme.of(context);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1891,10 +2110,10 @@ Future<void> _deleteReferenciaComercial(String refId) async {
               children: [
                 Padding( // MODIFICAÇÃO AQUI
                 padding: const EdgeInsets.only(top: 20.0, bottom: 10.0),
-                child: Text(_pageTitle, style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)), // Usa a variável _pageTitle
+                child: Text(_pageTitle, style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
               ),
                 //_buildCamposDeBusca(),
-                Divider(thickness: 2, color: Colors.blue, height: 10, indent: 40, endIndent: 40),
+                Divider(thickness: 2, color: theme.colorScheme.primary, height: 10, indent: 40, endIndent: 40),
                 Expanded(
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1975,10 +2194,13 @@ Future<void> _deleteReferenciaComercial(String refId) async {
   }
 
   Widget _buildVerticalTabMenu() {
+    final theme = Theme.of(context);
     return Container(
       margin: const EdgeInsets.only(top: 0, right: 25, bottom: 0),
       decoration: BoxDecoration(
-        color: Colors.blue.withOpacity(0.1),
+        // ▼▼▼ ALTERAÇÃO DE COR ▼▼▼
+        color: theme.colorScheme.surface.withOpacity(0.5),
+        border: Border.all(color: theme.dividerColor),
         borderRadius: BorderRadius.circular(10),
       ),
       child: SingleChildScrollView(
@@ -1988,6 +2210,11 @@ Future<void> _deleteReferenciaComercial(String refId) async {
           children: [
             _buildTabButton(title: 'Dados Gerais', index: 0),
             _buildTabButton(title: 'Telefone', index: 1),
+            // LÓGICA DE EXIBIÇÃO CONDICIONAL DAS ABAS
+          if (_tipoPessoa == 'fisica')
+            _buildTabButton(title: 'Física', index: 12), // Usando um novo índice
+
+          if (_tipoPessoa != 'fisica')
             _buildTabButton(title: 'Jurídica', index: 2),
             _buildTabButton(title: 'Complemento', index: 3),
             _buildTabButton(title: 'Composição Acionária', index: 4),
@@ -2005,6 +2232,7 @@ Future<void> _deleteReferenciaComercial(String refId) async {
   }
 
   Widget _buildTabButton({required String title, required int index}) {
+    final theme = Theme.of(context);
   final isSelected = _selectedIndex == index;
   return Padding(
     padding: const EdgeInsets.only(bottom: 5, right: 8, left: 8),
@@ -2062,10 +2290,10 @@ Future<void> _deleteReferenciaComercial(String refId) async {
         }
       },
       style: ElevatedButton.styleFrom(
-        backgroundColor: isSelected ? Colors.blue : Colors.blue[100],
-        foregroundColor: isSelected ? Colors.white : Colors.black,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        padding: const EdgeInsets.symmetric(vertical: 16),
+        backgroundColor: isSelected ? theme.colorScheme.primary : theme.colorScheme.surface,
+          foregroundColor: isSelected ? theme.colorScheme.onPrimary : theme.colorScheme.onSurface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          padding: const EdgeInsets.symmetric(vertical: 16),
       ),
       child: Text(title),
     ),
@@ -2208,6 +2436,7 @@ Future<void> _deleteReferenciaComercial(String refId) async {
         9 => _buildAbaCorrespondencia(key: const ValueKey('aba9')),
         10 => _buildAbaEntrega(key: const ValueKey('aba10')),
         11 => _buildAbaContatos(key: const ValueKey('aba11')),
+        12 => _buildAbaFisica(key: const ValueKey('aba12')), // <<< ADICIONE ESTA LINHA
         _ => _buildAbaDadosGerais(key: const ValueKey('default')),
       },
     );
@@ -2268,85 +2497,59 @@ Future<void> _deleteReferenciaComercial(String refId) async {
 
   // Widget reutilizável para criar um campo Autocomplete
   Widget _buildAutocompleteField(
-    TextEditingController controller,
-    String label,
-    String fieldKey, { // fieldKey agora será 'id', 'codigo_interno', 'razao_social'
-    bool isRequired = false,
-    String? Function(String?)? validator,
-    List<TextInputFormatter>? inputFormatters,
-    int? maxLength,
-  }) {
-    return Autocomplete<Map<String, dynamic>>(
-      // MOSTRA o valor da chave correta no dropdown
-      displayStringForOption: (option) => option[fieldKey] as String? ?? '',
-        // FILTRA a lista _allControlData usando a chave correta
-        optionsBuilder: (textEditingValue) {
-          if (textEditingValue.text.isEmpty) {
-            return const Iterable.empty();
-          }
-          return _allControlData.where((option) {
-            final fieldValue = option[fieldKey]?.toString().toLowerCase() ?? '';
-            return fieldValue.contains(textEditingValue.text.toLowerCase());
-          });
+  TextEditingController controller,
+  String label,
+  String fieldKey, {
+  bool isRequired = false,
+  String? Function(String?)? validator,
+  List<TextInputFormatter>? inputFormatters,
+  int? maxLength,
+  bool isEnabled = true, // ALTERAÇÃO 1: Adicione o novo parâmetro com valor padrão 'true'
+}) {
+  return Autocomplete<Map<String, dynamic>>(
+    displayStringForOption: (option) => option[fieldKey] as String? ?? '',
+    optionsBuilder: (textEditingValue) {
+      // ALTERAÇÃO 2: Impede a busca se o campo não estiver habilitado
+      if (!isEnabled || textEditingValue.text.isEmpty) {
+        return const Iterable.empty();
+      }
+      return _allControlData.where((option) {
+        final fieldValue = option[fieldKey]?.toString().toLowerCase() ?? '';
+        return fieldValue.contains(textEditingValue.text.toLowerCase());
+      });
+    },
+    onSelected: (selection) {
+      final String rgId = selection['id'] as String? ?? '';
+      
+      setState(() {
+        _isFieldSelectedFromDropdown['id'] = true;
+        _isFieldSelectedFromDropdown['codigo_interno'] = true;
+        _isFieldSelectedFromDropdown['razao_social'] = true;
+      });
+
+      _loadRgData(rgId);
+      FocusScope.of(context).unfocus();
+    },
+    fieldViewBuilder: (context, fieldController, focusNode, onFieldSubmitted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (controller.text != fieldController.text) {
+          fieldController.text = controller.text;
+        }
+      });
+      return CustomInputField(
+        controller: fieldController,
+        focusNode: focusNode,
+        label: label,
+        // ALTERAÇÃO 3: Controle a propriedade readOnly com base no parâmetro isEnabled
+        readOnly: !isEnabled, 
+        validator: (value) {
+          // ... (a lógica de validação continua a mesma)
+          return null; 
         },
-        // QUANDO UM ITEM É SELECIONADO...
-        onSelected: (selection) {
-          final String rgId = selection['id'] as String? ?? '';
-          
-          // AVISA AO APP QUE UMA SELEÇÃO VÁLIDA FOI FEITA
-          setState(() {
-            _isFieldSelectedFromDropdown['id'] = true;
-            _isFieldSelectedFromDropdown['codigo_interno'] = true;
-            _isFieldSelectedFromDropdown['razao_social'] = true;
-          });
-
-          _loadRgData(rgId);
-          FocusScope.of(context).unfocus();
-        },
-        fieldViewBuilder: (context, fieldController, focusNode, onFieldSubmitted) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (controller.text != fieldController.text) {
-                    fieldController.text = controller.text;
-                }
-            });
-            return CustomInputField(
-                controller: fieldController,
-                focusNode: focusNode,
-                label: label,
-                validator: (value) {
-                    // Combine existing validator with new duplicate check
-                    final existingValidationError = validator?.call(value);
-                    if (existingValidationError != null) {
-                        return existingValidationError;
-                    }
-
-                    // NEW VALIDATION LOGIC
-                    if (value != null && value.isNotEmpty) {
-                        final lowerCaseValue = value.toLowerCase();
-                        final isDuplicate = _allControlData.any((option) =>
-                            (option[fieldKey]?.toString().toLowerCase() == lowerCaseValue));
-
-                        final isSelected = _isFieldSelectedFromDropdown[fieldKey] ?? false;
-
-                        if (isDuplicate && !isSelected) {
-                            // Clear the selection status if user types over an existing value
-                            // without selecting from dropdown again.
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                                setState(() {
-                                    _isFieldSelectedFromDropdown[fieldKey] = false;
-                                });
-                            });
-                            return 'Este registro já existe. Selecione do dropdown ou mude o valor.';
-                        }
-                    }
-                    return null; // No validation error
-                },
-                inputFormatters: inputFormatters,
-                maxLength: maxLength,
-                //onUserInteraction: onUserInteraction,
-                onChanged: (value) {
+        inputFormatters: inputFormatters,
+        maxLength: maxLength,
+        onChanged: (value) {
           controller.text = value;
-          // Se o usuário está digitando, invalida a seleção anterior
           setState(() {
             _isFieldSelectedFromDropdown['id'] = false;
             _isFieldSelectedFromDropdown['codigo_interno'] = false;
@@ -2354,19 +2557,20 @@ Future<void> _deleteReferenciaComercial(String refId) async {
           });
           _formKey.currentState?.validate();
         },
-            );
-        },
-    );
-  }
+      );
+    },
+  );
+}
 
   Widget _buildAbaDadosGerais({Key? key}) {
+    final theme = Theme.of(context);
     return Padding(
       key: key,
       padding: const EdgeInsets.fromLTRB(25, 0, 25, 25),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.blue[100],
-          border: Border.all(color: Colors.black),
+          color: theme.colorScheme.surface.withOpacity(0.5), // Cor de fundo da aba
+          border: Border.all(color: theme.dividerColor), // Cor da borda
           borderRadius: BorderRadius.circular(10),
         ),
         child: SingleChildScrollView(
@@ -2393,9 +2597,17 @@ Future<void> _deleteReferenciaComercial(String refId) async {
                           )),
                                 
                         const SizedBox(width: 10),
-                        Expanded(
-                            flex: 2,
-                            child: _buildAutocompleteField(_campoComum2Controller, "Código", 'codigo_interno')),
+                        // ▼▼▼ SUBSTITUA TODO O 'Expanded' DO CAMPO "CÓDIGO" POR ESTE TRECHO ▼▼▼
+      Expanded(
+        flex: 2,
+        child: _buildAutocompleteField(
+          _campoComum2Controller,
+          "Código",
+          'codigo_interno', // A chave para buscar na lista de sugestões
+          isEnabled: _isCodigoEditable, // Ligando o estado de edição à nossa variável!
+        ),
+      ),
+      // ▲▲▲ FIM DA SUBSTITUIÇÃO ▲▲▲
                         const SizedBox(width: 10),
                         Expanded(
                             flex: 3,
@@ -2415,12 +2627,22 @@ Future<void> _deleteReferenciaComercial(String refId) async {
               ),
               Row(children: [
                 Expanded(
+    flex: 2, // Dando um pouco mais de espaço
+    child: CustomInputField(
+      controller: _tipoPessoaController,
+      label: "Tipo Pessoa",
+      readOnly: true,
+      //fillColor: Colors.grey[300], // Cor para indicar que é desabilitado
+    ),
+  ),
+  const SizedBox(width: 10),
+                /*Expanded(
                     flex: 1,
                     child:
-                        CustomInputField(controller: _codigoGeradoController, label: "Código Gerado", readOnly: true,)),
+                        CustomInputField(controller: _codigoGeradoController, label: "Código Gerado", readOnly: true,)),*/
                 const SizedBox(width: 10),
                 Expanded(
-                  flex: 1,
+                  flex: 2,
                   child: CustomInputField(
                     controller: _dataInclusaoController,
                     label: "Data Inclusão",
@@ -2675,6 +2897,109 @@ Future<void> _deleteReferenciaComercial(String refId) async {
     );
   }
 
+  // Substitua o método _buildAbaFisica inteiro por este:
+// Substitua completamente o seu método _buildAbaFisica por este:
+
+Widget _buildAbaFisica({Key? key}) {
+  return _buildAbaContainer(
+    key: key,
+    color: Colors.blue[100]!,
+    title: "Dados Pessoa Física",
+    children: [
+      Row(
+        children: [
+          Expanded(
+            flex: 1,
+            child: CustomInputField(
+              controller: _estadoCivilController,
+              label: "Estado Civil",
+              maxLength: 20,
+              suffixText: '${_estadoCivilController.text.length}/20',
+              onUserInteraction: () => _setUnsavedChanges(true),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            flex: 1,
+            child: CustomInputField(
+              controller: _profissaoController,
+              label: "Profissão",
+              maxLength: 50,
+              suffixText: '${_profissaoController.text.length}/50',
+              onUserInteraction: () => _setUnsavedChanges(true),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 15),
+      Row(
+        children: [
+          Expanded(
+            flex: 1,
+            child: CustomInputField(
+              controller: _rgController,
+              label: "RG",
+              maxLength: 20,
+              suffixText: '${_rgController.text.length}/20',
+              onUserInteraction: () => _setUnsavedChanges(true),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            flex: 1,
+            child: CustomInputField(
+              controller: _dataExpedicaoController,
+              label: "Data Expedição",
+              // ▼▼▼ ALTERAÇÃO AQUI ▼▼▼
+              maxLength: 10,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                DateInputFormatterDDMMYYYY(), // Usando o NOVO formatador
+              ],
+              hintText: 'dd/mm/aaaa',
+              onUserInteraction: () => _setUnsavedChanges(true),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 15),
+      Row(
+        children: [
+          Expanded(
+            flex: 1,
+            child: CustomInputField(
+              controller: _dataNascimentoController,
+              label: "Data Nascimento",
+              // ▼▼▼ ALTERAÇÃO AQUI ▼▼▼
+              maxLength: 10,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                DateInputFormatterDDMMYYYY(), // Usando o NOVO formatador
+              ],
+              hintText: 'dd/mm/aaaa',
+              onUserInteraction: () => _setUnsavedChanges(true),
+            ),
+          ),
+          // Espaço para alinhar com o botão de salvar
+          const Expanded(flex: 1, child: SizedBox()),
+        ],
+      ),
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 20.0),
+        child: ElevatedButton(
+          onPressed: _saveData,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.green,
+            foregroundColor: Colors.white,
+            minimumSize: const Size(200, 50),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+          child: const Text('SALVAR', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        ),
+      ),
+    ],
+  );
+}
   // Modificado para aceitar maxLengh e inputFormatters
   DataCell _buildEditableCell(
     String subcollection, Map<String, dynamic> docData, String field, String initialValue, String uniqueRowId,
@@ -2803,14 +3128,16 @@ Future<void> _deleteReferenciaComercial(String refId) async {
   }
 }
   Widget _buildAbaTelefone({Key? key}) {
+    final theme = Theme.of(context);
     return Form(
       child: Padding(
         key: key,
         padding: const EdgeInsets.fromLTRB(25, 0, 25, 25),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.blue[100],
-            border: Border.all(color: Colors.black),
+            //color: Colors.blue[100],
+            color: theme.colorScheme.surface.withOpacity(0.5), // Cor de fundo da aba
+          border: Border.all(color: theme.dividerColor), // Cor da borda
             borderRadius: BorderRadius.circular(10),
           ),
           child: SingleChildScrollView(
@@ -2947,10 +3274,11 @@ Future<void> _deleteReferenciaComercial(String refId) async {
                 Divider(thickness: 2, color: Colors.blue, height: 10, indent: 40, endIndent: 40),
                 
                 
+// ▼▼▼ SUBSTITUA TODO ESTE BLOCO 'Builder' ▼▼▼
 Builder(
   builder: (context) {
-    // Garante que estamos lendo a chave correta: 'telefones'
     final telefones = _rgData?['telefones'] as List<dynamic>? ?? [];
+    final theme = Theme.of(context); // Pega o tema atual
 
     if (_campoComum1Controller.text.trim().isEmpty && !_isLoading) {
       return const Center(child: Text("Busque por um CPF/CNPJ para ver os telefones."));
@@ -2965,9 +3293,8 @@ Builder(
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: DataTable(
-        headingRowColor: WidgetStateProperty.all<Color>(Colors.blue[200]!),
-        dataRowColor: WidgetStateProperty.all<Color>(Colors.white),
-        border: TableBorder.all(color: Colors.black),
+        headingRowColor: WidgetStateProperty.all<Color>(theme.primaryColor.withOpacity(0.2)),
+        border: TableBorder.all(color: theme.dividerColor),
         columns: const [
           DataColumn(label: Text('SQ')),
           DataColumn(label: Text('País')),
@@ -2979,54 +3306,44 @@ Builder(
           DataColumn(label: Text('Contato')),
           DataColumn(label: Text('Ação')),
         ],
-        // Substitua todo o bloco 'rows' por este:
-rows: telefones.map((telefoneData) {
-  final data = telefoneData as Map<String, dynamic>;
-  final uniqueRowId = data['id'].toString();
+        // ALTERAÇÃO PRINCIPAL: Usando List.generate para obter o índice de forma segura
+        rows: List.generate(telefones.length, (index) {
+          final data = telefones[index] as Map<String, dynamic>;
+          final uniqueRowId = data['id'].toString();
 
-  // --- LÓGICA PARA "TRADUZIR" O ID DO PAÍS PARA O NOME ---
+          // Lógica para traduzir o ID do país para o nome
+          final paisId = data['pais']?.toString() ?? '';
+          final paisMap = _allPaises.firstWhere((p) => p['id']?.toString() == paisId, orElse: () => {});
+          final paisDisplayText = paisMap['nome']?.toString() ?? paisId;
+          
+          // Define a cor da linha com base no índice (par ou ímpar)
+          final Color rowColor = index.isEven 
+              ? theme.colorScheme.surface.withOpacity(0.5) 
+              : Colors.transparent;
 
-  // 1. Pega o ID do país da linha atual (ex: '1111')
-  final paisId = data['pais']?.toString() ?? '';
-
-  // 2. Procura na lista de todos os países (_allPaises) qual mapa corresponde a esse ID.
-  //    Se não encontrar, retorna um mapa vazio para não dar erro.
-  final paisMap = _allPaises.firstWhere(
-    (p) => p['id']?.toString() == paisId,
-    orElse: () => {},
-  );
-
-  // 3. Define o texto que vai aparecer na tela.
-  //    Se o mapa encontrado tiver a chave 'nome' (ex: 'Estados Unidos'), usa esse valor.
-  //    Senão, como último recurso, mostra o próprio ID.
-  final paisDisplayText = paisMap['nome']?.toString() ?? paisId;
-
-  // --- FIM DA LÓGICA ---
-
-  // 4. Constrói a linha da tabela, usando a variável 'paisDisplayText' na célula correta.
-  return DataRow(cells: [
-    _buildEditableCell('telefones', data, 'sequencia', data['sequencia']?.toString() ?? '', uniqueRowId),
-    
-    // AQUI ESTÁ A MÁGICA: Passamos o NOME para ser exibido
-    _buildEditableCell('telefones', data, 'pais', paisDisplayText, uniqueRowId), 
-    
-    _buildEditableCell('telefones', data, 'operadora', data['operadora']?.toString() ?? '', uniqueRowId),
-    _buildEditableCell('telefones', data, 'ddd', data['ddd']?.toString() ?? '', uniqueRowId),
-    _buildEditableCell('telefones', data, 'numero', data['numero']?.toString() ?? '', uniqueRowId),
-    _buildEditableCell('telefones', data, 'ramal', data['ramal']?.toString() ?? '', uniqueRowId),
-    _buildEditableCell('telefones', data, 'tipo', data['tipo']?.toString() ?? '', uniqueRowId),
-    _buildEditableCell('telefones', data, 'contato', data['contato']?.toString() ?? '', uniqueRowId),
-    DataCell(IconButton(
-      icon: const Icon(Icons.delete, color: Colors.red),
-      onPressed: () => _deleteSubItem(uniqueRowId, 'telefones'),
-    )),
-  ]);
-}).toList(),
-
+          return DataRow(
+            color: MaterialStateProperty.all(rowColor),
+            cells: [
+              _buildEditableCell('telefones', data, 'sequencia', data['sequencia']?.toString() ?? '', uniqueRowId),
+              _buildEditableCell('telefones', data, 'pais', paisDisplayText, uniqueRowId),
+              _buildEditableCell('telefones', data, 'operadora', data['operadora']?.toString() ?? '', uniqueRowId),
+              _buildEditableCell('telefones', data, 'ddd', data['ddd']?.toString() ?? '', uniqueRowId),
+              _buildEditableCell('telefones', data, 'numero', data['numero']?.toString() ?? '', uniqueRowId),
+              _buildEditableCell('telefones', data, 'ramal', data['ramal']?.toString() ?? '', uniqueRowId),
+              _buildEditableCell('telefones', data, 'tipo', data['tipo']?.toString() ?? '', uniqueRowId),
+              _buildEditableCell('telefones', data, 'contato', data['contato']?.toString() ?? '', uniqueRowId),
+              DataCell(IconButton(
+                icon: const Icon(Icons.delete, color: Colors.red),
+                onPressed: () => _deleteSubItem(uniqueRowId, 'telefones'),
+              )),
+            ],
+          );
+        }),
       ),
     );
   },
 ),
+// ▲▲▲ FIM DO BLOCO DE SUBSTITUIÇÃO ▲▲▲
               ],
             ),
           ),
@@ -3036,13 +3353,14 @@ rows: telefones.map((telefoneData) {
   }
 
   Widget _buildAbaJuridica({Key? key}) {
+    final theme = Theme.of(context);
     return Padding(
       key: key,
       padding: const EdgeInsets.fromLTRB(25, 0, 25, 25),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.blue[100],
-          border: Border.all(color: Colors.black),
+          color: theme.colorScheme.surface.withOpacity(0.5), // Cor de fundo da aba
+          border: Border.all(color: theme.dividerColor), // Cor da borda
           borderRadius: BorderRadius.circular(10),
         ),
         child: SingleChildScrollView(
@@ -3171,13 +3489,14 @@ rows: telefones.map((telefoneData) {
   }
 
   Widget _buildAbaComplemento({Key? key}) {
+    final theme = Theme.of(context);
     return Padding(
       key: key,
       padding: const EdgeInsets.fromLTRB(25, 0, 25, 25),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.blue[100],
-          border: Border.all(color: Colors.black),
+          color: theme.colorScheme.surface.withOpacity(0.5), // Cor de fundo da aba
+          border: Border.all(color: theme.dividerColor), // Cor da borda
           borderRadius: BorderRadius.circular(10),
         ),
         child: SingleChildScrollView(
@@ -3423,33 +3742,25 @@ rows: telefones.map((telefoneData) {
         // Tabela de dados
         Builder(
   builder: (context) {
-    // Pega a lista de telefones da nossa variável de estado _rgData
     final socios = _rgData?['socios'] as List<dynamic>? ?? [];
+    final theme = Theme.of(context);
 
     if (_campoComum1Controller.text.trim().isEmpty) {
-      return const Center(child: Text("Busque por um CPF/CNPJ para ver os socios."));
+      return const Center(child: Text("Busque por um CPF/CNPJ para ver os sócios."));
     }
     if (_isLoading) {
-       return const Center(child: CircularProgressIndicator());
+      return const Center(child: CircularProgressIndicator());
     }
     if (socios.isEmpty) {
-      return const Center(child: Text("Nenhum telefone cadastrado para esta empresa."));
+      return const Center(child: Text("Nenhum sócio cadastrado para esta empresa."));
     }
 
-    // O DataTable continua o mesmo, mas agora mapeia a lista 'telefones'
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: DataTable(
-                              headingRowColor: WidgetStateProperty.all<Color>(Colors.blue[200]!), // Cor do cabeçalho
-                              dataRowColor: WidgetStateProperty.all<Color>(Colors.white),       // Cor do corpo da tabela
-                              // --- FIM DAS MODIFICAÇÕES ---
-                              border: TableBorder(
-                                top: BorderSide(color: Colors.black),
-                                right: BorderSide(color: Colors.black),
-                                left: BorderSide(color: Colors.black),
-                                bottom: BorderSide(color: Colors.black),
-                                horizontalInside: BorderSide(color: Colors.blue)),
-                              columns: const [
+        headingRowColor: WidgetStateProperty.all<Color>(theme.primaryColor.withOpacity(0.2)),
+        border: TableBorder.all(color: theme.dividerColor),
+        columns: const [
           DataColumn(label: Text('Sq')),
           DataColumn(label: Text('Sócio')),
           DataColumn(label: Text('Nome')),
@@ -3458,44 +3769,48 @@ rows: telefones.map((telefoneData) {
           DataColumn(label: Text('Participação (%)')),
           DataColumn(label: Text('Ação')),
         ],
-                /*rows: socios.map((socioDoc) {
-                    final socioData = socioDoc.data() as Map<String, dynamic>;*/
-                rows: socios.map((socioData) { // Renomeei 'doc' para 'socioData' para clareza
-  final data = socioData as Map<String, dynamic>; // <-- CORRIGIDO! 'socioData' JÁ É O MAPA
-  final uniqueRowId = data['id'].toString();
-  return DataRow(cells: [
-            _buildEditableCell('socios', data, 'sequencia', data['sequencia']?.toString() ?? '', uniqueRowId),
-            _buildEditableCell('socios', data, 'socio_id', data['socio_id']?.toString() ?? '', uniqueRowId),
-            _buildEditableCell('socios', data, 'nome', data['nome']?.toString() ?? '', uniqueRowId),
-            _buildEditableCell('socios', data, 'cpf', data['cpf']?.toString() ?? '', uniqueRowId),
-            _buildEditableCell('socios', data, 'cargo_id', data['cargo_id']?.toString() ?? '', uniqueRowId),
-            _buildEditableCell('socios', data, 'participacao', data['participacao']?.toString() ?? '', uniqueRowId),
-            DataCell(IconButton(
-              icon: const Icon(Icons.delete, color: Colors.red),
-              onPressed: () {
-                final socioId = data['id'].toString();
-                _deleteSubItem(socioId, 'socios'); // Chama a função genérica
-              },
-            )),
-          ]);
-                }).toList(),
-              ),
+        rows: List.generate(socios.length, (index) {
+          final data = socios[index] as Map<String, dynamic>;
+          final uniqueRowId = data['id'].toString();
+          final Color rowColor = index.isEven 
+              ? theme.colorScheme.surface.withOpacity(0.5) 
+              : Colors.transparent;
+
+          return DataRow(
+            color: MaterialStateProperty.all(rowColor),
+            cells: [
+              _buildEditableCell('socios', data, 'sequencia', data['sequencia']?.toString() ?? '', uniqueRowId),
+              _buildEditableCell('socios', data, 'socio_id', data['socio_id']?.toString() ?? '', uniqueRowId),
+              _buildEditableCell('socios', data, 'nome', data['nome']?.toString() ?? '', uniqueRowId),
+              _buildEditableCell('socios', data, 'cpf', data['cpf']?.toString() ?? '', uniqueRowId),
+              _buildEditableCell('socios', data, 'cargo_id', data['cargo_id']?.toString() ?? '', uniqueRowId),
+              _buildEditableCell('socios', data, 'participacao', data['participacao']?.toString() ?? '', uniqueRowId),
+              DataCell(IconButton(
+                icon: const Icon(Icons.delete, color: Colors.red),
+                onPressed: () => _deleteSubItem(uniqueRowId, 'socios'),
+              )),
+            ],
+          );
+        }),
+      ),
     );
   },
-)
+),
+// ▲▲▲ FIM DA SUBSTITUIÇÃO ▲▲▲
         
       ],
     );
   }
 
   Widget _buildAbaContainer({Key? key, required Color color, required String title, required List<Widget> children}) {
+    final theme = Theme.of(context);
     return Padding(
       key: key,
       padding: const EdgeInsets.fromLTRB(25, 0, 25, 25),
       child: Container(
         decoration: BoxDecoration(
-          color: color,
-          border: Border.all(color: Colors.black),
+          color: theme.colorScheme.surface.withOpacity(0.5), // Cor de fundo da aba
+          border: Border.all(color: theme.dividerColor), // Cor da borda
           borderRadius: BorderRadius.circular(10),
         ),
         child: SingleChildScrollView(
@@ -3535,7 +3850,7 @@ rows: telefones.map((telefoneData) {
                 ],
               ),
               const SizedBox(height: 20), // Espaçamento entre os campos de busca e o título da aba
-              Divider(thickness: 2, color: Colors.blue, height: 10, indent: 40, endIndent: 40),
+              Divider(thickness: 2, color: theme.colorScheme.primary, height: 10, indent: 40, endIndent: 40),
               ...children,
             ],
           ),
@@ -3593,7 +3908,7 @@ rows: telefones.map((telefoneData) {
         labelText: label,
         border: const OutlineInputBorder(),
         filled: true,
-        fillColor: Colors.white,
+        //fillColor: Colors.white,
       ),
       items: ['Sim', 'Não'].map<DropdownMenuItem<String>>((String val) {
         return DropdownMenuItem<String>(
@@ -3647,7 +3962,7 @@ rows: telefones.map((telefoneData) {
                 readOnly: !isResulNomeEditable, // Campo "..." editável APENAS se _nomeRefBancariaController.text for '0'
                 label: "...",onUserInteraction: () => _checkSubcollectionInputChanges(), 
                 validator: (v) => isResulNomeEditable && v!.isEmpty ? 'Campo obrigatório' : null, // Valida apenas se for editável
-                fillColor: isResulNomeEditable ? Colors.white : Colors.grey[300], // Cor de fundo para indicar editabilidade
+                //fillColor: isResulNomeEditable ? Colors.white : Colors.grey[300], // Cor de fundo para indicar editabilidade
               ),
             ),
             const SizedBox(width: 10),
@@ -3747,10 +4062,11 @@ rows: telefones.map((telefoneData) {
 
         // Tabela de dados
         
-        Builder(
+        // ▼▼▼ SUBSTITUA TODO O BLOCO 'Builder' POR ESTE ▼▼▼
+Builder(
   builder: (context) {
-    // CORREÇÃO: Lê da chave 'referencias_bancarias', que é a chave enviada pelo servidor
     final referencias = _rgData?['referencias_bancarias'] as List<dynamic>? ?? [];
+    final theme = Theme.of(context);
 
     if (_campoComum1Controller.text.trim().isEmpty && !_isLoading) {
       return const Center(child: Text("Busque por um CPF/CNPJ para ver as referências."));
@@ -3765,9 +4081,8 @@ rows: telefones.map((telefoneData) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: DataTable(
-        headingRowColor: WidgetStateProperty.all<Color>(Colors.blue[200]!),
-        dataRowColor: WidgetStateProperty.all<Color>(Colors.white),
-        border: TableBorder.all(color: Colors.black),
+        headingRowColor: WidgetStateProperty.all<Color>(theme.primaryColor.withOpacity(0.2)),
+        border: TableBorder.all(color: theme.dividerColor),
         columns: const [
           DataColumn(label: Text('Seq.')),
           DataColumn(label: Text('Nome')),
@@ -3779,31 +4094,36 @@ rows: telefones.map((telefoneData) {
           DataColumn(label: Text('Obs.')),
           DataColumn(label: Text('Ação')),
         ],
-        rows: referencias.map((refData) {
-          // CORREÇÃO: refData já é o mapa, não precisa de .data()
-          final data = refData as Map<String, dynamic>;
+        rows: List.generate(referencias.length, (index) {
+          final data = referencias[index] as Map<String, dynamic>;
           final uniqueRowId = data['id'].toString();
-          
-          return DataRow(cells: [
-            _buildEditableCell('referencias-bancarias', data, 'sequencia', data['sequencia']?.toString() ?? '', uniqueRowId),
-            _buildEditableCell('referencias-bancarias', data, 'nome_banco', data['nome_banco']?.toString() ?? '', uniqueRowId),
-            _buildEditableCell('referencias-bancarias', data, 'endereco', data['endereco']?.toString() ?? '', uniqueRowId),
-            _buildEditableCell('referencias-bancarias', data, 'cidade_id', data['cidade_id']?.toString() ?? '', uniqueRowId),
-            _buildEditableCell('referencias-bancarias', data, 'contato', data['contato']?.toString() ?? '', uniqueRowId),
-            _buildEditableCell('referencias-bancarias', data, 'telefone', data['telefone']?.toString() ?? '', uniqueRowId),
-            _buildEditableCell('referencias-bancarias', data, 'email', data['email']?.toString() ?? '', uniqueRowId),
-            _buildEditableCell('referencias-bancarias', data, 'observacao', data['observacao']?.toString() ?? '', uniqueRowId),
-            DataCell(IconButton(
-              icon: const Icon(Icons.delete, color: Colors.red),
-              // CORREÇÃO: Chama a função _deleteReferenciaBancaria corrigida
-              onPressed: () => _deleteReferenciaBancaria(uniqueRowId),
-            )),
-          ]);
-        }).toList(),
+          final Color rowColor = index.isEven 
+              ? theme.colorScheme.surface.withOpacity(0.5) 
+              : Colors.transparent;
+              
+          return DataRow(
+            color: MaterialStateProperty.all(rowColor),
+            cells: [
+              _buildEditableCell('referencias-bancarias', data, 'sequencia', data['sequencia']?.toString() ?? '', uniqueRowId),
+              _buildEditableCell('referencias-bancarias', data, 'nome_banco', data['nome_banco']?.toString() ?? '', uniqueRowId),
+              _buildEditableCell('referencias-bancarias', data, 'endereco', data['endereco']?.toString() ?? '', uniqueRowId),
+              _buildEditableCell('referencias-bancarias', data, 'cidade_id', data['cidade_id']?.toString() ?? '', uniqueRowId),
+              _buildEditableCell('referencias-bancarias', data, 'contato', data['contato']?.toString() ?? '', uniqueRowId),
+              _buildEditableCell('referencias-bancarias', data, 'telefone', data['telefone']?.toString() ?? '', uniqueRowId),
+              _buildEditableCell('referencias-bancarias', data, 'email', data['email']?.toString() ?? '', uniqueRowId),
+              _buildEditableCell('referencias-bancarias', data, 'observacao', data['observacao']?.toString() ?? '', uniqueRowId),
+              DataCell(IconButton(
+                icon: const Icon(Icons.delete, color: Colors.red),
+                onPressed: () => _deleteReferenciaBancaria(uniqueRowId),
+              )),
+            ],
+          );
+        }),
       ),
     );
   },
 ),
+// ▲▲▲ FIM DA SUBSTITUIÇÃO ▲▲▲
       ],
     );
   }
@@ -3854,7 +4174,7 @@ Widget _buildAbaReferenciaComercial({Key? key}) {
                 label: "...",
                 onUserInteraction: () => _checkSubcollectionInputChanges(),
                 validator: (v) => isResulNomeRefComercialEditable && v!.isEmpty ? 'Campo obrigatório' : null,
-                fillColor: isResulNomeRefComercialEditable ? Colors.white : Colors.grey[300],
+                //fillColor: isResulNomeRefComercialEditable ? Colors.white : Colors.grey[300],
               ),
             ),
             const SizedBox(width: 10),
@@ -3967,10 +4287,11 @@ Widget _buildAbaReferenciaComercial({Key? key}) {
         Divider(thickness: 2, color: Colors.blue, height: 10, indent: 40, endIndent: 40),
 
         
-        Builder(
+       // ▼▼▼ SUBSTITUA TODO O BLOCO 'Builder' POR ESTE ▼▼▼
+Builder(
   builder: (context) {
-    // CORREÇÃO: Lê da chave 'referencias_comerciais', que é a chave enviada pelo servidor
     final referencias = _rgData?['referencias_comerciais'] as List<dynamic>? ?? [];
+    final theme = Theme.of(context);
 
     if (_campoComum1Controller.text.trim().isEmpty && !_isLoading) {
       return const Center(child: Text("Busque por um CPF/CNPJ para ver as referências."));
@@ -3985,9 +4306,8 @@ Widget _buildAbaReferenciaComercial({Key? key}) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: DataTable(
-        headingRowColor: WidgetStateProperty.all<Color>(Colors.blue[200]!),
-        dataRowColor: WidgetStateProperty.all<Color>(Colors.white),
-        border: TableBorder.all(color: Colors.black),
+        headingRowColor: WidgetStateProperty.all<Color>(theme.primaryColor.withOpacity(0.2)),
+        border: TableBorder.all(color: theme.dividerColor),
         columns: const [
           DataColumn(label: Text('Seq.')),
           DataColumn(label: Text('Nome')),
@@ -3999,31 +4319,36 @@ Widget _buildAbaReferenciaComercial({Key? key}) {
           DataColumn(label: Text('Obs.')),
           DataColumn(label: Text('Ação')),
         ],
-        rows: referencias.map((refData) {
-          // CORREÇÃO: refData já é o mapa, não precisa de .data()
-          final data = refData as Map<String, dynamic>;
+        rows: List.generate(referencias.length, (index) {
+          final data = referencias[index] as Map<String, dynamic>;
           final uniqueRowId = data['id'].toString();
+          final Color rowColor = index.isEven 
+              ? theme.colorScheme.surface.withOpacity(0.5) 
+              : Colors.transparent;
 
-          return DataRow(cells: [
-            _buildEditableCell('referencias-comerciais', data, 'sequencia', data['sequencia']?.toString() ?? '', uniqueRowId),
-            _buildEditableCell('referencias-comerciais', data, 'nome_empresa', data['nome_empresa']?.toString() ?? '', uniqueRowId),
-            _buildEditableCell('referencias-comerciais', data, 'endereco', data['endereco']?.toString() ?? '', uniqueRowId),
-            _buildEditableCell('referencias-comerciais', data, 'cidade_id', data['cidade_id']?.toString() ?? '', uniqueRowId),
-            _buildEditableCell('referencias-comerciais', data, 'contato', data['contato']?.toString() ?? '', uniqueRowId),
-            _buildEditableCell('referencias-comerciais', data, 'telefone', data['telefone']?.toString() ?? '', uniqueRowId),
-            _buildEditableCell('referencias-comerciais', data, 'email', data['email']?.toString() ?? '', uniqueRowId),
-            _buildEditableCell('referencias-comerciais', data, 'observacao', data['observacao']?.toString() ?? '', uniqueRowId),
-            DataCell(IconButton(
-              icon: const Icon(Icons.delete, color: Colors.red),
-              // CORREÇÃO: Chama a função _deleteReferenciaComercial corrigida
-              onPressed: () => _deleteReferenciaComercial(uniqueRowId),
-            )),
-          ]);
-        }).toList(),
+          return DataRow(
+            color: MaterialStateProperty.all(rowColor),
+            cells: [
+              _buildEditableCell('referencias-comerciais', data, 'sequencia', data['sequencia']?.toString() ?? '', uniqueRowId),
+              _buildEditableCell('referencias-comerciais', data, 'nome_empresa', data['nome_empresa']?.toString() ?? '', uniqueRowId),
+              _buildEditableCell('referencias-comerciais', data, 'endereco', data['endereco']?.toString() ?? '', uniqueRowId),
+              _buildEditableCell('referencias-comerciais', data, 'cidade_id', data['cidade_id']?.toString() ?? '', uniqueRowId),
+              _buildEditableCell('referencias-comerciais', data, 'contato', data['contato']?.toString() ?? '', uniqueRowId),
+              _buildEditableCell('referencias-comerciais', data, 'telefone', data['telefone']?.toString() ?? '', uniqueRowId),
+              _buildEditableCell('referencias-comerciais', data, 'email', data['email']?.toString() ?? '', uniqueRowId),
+              _buildEditableCell('referencias-comerciais', data, 'observacao', data['observacao']?.toString() ?? '', uniqueRowId),
+              DataCell(IconButton(
+                icon: const Icon(Icons.delete, color: Colors.red),
+                onPressed: () => _deleteReferenciaComercial(uniqueRowId),
+              )),
+            ],
+          );
+        }),
       ),
     );
   },
 ),
+// ▲▲▲ FIM DA SUBSTITUIÇÃO ▲▲▲
       ],
     );
   }
@@ -4257,7 +4582,7 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
           focusNode: focusNode,
           label: "Cidade",
           readOnly: readOnly, // Passar o readOnly para o CustomInputField
-          fillColor: readOnly ? Colors.grey[300] : Colors.white,
+          //fillColor: readOnly ? Colors.grey[300] : Colors.white,
           onUserInteraction: onUserInteraction,
           onChanged: (value) {
             _cidadeCobrancaController.text = value;
@@ -4304,7 +4629,7 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
           focusNode: focusNode,
           label: "Cidade",
           readOnly: readOnly, // Passar o readOnly para o CustomInputField
-          fillColor: readOnly ? Colors.grey[300] : Colors.white,
+          //fillColor: readOnly ? Colors.grey[300] : Colors.white,
           onUserInteraction: onUserInteraction,
           onChanged: (value) {
             _cidadeCorrespondenciaController.text = value;
@@ -4352,7 +4677,7 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
           focusNode: focusNode,
           label: "Cidade",
           readOnly: readOnly, // Passar o readOnly para o CustomInputField
-          fillColor: readOnly ? Colors.grey[300] : Colors.white,
+          //fillColor: readOnly ? Colors.grey[300] : Colors.white,
           onUserInteraction: onUserInteraction,
           onChanged: (value) {
             _cidadeEntregaController.text = value;
@@ -4468,13 +4793,14 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
   }
 
   Widget _buildAbaNomeFantasia({Key? key}) {
+    final theme = Theme.of(context);
     return Padding(
       key: key,
       padding: const EdgeInsets.fromLTRB(25, 0, 25, 25),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.blue[100],
-          border: Border.all(color: Colors.black),
+          color: theme.colorScheme.surface.withOpacity(0.5), // Cor de fundo da aba
+          border: Border.all(color: theme.dividerColor), // Cor da borda
           borderRadius: BorderRadius.circular(10),
         ),
         child: SingleChildScrollView(
@@ -4606,9 +4932,10 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
   }
 
   Widget _buildAbaEnderecoCobranca({Key? key}) {
+    final theme = Theme.of(context);
     return _buildAbaContainer(
       key: key,
-      color: Colors.blue[100]!,
+      color: Colors.transparent,
       title: "Endereço cobrança",
       children: [
         Row(
@@ -4618,9 +4945,10 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                 padding: const EdgeInsets.only(left: 250, right: 250),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: const Color.fromARGB(255, 153, 205, 248),
+                     color: theme.primaryColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(5),
-                    border: Border.all(color: Colors.blue, width: 2.0),
+                    border: Border.all(color: theme.colorScheme.primary, width: 1.0),
+                  
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(6.0),
@@ -4629,8 +4957,8 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                       children: [
                         Column(
                           children: [
-                            const Text('Possui Endereço? :',
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
+                             Text('Possui Endereço? :',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
                           ],
                         ),
                         Expanded(
@@ -4658,9 +4986,9 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                                         }
                                       });
                                     },
-                                    activeColor: Colors.blue,
+                                    activeColor: theme.colorScheme.primary,
                                   ),
-                                  const Text('Sim', style: TextStyle(color: Colors.black)),
+                                   Text('Sim', style: TextStyle(color: theme.colorScheme.onSurface)),
                                 ],
                               ),
                               Row(
@@ -4683,9 +5011,9 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                                         }
                                       });
                                     },
-                                    activeColor: Colors.blue,
+                                    activeColor: theme.colorScheme.primary,
                                   ),
-                                  const Text('Não', style: TextStyle(color: Colors.black)),
+                                  Text('Não', style: TextStyle(color: theme.colorScheme.onSurface)),
                                 ],
                               ),
                             ],
@@ -4835,9 +5163,10 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
 
   // MODIFICAR MÉTODO: _buildAbaCorrespondencia
   Widget _buildAbaCorrespondencia({Key? key}) {
+    final theme = Theme.of(context);
     return _buildAbaContainer(
       key: key,
-      color: Colors.blue[100]!,
+      color: Colors.transparent,
       title: "Correspondência",
       children: [
         Row(
@@ -4847,9 +5176,9 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                 padding: const EdgeInsets.only(left: 250, right: 250),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: const Color.fromARGB(255, 153, 205, 248),
+                    color: theme.primaryColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(5),
-                    border: Border.all(color: Colors.blue, width: 2.0),
+                    border: Border.all(color: theme.colorScheme.primary, width: 1.0),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(6.0),
@@ -4858,8 +5187,9 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                       children: [
                         Column(
                           children: [
-                            const Text('Possui Endereço? :',
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
+                             Text('Possui Endereço? :',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
+                        // Checkbox Sim
                           ],
                         ),
                         Expanded(
@@ -4887,9 +5217,11 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                                         }
                                       });
                                     },
-                                    activeColor: Colors.blue,
+                                    activeColor: theme.colorScheme.primary,
+
                                   ),
-                                  const Text('Sim', style: TextStyle(color: Colors.black)),
+                                  Text('Sim', style: TextStyle(color: theme.colorScheme.onSurface)),
+                        // Checkbox Não
                                 ],
                               ),
                               Row(
@@ -4912,9 +5244,9 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                                         }
                                       });
                                     },
-                                    activeColor: Colors.blue,
+                                    activeColor: theme.colorScheme.primary,
                                   ),
-                                  const Text('Não', style: TextStyle(color: Colors.black)),
+                                  Text('Não', style: TextStyle(color: theme.colorScheme.onSurface)),
                                 ],
                               ),
                             ],
@@ -5067,9 +5399,10 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
   // MODIFICAR MÉTODO: _buildAbaEntrega
   // Aba Entrega (exemplo de como adicionar o botão Salvar)
   Widget _buildAbaEntrega({Key? key}) {
+    final theme = Theme.of(context); // Pega o tema
     return _buildAbaContainer(
       key: key,
-      color: Colors.blue[100]!,
+      color: Colors.transparent,
       title: "Entrega",
       children: [
         // ... (conteúdo existente da aba Entrega)
@@ -5080,9 +5413,10 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                 padding: const EdgeInsets.only(left: 250, right: 250),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: const Color.fromARGB(255, 153, 205, 248),
+                    // ▼▼▼ ALTERAÇÃO DE COR ▼▼▼
+                    color: theme.primaryColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(5),
-                    border: Border.all(color: Colors.blue, width: 2.0),
+                    border: Border.all(color: theme.colorScheme.primary, width: 1.0),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(6.0),
@@ -5091,8 +5425,9 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                       children: [
                         Column(
                           children: [
-                            const Text('Possui Endereço? :',
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
+                             Text('Possui Endereço? :',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
+                        // Chec
                           ],
                         ),
                         Expanded(
@@ -5120,9 +5455,9 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                                         }
                                       });
                                     },
-                                    activeColor: Colors.blue,
+                                    activeColor: theme.colorScheme.primary,
                                   ),
-                                  const Text('Sim', style: TextStyle(color: Colors.black)),
+                                  Text('Sim', style: TextStyle(color: theme.colorScheme.onSurface)),
                                 ],
                               ),
                               Row(
@@ -5145,9 +5480,9 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
                                         }
                                       });
                                     },
-                                    activeColor: Colors.blue,
+                                    activeColor: theme.colorScheme.primary,
                                   ),
-                                  const Text('Não', style: TextStyle(color: Colors.black)),
+                                  Text('Não', style: TextStyle(color: theme.colorScheme.onSurface)),
                                 ],
                               ),
                             ],
@@ -5400,10 +5735,13 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
 
         // Tabela de dados
         
-        Builder(
+        // Dentro de _buildAbaContatos()
+
+// ▼▼▼ SUBSTITUA TODO O BLOCO 'Builder' POR ESTE ▼▼▼
+Builder(
   builder: (context) {
-    // CORREÇÃO: Lê da chave 'contatos', que é a chave correta enviada pelo servidor
     final contatos = _rgData?['contatos'] as List<dynamic>? ?? [];
+    final theme = Theme.of(context);
 
     if (_campoComum1Controller.text.trim().isEmpty && !_isLoading) {
       return const Center(child: Text("Busque por um CPF/CNPJ para ver os contatos."));
@@ -5418,9 +5756,8 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: DataTable(
-        headingRowColor: WidgetStateProperty.all<Color>(Colors.blue[200]!),
-        dataRowColor: WidgetStateProperty.all<Color>(Colors.white),
-        border: TableBorder.all(color: Colors.black),
+        headingRowColor: WidgetStateProperty.all<Color>(theme.primaryColor.withOpacity(0.2)),
+        border: TableBorder.all(color: theme.dividerColor),
         columns: const [
           DataColumn(label: Text('Seq.')),
           DataColumn(label: Text('Nome')),
@@ -5430,37 +5767,38 @@ void _populateCidadeRefComercialFields(Map<String, dynamic> cidadeData) {
           DataColumn(label: Text('Obs.')),
           DataColumn(label: Text('Ação')),
         ],
-        rows: contatos.map((contatoData) {
-          // CORREÇÃO: contatoData já é o mapa, não precisa de .data()
-          final data = contatoData as Map<String, dynamic>;
+        rows: List.generate(contatos.length, (index) {
+          final data = contatos[index] as Map<String, dynamic>;
           final uniqueRowId = data['id'].toString();
-
-          // Lógica Bônus: Traduzir o ID do cargo para o nome do cargo
+          final Color rowColor = index.isEven 
+              ? theme.colorScheme.surface.withOpacity(0.5) 
+              : Colors.transparent;
+              
           final cargoId = data['cargo_id']?.toString() ?? '';
-          final cargoMap = _allCargos.firstWhere(
-            (c) => c['id']?.toString() == cargoId,
-            orElse: () => {},
-          );
+          final cargoMap = _allCargos.firstWhere((c) => c['id']?.toString() == cargoId, orElse: () => {});
           final cargoDisplayText = cargoMap['descricao']?.toString() ?? cargoId;
 
-          return DataRow(cells: [
-            _buildEditableCell('contatos', data, 'sequencia', data['sequencia']?.toString() ?? '', uniqueRowId),
-            _buildEditableCell('contatos', data, 'nome', data['nome']?.toString() ?? '', uniqueRowId),
-            _buildEditableCell('contatos', data, 'data_nascimento', data['data_nascimento']?.toString() ?? '', uniqueRowId),
-            _buildEditableCell('contatos', data, 'cargo_id', cargoDisplayText, uniqueRowId), // Mostra o nome do cargo
-            _buildEditableCell('contatos', data, 'email', data['email']?.toString() ?? '', uniqueRowId),
-            _buildEditableCell('contatos', data, 'observacao', data['observacao']?.toString() ?? '', uniqueRowId),
-            DataCell(IconButton(
-              icon: const Icon(Icons.delete, color: Colors.red),
-              // CORREÇÃO: Chama a função _deleteContato corrigida
-              onPressed: () => _deleteContato(uniqueRowId),
-            )),
-          ]);
-        }).toList(),
+          return DataRow(
+            color: MaterialStateProperty.all(rowColor),
+            cells: [
+              _buildEditableCell('contatos', data, 'sequencia', data['sequencia']?.toString() ?? '', uniqueRowId),
+              _buildEditableCell('contatos', data, 'nome', data['nome']?.toString() ?? '', uniqueRowId),
+              _buildEditableCell('contatos', data, 'data_nascimento', data['data_nascimento']?.toString() ?? '', uniqueRowId),
+              _buildEditableCell('contatos', data, 'cargo_id', cargoDisplayText, uniqueRowId),
+              _buildEditableCell('contatos', data, 'email', data['email']?.toString() ?? '', uniqueRowId),
+              _buildEditableCell('contatos', data, 'observacao', data['observacao']?.toString() ?? '', uniqueRowId),
+              DataCell(IconButton(
+                icon: const Icon(Icons.delete, color: Colors.red),
+                onPressed: () => _deleteContato(uniqueRowId),
+              )),
+            ],
+          );
+        }),
       ),
     );
   },
 ),
+// ▲▲▲ FIM DA SUBSTITUIÇÃO ▲▲▲
       ],
     );
   }
@@ -5480,6 +5818,8 @@ class CpfCnpjFormatter extends TextInputFormatter {
 
     }
   }
+
+  
 
   
 }

@@ -239,6 +239,7 @@ class _TabelaIBGEXCidadeState extends State<TabelaIBGEXCidade> {
 
   @override
   Widget _buildCentralInputArea() {
+    final theme = Theme.of(context); // Pega o tema
     return Form(
       key: _formKey,
       child: Padding(
@@ -246,10 +247,10 @@ class _TabelaIBGEXCidadeState extends State<TabelaIBGEXCidade> {
         child: Container(
           padding: const EdgeInsets.all(0.0),
           decoration: BoxDecoration(
-            color: Colors.blue[100],
-            border: Border.all(color: Colors.black, width: 1.0),
-            borderRadius: BorderRadius.circular(10.0),
-          ),
+             color: theme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(color: theme.colorScheme.primary, width: 1.0),
+                  ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -301,7 +302,7 @@ class _TabelaIBGEXCidadeState extends State<TabelaIBGEXCidade> {
                                 label: 'Estado',
                                 // Este campo deve ser readOnly para ser preenchido automaticamente
                                 readOnly: true, // Torna o campo somente leitura
-                                fillColor: Colors.grey[200], // Altera a cor de fundo para indicar que é somente leitura
+                                //fillColor: Colors.grey[200], // Altera a cor de fundo para indicar que é somente leitura
                                 inputFormatters: [
                                   // Remover inputFormatters de negação de números, pois o campo será somente leitura
                                   // ou manter se você quiser permitir digitação manual caso a lógica automática falhe,

@@ -19,8 +19,10 @@ class TopAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     return Container(
-      color: Colors.lightBlue,
+      color: theme.appBarTheme.backgroundColor, 
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -28,7 +30,7 @@ class TopAppBar extends StatelessWidget implements PreferredSizeWidget {
           Row(
             children: [
               IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.black),
+                icon: Icon(Icons.arrow_back, color: theme.appBarTheme.iconTheme?.color),
                 onPressed: onBackPressed, // Usa o callback passado
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
@@ -41,7 +43,7 @@ class TopAppBar extends StatelessWidget implements PreferredSizeWidget {
               const SizedBox(width: 8),
               Text(
                 userName, // Usa o parâmetro do nome de usuário
-                style: const TextStyle(fontSize: 16, color: Colors.black),
+                style: theme.appBarTheme.titleTextStyle,
               ),
             ],
           ),
@@ -51,7 +53,7 @@ class TopAppBar extends StatelessWidget implements PreferredSizeWidget {
               padding: const EdgeInsets.only(right: 20.0),
               child: Text(
                 currentDate, // Usa a data passada
-                style: const TextStyle(color: Colors.black),
+                style: theme.appBarTheme.titleTextStyle,
               ),
             ),
           ),

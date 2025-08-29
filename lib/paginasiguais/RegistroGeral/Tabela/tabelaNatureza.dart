@@ -517,17 +517,9 @@ class _NaturezaTelaState extends State<NaturezaTela> {
   }
 
   Widget _buildDesktopLayout(BoxConstraints constraints) {
-    return Column(
+    return Row(
       children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 20.0),
-          child: Text('Natureza', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-        ),
         Expanded(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
                 flex: 1,
                 child: AppDrawer(
                   parentMaxWidth: constraints.maxWidth,
@@ -536,20 +528,30 @@ class _NaturezaTelaState extends State<NaturezaTela> {
                   secondaryCompanyId: widget.secondaryCompanyId,
                 ),
               ),
-              Expanded(flex: 3, child: _buildCentralInputArea()),
+        Expanded(
+          flex: 3,
+          child: Column(
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(top: 10.0, bottom: 0.0),
+                child: Text('Natureza', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+              ),
+              Expanded(child: _buildCentralInputArea()),
             ],
           ),
         ),
+        
       ],
     );
   }
 
+  
   Widget _buildMobileLayout(BoxConstraints constraints) {
     return SingleChildScrollView(
       child: Column(
         children: [
           const Padding(
-            padding: EdgeInsets.symmetric(vertical: 15.0),
+            padding: EdgeInsets.symmetric(vertical: 1.0),
             child: Text('Natureza', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
           ),
           AppDrawer(
@@ -568,6 +570,7 @@ class _NaturezaTelaState extends State<NaturezaTela> {
 
 
   Widget _buildCentralInputArea() {
+    final theme = Theme.of(context); // Pega o tema
     return Form(
       key: _formKey,
       child: Padding(
@@ -575,9 +578,9 @@ class _NaturezaTelaState extends State<NaturezaTela> {
         child: Container(
           padding: const EdgeInsets.all(0.0),
           decoration: BoxDecoration(
-            color: Colors.blue[100],
-            border: Border.all(color: Colors.black, width: 1.0),
-            borderRadius: BorderRadius.circular(10.0),
+            color: theme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(color: theme.colorScheme.primary, width: 1.0),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -634,10 +637,10 @@ class _NaturezaTelaState extends State<NaturezaTela> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      const Center(
+                                       Center(
                                         child: Text(
                                           'Característica',
-                                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black),
+                                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: theme.colorScheme.onSurface)
                                         ),
                                       ),
                                       const SizedBox(height: 3),
@@ -662,7 +665,7 @@ class _NaturezaTelaState extends State<NaturezaTela> {
                                                       label: 'Característica ${caracteristicaIndex + 1}',
                                                       maxLength: 30,
                                                       readOnly: !_caracteristicasEnabled,
-                                                      fillColor: _caracteristicasEnabled ? Colors.white : Colors.grey[200],
+                                                      //fillColor: _caracteristicasEnabled ? Colors.white : Colors.grey[200],
                                                       suffixText: '${controller.text.length}/30',
                                                       onTap: _caracteristicasEnabled ? () => _onCaracteristicaSelected(caracteristicaIndex) : null,
                                                     ),
@@ -671,7 +674,7 @@ class _NaturezaTelaState extends State<NaturezaTela> {
                                                         right: 0,
                                                         top: 0,
                                                         child: IconButton(
-                                                          icon: const Icon(Icons.remove, color: Colors.black, size: 24),
+                                                          icon:  Icon(Icons.remove, color: theme.colorScheme.onSurface, size: 24),
                                                           onPressed: () => _removeCaracteristicaField(caracteristicaIndex),
                                                           tooltip: 'Remover Característica',
                                                         ),
@@ -691,12 +694,12 @@ class _NaturezaTelaState extends State<NaturezaTela> {
                                                         decoration: BoxDecoration(
                                                           color: Colors.transparent,
                                                           borderRadius: BorderRadius.circular(5),
-                                                          border: Border.all(color: Colors.black, width: 3.0),
+                                                          border: Border.all(color: theme.colorScheme.onSurface, width: 3.0),
                                                         ),
                                                         child: IconButton(
                                                           iconSize: 28,
                                                           padding: EdgeInsets.zero,
-                                                          icon: const Icon(Icons.add, color: Colors.black),
+                                                          icon:  Icon(Icons.add, color: theme.colorScheme.onSurface),
                                                           onPressed: _addCaracteristicaField,
                                                         ),
                                                       ),
@@ -721,7 +724,7 @@ class _NaturezaTelaState extends State<NaturezaTela> {
                                         Center(
                                           child: Text(
                                             'Sequência "${_caracteristicaControllers[_selectedCaracteristicaIndex!].text.isEmpty ? 'este País' : _caracteristicaControllers[_selectedCaracteristicaIndex!].text}"',
-                                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black),
+                                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: theme.colorScheme.onSurface),
                                             textAlign: TextAlign.center,
                                           ),
                                         ),
@@ -746,7 +749,7 @@ class _NaturezaTelaState extends State<NaturezaTela> {
                                                       label: 'Sequência ${sequenciaIndex + 1}',
                                                       maxLength: 30,
                                                       readOnly: false,
-                                                      fillColor: Colors.white,
+                                                      //fillColor: Colors.white,
                                                       suffixText: '${seqController.text.length}/30',
                                                     ),
                                                     if ((_sequenciaControllersPorCaracteristica[_selectedCaracteristicaIndex!] ?? []).length > 1)
@@ -754,7 +757,7 @@ class _NaturezaTelaState extends State<NaturezaTela> {
                                                         right: 0,
                                                         top: 0,
                                                         child: IconButton(
-                                                          icon: const Icon(Icons.remove, color: Colors.black, size: 24),
+                                                          icon:  Icon(Icons.remove, color: theme.colorScheme.onSurface, size: 24),
                                                           onPressed: () => _removeSequenciaField(caracteristicaIndex: _selectedCaracteristicaIndex!, sequenciaIndex: sequenciaIndex),
                                                           tooltip: 'Remover Sequência',
                                                         ),
@@ -773,12 +776,12 @@ class _NaturezaTelaState extends State<NaturezaTela> {
                                                         decoration: BoxDecoration(
                                                           color: Colors.transparent,
                                                           borderRadius: BorderRadius.circular(5),
-                                                          border: Border.all(color: Colors.black, width: 3.0),
+                                                          border: Border.all(color: theme.colorScheme.onSurface, width: 3.0),
                                                         ),
                                                         child: IconButton(
                                                           iconSize: 28,
                                                           padding: EdgeInsets.zero,
-                                                          icon: const Icon(Icons.add, color: Colors.black),
+                                                          icon:  Icon(Icons.add, color: theme.colorScheme.onSurface),
                                                           onPressed: () => _addSequenciaFieldToSpecificCaracteristica(caracteristicaIndex: _selectedCaracteristicaIndex!),
                                                         ),
                                                       ),

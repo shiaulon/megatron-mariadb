@@ -20,39 +20,51 @@ class TelaBase extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ▼▼▼ CAPTURANDO AS CORES DO TEMA ATIVO ▼▼▼
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    // ▼▼▼ 1. VERIFICA QUAL TEMA ESTÁ ATIVO ▼▼▼
+    final isDarkMode = theme.brightness == Brightness.dark;
+
+    // ▼▼▼ 2. ESCOLHE A IMAGEM CORRETA COM BASE NO TEMA ▼▼▼
+    final String backgroundImage = isDarkMode 
+      ? "assets/images/BG_dark.png" // <-- Sua nova imagem para o modo escuro
+      : "assets/images/BG.png"; 
+
     return Scaffold(
-      
-      backgroundColor: const Color(0xFFE6F4FB),
+      // ANTES: backgroundColor: const Color(0xFFE6F4FB),
+      // DEPOIS: Usa a cor de fundo definida no tema
+      backgroundColor: theme.scaffoldBackgroundColor,
       resizeToAvoidBottomInset: false,
       body: Container(
-        decoration: const BoxDecoration(
+        // A imagem de fundo pode ser mantida ou você pode ter uma diferente para o modo escuro
+        decoration:  BoxDecoration(
           image: DecorationImage(
-            image: AssetImage("assets/images/BG.png"),
+            image: AssetImage(backgroundImage),
             fit: BoxFit.cover,
           ),
         ),
         child: body,
       ),
       bottomNavigationBar: Container(
-        color: Colors.blue,
+        // ANTES: color: Colors.blue,
+        // DEPOIS: Usa a cor primária do tema
+        color: theme.appBarTheme.backgroundColor,
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children:  [
-            Row(
-              children: [
-                
-                SizedBox(width: 4),
-                InkWell(
+          children: [
+            // Link do site
+            InkWell(
               onTap: () => _launchURL('https://megatronrp.com.br'),
-              child: const Row(
+              child: Row(
                 children: [
-                  Icon(Icons.language, size: 16, color: Colors.black),
-                  SizedBox(width: 4),
+                  // Ícones e textos agora usam a cor 'onPrimary' que contrasta com a cor primária
+                  Icon(Icons.language, size: 16, color: theme.appBarTheme.titleTextStyle?.color),
+                  const SizedBox(width: 4),
                   Text(
                     'megatronrp.com.br',
-                    style: TextStyle(
-                      color: Colors.black,
+                    style: theme.appBarTheme.titleTextStyle?.copyWith(
                       fontSize: 12,
                       decoration: TextDecoration.underline,
                     ),
@@ -60,49 +72,47 @@ class TelaBase extends StatelessWidget {
                 ],
               ),
             ),
-              ],
-            ),
+            // Telefones
             Row(
               children: [
-                Icon(Icons.phone, size: 16, color: Colors.black),
-                SizedBox(width: 4),
+                Icon(Icons.phone, size: 16, color: theme.appBarTheme.titleTextStyle?.color),
+                const SizedBox(width: 4),
                 Text(
                   '(16) 3917-1618',
-                  style: TextStyle(color: Colors.black, fontSize: 12),
-                  selectionColor: Colors.black,
+                  style: theme.appBarTheme.titleTextStyle?.copyWith(fontSize: 12),
                 ),
-                SizedBox(width: 45,),
-                
-                SizedBox(width: 4),
+                const SizedBox(width: 45),
                 InkWell(
-              onTap: () => _launchURL('https://wa.me/5516997611134'),
-              child: const Row(
-                children: [
-                  CircleAvatar(
-                  radius: 10,
-                  backgroundColor: Colors.green,
-                  child: Icon(Icons.phone_in_talk, size: 16, color: Colors.black)),
-                  SizedBox(width: 4),
-                  Text(
-                    'SUPORTE (16) 99761-1134',
-                    style: TextStyle(
-                      color: Colors.black,
-                      fontSize: 12,
-                      decoration: TextDecoration.underline,
-                    ),
+                  onTap: () => _launchURL('https://wa.me/5516997611134'),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 10,
+                        backgroundColor: Colors.green,
+                        // ▼▼▼ CORRIGIDO ▼▼▼
+                        child: Icon(Icons.phone_in_talk, size: 16, color: Colors.white), // Mantido branco para contraste com o verde
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'SUPORTE (16) 99761-1134',
+                        style: theme.appBarTheme.titleTextStyle?.copyWith(
+                          fontSize: 12,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
+                ),
               ],
             ),
+            // Direitos Reservados
             Row(
               children: [
-                Icon(Icons.info, size: 16, color: Colors.black),
-                SizedBox(width: 4),
+                Icon(Icons.info, size: 16, color: theme.appBarTheme.titleTextStyle?.color),
+                const SizedBox(width: 4),
                 Text(
                   'Direitos reservados (Versão 1.0.0)',
-                  style: TextStyle(color: Colors.black, fontSize: 12),
+                  style: theme.appBarTheme.titleTextStyle?.copyWith(fontSize: 12),
                 ),
               ],
             ),

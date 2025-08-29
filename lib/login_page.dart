@@ -111,6 +111,11 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    // ▼▼▼ CAPTURA O TEMA ATIVO AQUI ▼▼▼
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final inputTheme = theme.inputDecorationTheme;
+
     return TelaBase(
       body: Center(
         child: SingleChildScrollView(
@@ -123,34 +128,49 @@ class _LoginPageState extends State<LoginPage> {
               ),
               SizedBox(
                 width: 300,
-                height: 35,
+                height: 45, // Um pouco mais de altura para melhor visualização
                 child: TextField(
                   onSubmitted: (_) => _signIn(),
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(
+                  style: TextStyle(color: colorScheme.onSurface), // Cor do texto digitado
+                  decoration: InputDecoration(
                     labelText: 'USUÁRIO (E-MAIL)',
-                    border: OutlineInputBorder(),
+                    labelStyle: inputTheme.labelStyle,
+                    border: inputTheme.border,
+                    enabledBorder: inputTheme.enabledBorder,
+                    focusedBorder: inputTheme.focusedBorder,
                     filled: true,
-                    fillColor: Colors.white,
+                    // Usa a cor de fundo do tema
+                    fillColor: inputTheme.fillColor, 
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                   ),
                 ),
               ),
               const SizedBox(height: 10),
               SizedBox(
                 width: 300,
-                height: 35,
+                height: 45,
                 child: TextField(
                   onSubmitted: (_) => _signIn(),
                   controller: _passwordController,
                   obscureText: _obscurePassword,
+                  style: TextStyle(color: colorScheme.onSurface), // Cor do texto digitado
                   decoration: InputDecoration(
                     labelText: 'SENHA',
-                    border: const OutlineInputBorder(),
+                    labelStyle: inputTheme.labelStyle,
+                    border: inputTheme.border,
+                    enabledBorder: inputTheme.enabledBorder,
+                    focusedBorder: inputTheme.focusedBorder,
                     filled: true,
-                    fillColor: Colors.white,
+                    fillColor: inputTheme.fillColor,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                     suffixIcon: IconButton(
-                      icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility, size: 18),
+                      icon: Icon(
+                        _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                        size: 18,
+                        color: colorScheme.onSurface.withOpacity(0.6), // Cor do ícone
+                      ),
                       onPressed: () {
                         setState(() {
                           _obscurePassword = !_obscurePassword;
@@ -166,7 +186,8 @@ class _LoginPageState extends State<LoginPage> {
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
                   child: Text(
                     _errorMessage!,
-                    style: const TextStyle(color: Colors.red, fontSize: 14),
+                    // Usa a cor de erro do tema
+                    style: TextStyle(color: colorScheme.error, fontSize: 14), 
                     textAlign: TextAlign.center,
                   ),
                 ),
@@ -179,15 +200,17 @@ class _LoginPageState extends State<LoginPage> {
                     : OutlinedButton(
                         onPressed: _signIn,
                         style: OutlinedButton.styleFrom(
-                          backgroundColor: Colors.blue,
+                          // Usa as cores do tema para o botão
+                          backgroundColor: colorScheme.primary,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                          side: BorderSide(color: colorScheme.primary)
                         ),
-                        child: const Text('ENTRAR', style: TextStyle(color: Colors.black)),
+                        child: Text('ENTRAR', style: TextStyle(color: colorScheme.onPrimary)),
                       ),
               ),
               TextButton(
                 onPressed: _showAlert,
-                child: const Text('Esqueceu sua senha?', style: TextStyle(color: Colors.black)),
+                child: Text('Esqueceu sua senha?', style: TextStyle(color: colorScheme.onSurface)),
               ),
             ],
           ),

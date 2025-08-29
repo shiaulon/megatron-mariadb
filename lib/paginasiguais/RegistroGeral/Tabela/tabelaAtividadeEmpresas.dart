@@ -222,6 +222,7 @@ Navigator.pushReplacement(
   }
 
   Widget _buildCentralInputArea() {
+    final theme = Theme.of(context); 
     return Form(
       key: _formKey,
       child: Padding(
@@ -229,10 +230,10 @@ Navigator.pushReplacement(
         child: Container(
           padding: const EdgeInsets.all(0.0), // Remove o padding externo
           decoration: BoxDecoration(
-            color: Colors.blue[100],
-            border: Border.all(color: Colors.black, width: 1.0),
-            borderRadius: BorderRadius.circular(10.0),
-          ),
+            color: theme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(color: theme.colorScheme.primary, width: 1.0),
+                  ),
           // UM ÚNICO SingleChildScrollView para toda a área de conteúdo que rola
           child: Column( // A coluna que contém todo o conteúdo rolante e fixo
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -332,10 +333,10 @@ Navigator.pushReplacement(
                                             padding: const EdgeInsets.symmetric(horizontal: 20.0),
                                             child: Container(
                                               decoration: BoxDecoration(
-                                                color: const Color.fromARGB(255, 153, 205, 248), // Cor de fundo do container de integração
-                                                borderRadius: BorderRadius.circular(5),
-                                                border: Border.all(color: Colors.blue, width: 2.0),
-                                              ),
+                                                color: theme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(color: theme.colorScheme.primary, width: 1.0),
+                  ),
                                               child: Padding(
                                                 padding: const EdgeInsets.all(6.0), // Padding interno para o conteúdo
                                                 child: Row( // <-- Voltando para Row para manter o texto 'Integração' ao lado
@@ -343,8 +344,8 @@ Navigator.pushReplacement(
                                                   children: [
                                                     Column(
                                                       children: [
-                                                        const Text('Tem :', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
-                                                        const Text('ISSQN :', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
+                                                         Text('Tem :', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
+                                                         Text('ISSQN :', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
                                                       ],
                                                     ),
                                                     // Removido SizedBox(width: 16) para compactar mais, você pode ajustar
@@ -366,7 +367,7 @@ Navigator.pushReplacement(
                                                           },
                                                       activeColor: Colors.blue,
                                                     ),
-                                                    const Text('Sim', style: TextStyle(color: Colors.black)),
+                                                     Text('Sim', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
                                                   ],
                                                 ),
                                                 Row(
@@ -382,7 +383,7 @@ Navigator.pushReplacement(
                                                           },
                                                       activeColor: Colors.blue,
                                                     ),
-                                                    const Text('Não', style: TextStyle(color: Colors.black)),
+                                                     Text('Não', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
                                                   ],
                                                 ),]
                                                       ),
@@ -407,10 +408,10 @@ Navigator.pushReplacement(
                                             padding: const EdgeInsets.symmetric(horizontal: 20.0,),
                                             child: Container(
                                               decoration: BoxDecoration(
-                                                color: const Color.fromARGB(255, 153, 205, 248), // Cor de fundo do container de integração
-                                                borderRadius: BorderRadius.circular(5),
-                                                border: Border.all(color: Colors.blue, width: 2.0),
-                                              ),
+                                                color: theme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(color: theme.colorScheme.primary, width: 1.0),
+                  ),
                                               child: Padding(
                                                 padding: const EdgeInsets.all(6.0), // Padding interno para o conteúdo
                                                 child: Row( // <-- Voltando para Row para manter o texto 'Integração' ao lado
@@ -418,8 +419,8 @@ Navigator.pushReplacement(
                                                   children: [
                                                     Column(
                                                       children: [
-                                                        const Text('Tem :', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
-                                                        const Text('INSS :', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
+                                                         Text('Tem :', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
+                                                         Text('INSS :', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
                                                       ],
                                                     ),
                                                     // Removido SizedBox(width: 16) para compactar mais, você pode ajustar
@@ -441,7 +442,7 @@ Navigator.pushReplacement(
                                                           },
                                                       activeColor: Colors.blue,
                                                     ),
-                                                    const Text('Sim', style: TextStyle(color: Colors.black)),
+                                                     Text('Sim', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
                                                   ],
                                                 ),
                                                 Row(
@@ -457,7 +458,7 @@ Navigator.pushReplacement(
                                                           },
                                                       activeColor: Colors.blue,
                                                     ),
-                                                    const Text('Não', style: TextStyle(color: Colors.black)),
+                                                     Text('Não', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
                                                   ],
                                                 ),]
                                                       ),
@@ -655,7 +656,7 @@ Navigator.pushReplacement(
                                                 padding: const EdgeInsets.only(right: 20, left: 20),
                                                 child: Text(
                                                   'Alíquota Diferente',
-                                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black),
+                                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: theme.colorScheme.onSurface),
                                                 ),
                                               ),
                                             ),
@@ -664,7 +665,7 @@ Navigator.pushReplacement(
                                                 padding: const EdgeInsets.only(right: 20, left: 20),
                                                 child: Text(
                                                   'Alíquota Diferente',
-                                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black),
+                                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: theme.colorScheme.onSurface),
                                                 ),
                                               ),
                                             ),
@@ -703,7 +704,7 @@ Navigator.pushReplacement(
                                               
                                               readOnly: !_aliqDifPis!, // Aplica a propriedade readOnly
                                         // AQUI ESTÁ A LÓGICA CONDICIONAL: Branco se habilitado, Cinza se desabilitado
-                                        fillColor: !_aliqDifPis! ? const Color.fromARGB(255, 168, 155, 155) : Colors.white, 
+                                        //fillColor: !_aliqDifPis! ? const Color.fromARGB(255, 168, 155, 155) : Colors.white, 
                                               validator: (value){
                                                 if (value == null || value.isEmpty) {
                                                   return null;
@@ -749,7 +750,7 @@ Navigator.pushReplacement(
                                                   
                                                   readOnly: !_aliqRetenPis!, // Aplica a propriedade readOnly
                                                   // AQUI ESTÁ A LÓGICA CONDICIONAL: Branco se habilitado, Cinza se desabilitado
-                                                  fillColor: !_aliqRetenPis! ? const Color.fromARGB(255, 168, 155, 155) : Colors.white, 
+                                                  //fillColor: !_aliqRetenPis! ? const Color.fromARGB(255, 168, 155, 155) : Colors.white, 
                                                   validator: (value){
                                                     if (value == null || value.isEmpty) {
                                                       return null;
@@ -800,7 +801,7 @@ Navigator.pushReplacement(
                                                   
                                                   readOnly: !_aliqDifCofins!, // Aplica a propriedade readOnly
                                                   // AQUI ESTÁ A LÓGICA CONDICIONAL: Branco se habilitado, Cinza se desabilitado
-                                                  fillColor: !_aliqDifCofins! ? const Color.fromARGB(255, 168, 155, 155) : Colors.white, 
+                                                  //fillColor: !_aliqDifCofins! ? const Color.fromARGB(255, 168, 155, 155) : Colors.white, 
                                                   validator: (value){
                                                     if (value == null || value.isEmpty) {
                                                       return null;
@@ -846,7 +847,7 @@ Navigator.pushReplacement(
                                                   
                                                   readOnly: !_aliqRetenCofins!, // Aplica a propriedade readOnly
                                                   // AQUI ESTÁ A LÓGICA CONDICIONAL: Branco se habilitado, Cinza se desabilitado
-                                                  fillColor: !_aliqRetenCofins! ? const Color.fromARGB(255, 168, 155, 155) : Colors.white, 
+                                                  //fillColor: !_aliqRetenCofins! ? const Color.fromARGB(255, 168, 155, 155) : Colors.white, 
                                                   validator: (value){
                                                     if (value == null || value.isEmpty) {
                                                       return null;
@@ -874,10 +875,10 @@ Navigator.pushReplacement(
                                                 padding: const EdgeInsets.only(left: 270, right: 20),
                                                 child: Container(
                                                   decoration: BoxDecoration(
-                                                    color: const Color.fromARGB(255, 153, 205, 248), // Cor de fundo do container de integração
-                                                    borderRadius: BorderRadius.circular(5),
-                                                    border: Border.all(color: Colors.blue, width: 2.0),
-                                                  ),
+                                                    color: theme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(color: theme.colorScheme.primary, width: 1.0),
+                  ),
                                                   child: Padding(
                                                     padding: const EdgeInsets.all(6.0), // Padding interno para o conteúdo
                                                     child: Row( // <-- Voltando para Row para manter o texto 'Integração' ao lado
@@ -885,8 +886,8 @@ Navigator.pushReplacement(
                                                       children: [
                                                         Column(
                                                           children: [
-                                                            const Text('Acumula :', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
-                                                            const Text('IPI :', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
+                                                             Text('Acumula :', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
+                                                             Text('IPI :', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
                                                           ],
                                                         ),
                                                         // Removido SizedBox(width: 16) para compactar mais, você pode ajustar
@@ -909,7 +910,7 @@ Navigator.pushReplacement(
                                                           },
                                                           activeColor: Colors.blue,
                                                         ),
-                                                        const Text('Sim', style: TextStyle(color: Colors.black)),
+                                                         Text('Sim', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
                                                       ],
                                                     ),
                                                     Row(
@@ -925,7 +926,7 @@ Navigator.pushReplacement(
                                                           },
                                                           activeColor: Colors.blue,
                                                         ),
-                                                        const Text('Não', style: TextStyle(color: Colors.black)),
+                                                         Text('Não', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
                                                       ],
                                                     ),]
                                                           ),
@@ -957,10 +958,10 @@ Navigator.pushReplacement(
                                                 padding: const EdgeInsets.only( right: 20),
                                                 child: Container(
                                                   decoration: BoxDecoration(
-                                                    color: const Color.fromARGB(255, 153, 205, 248), // Cor de fundo do container de integração
-                                                    borderRadius: BorderRadius.circular(5),
-                                                    border: Border.all(color: Colors.blue, width: 2.0),
-                                                  ),
+color: theme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(color: theme.colorScheme.primary, width: 1.0),
+                  ),
                                                   child: Padding(
                                                     padding: const EdgeInsets.all(6.0), // Padding interno para o conteúdo
                                                     child: Row( // <-- Voltando para Row para manter o texto 'Integração' ao lado
@@ -968,8 +969,8 @@ Navigator.pushReplacement(
                                                       children: [
                                                         Column(
                                                           children: [
-                                                            const Text('Desoneração :', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
-                                                            const Text('ICMS :', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
+                                                             Text('Desoneração :', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
+                                                             Text('ICMS :', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
                                                           ],
                                                         ),
                                                         // Removido SizedBox(width: 16) para compactar mais, você pode ajustar
@@ -991,7 +992,7 @@ Navigator.pushReplacement(
                                                           },
                                                           activeColor: Colors.blue,
                                                         ),
-                                                        const Text('Sim', style: TextStyle(color: Colors.black)),
+                                                         Text('Sim', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
                                                       ],
                                                     ),
                                                     Row(
@@ -1007,7 +1008,7 @@ Navigator.pushReplacement(
                                                           },
                                                           activeColor: Colors.blue,
                                                         ),
-                                                        const Text('Não', style: TextStyle(color: Colors.black)),
+                                                         Text('Não', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
                                                       ],
                                                     ),]
                                                           ),
@@ -1042,7 +1043,7 @@ Navigator.pushReplacement(
                                               
                                               readOnly: !_motivoDes, // Aplica a propriedade readOnly
                                         // AQUI ESTÁ A LÓGICA CONDICIONAL: Branco se habilitado, Cinza se desabilitado
-                                        fillColor: !_motivoDes ? const Color.fromARGB(255, 168, 155, 155) : Colors.white, 
+                                        //fillColor: !_motivoDes ? const Color.fromARGB(255, 168, 155, 155) : Colors.white, 
                                               validator: (value){
                                                 if (value == null || value.isEmpty) {
                                                   return null;

@@ -201,6 +201,7 @@ class _TabelaCondicaoPagamentoState extends State<TabelaCondicaoPagamento> {
 
   @override
   Widget _buildCentralInputArea() {
+    final theme = Theme.of(context); // Pega o tema
     return Form(
       key: _formKey,
       child: Padding(
@@ -208,10 +209,10 @@ class _TabelaCondicaoPagamentoState extends State<TabelaCondicaoPagamento> {
         child: Container(
           padding: const EdgeInsets.all(0.0),
           decoration: BoxDecoration(
-            color: Colors.blue[100],
-            border: Border.all(color: Colors.black, width: 1.0),
-            borderRadius: BorderRadius.circular(10.0),
-          ),
+            color: theme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(color: theme.colorScheme.primary, width: 1.0),
+                  ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -284,16 +285,16 @@ class _TabelaCondicaoPagamentoState extends State<TabelaCondicaoPagamento> {
                           // Adicione esta linha para que o Container ocupe a largura total do seu pai
                           width: double.infinity,
                           decoration: BoxDecoration(
-                            color: const Color.fromARGB(255, 153, 205, 248),
-                            borderRadius: BorderRadius.circular(5),
-                            border: Border.all(color: Colors.blue, width: 2.0),
-                          ),
+                            color: theme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(color: theme.colorScheme.primary, width: 1.0),
+                  ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Padding(
+                               Padding(
                                 padding: EdgeInsets.only(left: 8, right: 8),
-                                child: Center(child: Text('Nro. Dias :', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black))),
+                                child: Center(child: Text('Nro. Dias :', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface))),
                               ),
                               Padding(
                                 padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 0.0),
@@ -333,7 +334,7 @@ class _TabelaCondicaoPagamentoState extends State<TabelaCondicaoPagamento> {
                                                   
                                                   child: IconButton(
                                                     padding: EdgeInsets.only(top: 8),
-                                                    icon: const Icon(Icons.remove, color: Colors.black, size: 24),
+                                                    icon:  Icon(Icons.remove, color: theme.colorScheme.onSurface, size: 24),
                                                     onPressed: () => _removeNroDiasField(index),
                                                     tooltip: 'Remover Campo',
                                                   ),
@@ -350,12 +351,12 @@ class _TabelaCondicaoPagamentoState extends State<TabelaCondicaoPagamento> {
                                         decoration: BoxDecoration(
                                           color: Colors.transparent,
                                           borderRadius: BorderRadius.circular(5),
-                                          border: Border.all(color: Colors.black, width: 3.0),
+                                          border: Border.all(color: theme.colorScheme.onSurface,),
                                         ),
                                         child: IconButton(
                                           iconSize: 18,
                                           padding: EdgeInsets.zero,
-                                          icon: const Icon(Icons.add, color: Colors.black),
+                                          icon:  Icon(Icons.add, color: theme.colorScheme.onSurface,),
                                           onPressed: _addNroDiasField,
                                           tooltip: 'Adicionar novo campo de dia',
                                         ),
@@ -372,15 +373,15 @@ class _TabelaCondicaoPagamentoState extends State<TabelaCondicaoPagamento> {
                         padding: const EdgeInsets.only(left: 25, right: 25),
                         child: Container(
                           decoration: BoxDecoration(
-                                              color: const Color.fromARGB(255, 153, 205, 248), // Cor de fundo do container de integração
-                                              borderRadius: BorderRadius.circular(5),
-                                              border: Border.all(color: Colors.blue, width: 2.0),
-                                            ),
+                                              color: theme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(color: theme.colorScheme.primary, width: 1.0),
+                  ),
                                             child: Column(
                                               children: [
                                                 Row(mainAxisAlignment: MainAxisAlignment.center,
                                                     children: [
-                                                      const Text('Opção :', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
+                                                       Text('Opção :', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
 
                                                       
 
@@ -391,7 +392,7 @@ class _TabelaCondicaoPagamentoState extends State<TabelaCondicaoPagamento> {
                                                     children: [
                                                       Expanded(
                                                         child: RadioListTile<String>(
-                                                          title: const Text('Dias Líquido', style: TextStyle(color: Colors.black)),
+                                                          title:  Text('Dias Líquido', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
                                                           value: 'Dias Líquido',
                                                           groupValue: _selectedOpcaoOption,
                                                           contentPadding: EdgeInsets.zero, // Remove todo o padding interno
@@ -406,7 +407,7 @@ class _TabelaCondicaoPagamentoState extends State<TabelaCondicaoPagamento> {
                                                       ),
                                                       Expanded(
                                                         child: RadioListTile<String>(
-                                                          title: const Text('Dias Faturamento', style: TextStyle(color: Colors.black)),
+                                                          title:  Text('Dias Faturamento', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
                                                           value: 'Dias Faturamento',
                                                           groupValue: _selectedOpcaoOption,
                                                           contentPadding: EdgeInsets.zero, // Remove todo o padding interno
@@ -421,7 +422,7 @@ class _TabelaCondicaoPagamentoState extends State<TabelaCondicaoPagamento> {
                                                       ),
                                                       Expanded(
                                                         child: RadioListTile<String>(
-                                                          title: const Text('Dias Fora Semana', style: TextStyle(color: Colors.black)),
+                                                          title:  Text('Dias Fora Semana', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
                                                           value: 'Dias Fora Semana',
                                                           groupValue: _selectedOpcaoOption,
                                                           contentPadding: EdgeInsets.zero,
@@ -435,7 +436,7 @@ class _TabelaCondicaoPagamentoState extends State<TabelaCondicaoPagamento> {
                                                       ),
                                                       Expanded(
                                                         child: RadioListTile<String>(
-                                                          title: const Text('Dias Fora Quinzena', style: TextStyle(color: Colors.black)),
+                                                          title:  Text('Dias Fora Quinzena', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
                                                           value: 'Dias Fora Quinzena',
                                                           groupValue: _selectedOpcaoOption,
                                                           contentPadding: EdgeInsets.zero,
@@ -449,7 +450,7 @@ class _TabelaCondicaoPagamentoState extends State<TabelaCondicaoPagamento> {
                                                       ),
                                                       Expanded(
                                                         child: RadioListTile<String>(
-                                                          title: const Text('Dias Fora Mês', style: TextStyle(color: Colors.black)),
+                                                          title:  Text('Dias Fora Mês', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
                                                           value: 'Dias Fora Mês',
                                                           groupValue: _selectedOpcaoOption,
                                                           contentPadding: EdgeInsets.zero,
@@ -463,7 +464,7 @@ class _TabelaCondicaoPagamentoState extends State<TabelaCondicaoPagamento> {
                                                       ),
                                                       Expanded(
                                                         child: RadioListTile<String>(
-                                                          title: const Text('Sem Pagamento', style: TextStyle(color: Colors.black)),
+                                                          title:  Text('Sem Pagamento', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
                                                           value: 'Sem Pagamento',
                                                           groupValue: _selectedOpcaoOption,
                                                           contentPadding: EdgeInsets.zero,

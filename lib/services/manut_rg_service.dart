@@ -271,4 +271,30 @@ class ManutRgService {
       _handleError(response);
     }
   }
+
+  // ▼▼▼ ADICIONE ESTE NOVO MÉTODO ▼▼▼
+  Future<String> getNextCodigoInterno(String token) async {
+    final url = Uri.parse('$_baseUrl/next-internal-code');
+    final response = await http.get(url, headers: _getHeaders(token));
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body)['nextCode'].toString();
+    }
+    _handleError(response);
+    return '';
+  }
+  // ▲▲▲ FIM DO NOVO MÉTODO ▲▲▲
+
+  // ▼▼▼ ADICIONE ESTE NOVO MÉTODO ▼▼▼
+  Future<List<Map<String, dynamic>>> getAllRegistros(String token) async {
+    final url = Uri.parse(_baseUrl); // A rota GET base ('/')
+    final response = await http.get(url, headers: _getHeaders(token));
+    
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+      return List<Map<String, dynamic>>.from(data);
+    } else {
+      throw Exception('Falha ao carregar todos os registros da API: ${response.body}');
+    }
+  }
+  // ▲▲▲ FIM DO NOVO MÉTODO ▲▲▲
 }

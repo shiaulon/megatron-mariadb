@@ -203,6 +203,7 @@ class _TabelaTipoTelefoneState extends State<TabelaTipoTelefone> {
 
 
   Widget _buildCentralInputArea() {
+    final theme = Theme.of(context);
     return Form(
       // Envolve toda a área de entrada de dados com um Form
       key: _formKey, // Atribui a GlobalKey ao Form
@@ -211,10 +212,10 @@ class _TabelaTipoTelefoneState extends State<TabelaTipoTelefone> {
         child: Container(
           padding: const EdgeInsets.all(0.0), // Padding interno do container azul
           decoration: BoxDecoration(
-            color: Colors.blue[100], // Fundo azul claro
-            border: Border.all(color: Colors.black, width: 1.0), // Borda preta
-            borderRadius: BorderRadius.circular(10.0), // Cantos arredondados
-          ),
+            color: theme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(color: theme.colorScheme.primary, width: 1.0),
+                  ),
           child: Column(
             // Use Column para empilhar os elementos e permitir o posicionamento no final
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -319,10 +320,10 @@ class _TabelaTipoTelefoneState extends State<TabelaTipoTelefone> {
                                             padding: const EdgeInsets.symmetric(horizontal: 20.0),
                                             child: Container(
                                               decoration: BoxDecoration(
-                                                color: const Color.fromARGB(255, 153, 205, 248), // Cor de fundo do container de integração
-                                                borderRadius: BorderRadius.circular(5),
-                                                border: Border.all(color: Colors.blue, width: 2.0),
-                                              ),
+                                                color: theme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(color: theme.colorScheme.primary, width: 1.0),
+                  ),
                                               child: Padding(
                                                 padding: const EdgeInsets.all(6.0), // Padding interno para o conteúdo
                                                 child: Row( // <-- Voltando para Row para manter o texto 'Integração' ao lado
@@ -330,7 +331,7 @@ class _TabelaTipoTelefoneState extends State<TabelaTipoTelefone> {
                                                   children: [
                                                     Column(
                                                       children: [
-                                                        const Text('WhatsApp :', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
+                                                         Text('WhatsApp :', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
                                                       ],
                                                     ),
                                                     SizedBox(width: 10,),
@@ -342,7 +343,7 @@ class _TabelaTipoTelefoneState extends State<TabelaTipoTelefone> {
                                                         children: [
                                                           Row(
                                                   children: [
-                                                    const Text('Sim', style: TextStyle(color: Colors.black)),                                                   
+                                                     Text('Sim', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),                                             
                                                     Checkbox(
                                                       value: _whatsApp == true,
                                                       onChanged: (bool? value) {
@@ -356,7 +357,7 @@ class _TabelaTipoTelefoneState extends State<TabelaTipoTelefone> {
                                                 ),
                                                 Row(
                                                   children: [
-                                                    const Text('Não', style: TextStyle(color: Colors.black)),
+                                                     Text('Não', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.onSurface)),
                                                     Checkbox(
                                                       value: _whatsApp == false, // Condição para "Não"
                                                       onChanged: (bool? value) {

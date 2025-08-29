@@ -51,6 +51,7 @@ dependencies:
   firebase_core: ^3.14.0
   cloud_firestore: ^5.6.9
   firebase_auth: ^5.6.0
+  shared_preferences: ^2.5.3
 
 dev_dependencies:
   flutter_test:
@@ -88,6 +89,7 @@ flutter:
       - assets/images/logobg.png
       - assets/images/logo15.png
       - assets/images/logo16.png
+      - assets/images/BG_dark.png
 
 
 

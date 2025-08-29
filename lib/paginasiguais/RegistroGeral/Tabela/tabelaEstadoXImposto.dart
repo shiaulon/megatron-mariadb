@@ -621,15 +621,16 @@ class _TabelaEstadoXImpostoState extends State<TabelaEstadoXImposto> {
   }
 
   Widget _buildCentralInputArea() {
+    final theme = Theme.of(context); 
     return Form(
       key: _formKey,
       child: Padding(
         padding: const EdgeInsets.all(25),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.blue[100],
-            border: Border.all(color: Colors.black, width: 1.0),
-            borderRadius: BorderRadius.circular(10.0),
+            color: theme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(color: theme.colorScheme.primary, width: 1.0),
           ),
           child: Column(
             children: [
@@ -681,7 +682,7 @@ class _TabelaEstadoXImpostoState extends State<TabelaEstadoXImposto> {
                                 flex: 1,
                                 child: Column(
                                   children: [
-                                    const Text('ICMS', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black)),
+                                     Text('ICMS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: theme.colorScheme.onSurface)),
                                     const SizedBox(height: 3),
                                     _buildInputField(_aliqCombatePobrezaController, 'Alíquota Combate a Fundo Pobreza', 5, formatter: PercentageInputFormatter()),
                                     _buildInputField(_aliqInterstadualController, 'Alíquota Interestadual', 5, formatter: PercentageInputFormatter()),
@@ -698,7 +699,7 @@ class _TabelaEstadoXImpostoState extends State<TabelaEstadoXImposto> {
                                 flex: 1,
                                 child: Column(
                                   children: [
-                                    const Text('ST - Substituição Tributária ICMS', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black), textAlign: TextAlign.center),
+                                     Text('ST - Substituição Tributária ICMS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: theme.colorScheme.onSurface)),
                                     const SizedBox(height: 3),
                                     _buildInputField(_aliqICMSSubstituicaoController, 'Aliq. ICMS Substituição', 5, formatter: PercentageInputFormatter()),
                                     _buildInputField(_aliqAbatimentoICMSController, 'Aliq. Abatimento ICMS', 5, formatter: PercentageInputFormatter()),

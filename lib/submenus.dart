@@ -111,6 +111,7 @@ class _HoverMenuItemState extends State<HoverMenuItem> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     // Define as cores e tamanhos de fonte baseados no estado de hover e se é sub-item
     final Color backgroundColor = _isHovering ? Colors.blue[700]! : Colors.blue[50]!;
     final Color textColor = _isHovering ? Colors.white : Colors.black;
@@ -365,12 +366,13 @@ class _TelaSubPrincipalState extends State<TelaSubPrincipal> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return TelaBase(
       body: Column( // Este Column é o body passado para a TelaBase
         children: [
           // BARRA SUPERIOR
           Container(
-            color: Colors.lightBlue,
+            color: theme.appBarTheme.backgroundColor,
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -378,7 +380,7 @@ class _TelaSubPrincipalState extends State<TelaSubPrincipal> {
                 Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.exit_to_app, color: Colors.black),
+                      icon: Icon(Icons.exit_to_app, color: theme.appBarTheme.iconTheme?.color),
                       onPressed: () {
                         Navigator.pushReplacement(
                 context,
@@ -400,14 +402,15 @@ class _TelaSubPrincipalState extends State<TelaSubPrincipal> {
                       radius: 16,
                     ),
                     const SizedBox(width: 8),
-                    const Text('MRAFAEL', style: TextStyle(fontSize: 16, color: Colors.black)),
+                    Text('MRAFAEL', style: theme.appBarTheme.titleTextStyle),
                   ],
                 ),
                 Align(
                   alignment: Alignment.centerRight,
                   child: Padding(
                     padding: const EdgeInsets.only(right: 20.0),
-                    child: Text(_currentDate, style: TextStyle(color: Colors.black)),
+                    child: Text(_currentDate, style: theme.appBarTheme.titleTextStyle),
+                
                   ),
                 ),
               ],
@@ -513,6 +516,7 @@ class _TelaSubPrincipalState extends State<TelaSubPrincipal> {
 
   // NOVO MÉTODO: Constrói a seção de anotações com checkboxes
   Widget _buildAnnotationSection() {
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(40.0, 30.0, 20.0, 20),
       child: Container(
@@ -521,29 +525,25 @@ class _TelaSubPrincipalState extends State<TelaSubPrincipal> {
           maxHeight: 540,
         ),
         decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: Colors.black, width: 1.0),
+          color: theme.colorScheme.surface,
+          border: Border.all(color: theme.dividerColor, width: 1.0),
           borderRadius: BorderRadius.circular(10.0),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Padding(
+             Padding(
               padding: EdgeInsets.fromLTRB(12.0, 12.0, 12.0, 0),
               child: Row(
                 children: [
-                  Icon(
-                    Icons.sticky_note_2,
-                    size: 30,
-                    color: Colors.black87,
-                  ),
+                  Icon(Icons.sticky_note_2, size: 30, color: theme.colorScheme.onSurface),
                   SizedBox(width: 8),
                   Text(
                     'LEMBRETES',
                     style: TextStyle(
                       fontSize: 30,
                       fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                      color: theme.colorScheme.onSurface,
                     ),
                   ),
                 ],
@@ -552,7 +552,7 @@ class _TelaSubPrincipalState extends State<TelaSubPrincipal> {
             const SizedBox(height: 8),
             Container(
               height: 1.0,
-              color: Colors.black,
+              color: theme.dividerColor,
               margin: const EdgeInsets.symmetric(horizontal: 12.0),
             ),
             Expanded(
@@ -567,6 +567,7 @@ class _TelaSubPrincipalState extends State<TelaSubPrincipal> {
                         // Checkbox
                         Checkbox(
                           value: _annotations[index].isChecked,
+                          activeColor: theme.colorScheme.primary,
                           onChanged: (newValue) async { // Agora é um método async
                             _toggleCheckbox(index, newValue);
                           },
@@ -579,9 +580,7 @@ class _TelaSubPrincipalState extends State<TelaSubPrincipal> {
                               decoration: _annotations[index].isChecked
                                   ? TextDecoration.lineThrough
                                   : TextDecoration.none,
-                              color: _annotations[index].isChecked
-                                  ? Colors.grey
-                                  : Colors.black,
+                              color: _annotations[index].isChecked ? Colors.grey : theme.colorScheme.onSurface,
                             ),
                           ),
                         ),
@@ -601,8 +600,8 @@ class _TelaSubPrincipalState extends State<TelaSubPrincipal> {
                   icon: const Icon(Icons.add),
                   label: const Text('Adicionar Anotação'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue[700], // Cor de fundo do botão
-                    foregroundColor: Colors.white, // Cor do texto e ícone
+                    backgroundColor: theme.colorScheme.primary,
+                    foregroundColor: theme.colorScheme.onPrimary,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8.0),
                     ),

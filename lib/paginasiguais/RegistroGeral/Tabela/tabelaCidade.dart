@@ -6,7 +6,9 @@ import 'package:flutter_application_1/reutilizaveis/customImputField.dart';
 import 'package:flutter_application_1/reutilizaveis/menuLateral.dart';
 import 'package:flutter_application_1/reutilizaveis/tela_base.dart';
 import 'package:flutter_application_1/services/cidades_service.dart';
+import 'package:flutter_application_1/services/estado_service.dart';
 import 'package:flutter_application_1/services/log_services.dart';
+import 'package:flutter_application_1/services/pais_service.dart';
 import 'package:flutter_application_1/submenus.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -14,7 +16,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
-String? _ufValidator(String? value) {
+/*String? _ufValidator(String? value) {
     if (value == null || value.isEmpty) {
       return 'Obrigatório.';
     }
@@ -27,7 +29,17 @@ String? _ufValidator(String? value) {
       return 'UF inválida.';
     }
     return null;
+  }*/
+
+  String? _ufValidator(String? value, List<String> validUFs) { // Validador agora recebe a lista
+  if (value == null || value.isEmpty) {
+    return 'Obrigatório.';
   }
+  if (!validUFs.contains(value.toUpperCase())) {
+    return 'UF inválida.';
+  }
+  return null;
+}
 
 // Remova os imports do Firebase que não são mais necessários
 
@@ -51,6 +63,9 @@ class TabelaCidade extends StatefulWidget {
 
 class _TabelaCidadeState extends State<TabelaCidade> {
   final CidadeService _cidadesService = CidadeService();
+  final EstadoService _estadoService = EstadoService();
+  final PaisService _paisService = PaisService();
+
   static const double _breakpoint = 700.0;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   late String _currentDate;
@@ -62,22 +77,55 @@ class _TabelaCidadeState extends State<TabelaCidade> {
   final TextEditingController _paisController = TextEditingController();
   final TextEditingController _issController = TextEditingController();
   final TextEditingController _tabelaIBGEController = TextEditingController();
+
+   String? _selectedEstadoSigla;
+   String? _selectedPaisId;
   
   bool _paisReadOnly = true;
   bool _cartorio = false;
   bool _isLoading = false;
 
   List<Map<String, dynamic>> _allCidades = [];
+  List<Map<String, dynamic>> _allEstados = [];
+  List<Map<String, dynamic>> _allPaises = [];
+  
 
   @override
   void initState() {
     super.initState();
     _currentDate = DateFormat('dd/MM/yyyy').format(DateTime.now());
+    _loadInitialData(); // Carrega cidades e estados
     _fetchAllCidades();
     _estadoController.addListener(_onEstadoChanged);
     _codigoController.addListener(_onCodigoChanged);
     _cidadeController.addListener(_handleClearCheck); // Listener para limpar campos
   }
+
+   Future<void> _loadInitialData() async {
+  setState(() => _isLoading = true);
+  try {
+    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    if (token == null) throw Exception("Usuário não autenticado.");
+    
+    final results = await Future.wait([
+      _cidadesService.getAllCidades(token, widget.secondaryCompanyId),
+      _estadoService.getAll(token),
+      _paisService.getAllPaises(token),
+    ]);
+
+    if (mounted) {
+      setState(() {
+        _allCidades = results[0];
+        _allEstados = results[1];
+        _allPaises = results[2]; // <<< ADICIONE ESTA LINHA
+      });
+    }
+  } catch (e) {
+    if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao carregar dados iniciais: $e'), backgroundColor: Colors.red));
+  } finally {
+    if (mounted) setState(() => _isLoading = false);
+  }
+}
   
   void _onCodigoChanged() {
     final text = _codigoController.text;
@@ -113,12 +161,12 @@ class _TabelaCidadeState extends State<TabelaCidade> {
       _codigoController.text = data['id']?.toString() ?? '';
       _cidadeController.text = data['cidade']?.toString() ?? '';
       _abreviadoController.text = data['abreviado']?.toString() ?? '';
-      _estadoController.text = data['estado']?.toString() ?? '';
-      _paisController.text = data['pais']?.toString() ?? '';
+      _selectedEstadoSigla = data['estado']?.toString();
+      _selectedPaisId = data['pais']?.toString();
       _issController.text = data['iss']?.toString() ?? '';
       _tabelaIBGEController.text = data['tabelaIBGE']?.toString() ?? '';
       _cartorio = data['cartorio'] ?? false;
-      _onEstadoChanged();
+      _onEstadoSelected(_selectedEstadoSigla); // Chama a função correta
     });
   }
 
@@ -184,6 +232,31 @@ class _TabelaCidadeState extends State<TabelaCidade> {
     });
   }
 
+  void _onEstadoSelected(String? novaSigla) {
+  setState(() {
+    _selectedEstadoSigla = novaSigla;
+    final sigla = novaSigla ?? '';
+
+    if (sigla == 'EX') {
+      // Se for Exterior, limpa o país e habilita a edição
+      _selectedPaisId = null;
+      _paisReadOnly = false;
+    } else if (sigla.isNotEmpty) {
+      // Se for um estado brasileiro, encontra o ID do Brasil e trava o campo
+      final brasil = _allPaises.firstWhere(
+        (p) => p['nome']?.toString().toLowerCase() == 'brasil',
+        orElse: () => <String, dynamic>{}, // Retorna mapa vazio se não achar
+      );
+      _selectedPaisId = brasil['id']; // Define o ID do Brasil
+      _paisReadOnly = true;
+    } else {
+      // Se o campo for limpo, reseta o país e trava a edição
+      _selectedPaisId = null;
+      _paisReadOnly = true;
+    }
+  });
+}
+
   // FUNÇÕES QUE FALTAVAM
   void _clearAllFields() {
     _codigoController.clear();
@@ -212,11 +285,12 @@ class _TabelaCidadeState extends State<TabelaCidade> {
       'id': _codigoController.text.trim(),
       'cidade': _cidadeController.text.trim(),
       'abreviado': _abreviadoController.text.trim(),
-      'estado': _estadoController.text.trim().toUpperCase(),
-      'pais': _paisController.text.trim(),
+      'estado': _selectedEstadoSigla, // Salva a sigla selecionada
+      'pais': _selectedPaisId, 
       'iss': _issController.text.trim(),
       'tabelaIBGE': _tabelaIBGEController.text.trim(),
       'cartorio': _cartorio,
+      'secondaryCompanyId': widget.secondaryCompanyId,
     };
 
     try {
@@ -354,6 +428,7 @@ class _TabelaCidadeState extends State<TabelaCidade> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isPaisDropdownEnabled = _selectedEstadoSigla == 'EX';
     // A estrutura do seu build (TelaBase, LayoutBuilder, etc.) permanece a mesma.
     // A única mudança é que o _buildAutocompleteField agora vai funcionar corretamente
     // porque _allCidades será preenchido pela API.
@@ -439,15 +514,18 @@ class _TabelaCidadeState extends State<TabelaCidade> {
   }
 
   Widget _buildCentralInputArea() {
+    final theme = Theme.of(context); 
+    final bool isPaisDropdownEnabled = _selectedEstadoSigla == 'EX';
+
     return Form(
       key: _formKey,
       child: Padding(
         padding: const EdgeInsets.all(25),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.blue[100],
-            border: Border.all(color: Colors.black),
-            borderRadius: BorderRadius.circular(10),
+            color: theme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(color: theme.colorScheme.primary, width: 1.0),
           ),
           child: Column(
             children: [
@@ -482,7 +560,21 @@ class _TabelaCidadeState extends State<TabelaCidade> {
                                 //const SizedBox(height: 10),
                                 Padding(
                                   padding: const EdgeInsets.all(12.0),
-                                  child: _buildInputField(_estadoController, "Estado", 2, validator: _ufValidator, textCapitalization: TextCapitalization.characters),
+                                  child: DropdownButtonFormField<String>(
+                value: _selectedEstadoSigla,
+                decoration: const InputDecoration(
+                  labelText: 'Estado',
+                  border: OutlineInputBorder(),
+                ),
+                items: _allEstados.map<DropdownMenuItem<String>>((estado) {
+                  return DropdownMenuItem<String>(
+                    value: estado['sigla'],
+                    child: Text("${estado['sigla']} - ${estado['nome']}"),
+                  );
+                }).toList(),
+                onChanged: _onEstadoSelected,
+                validator: (value) => value == null || value.isEmpty ? 'Obrigatório.' : null,
+              ),
                                 ),
                                 
                               ],
@@ -493,9 +585,27 @@ class _TabelaCidadeState extends State<TabelaCidade> {
                             child: Column(
                               children: [
                                 Padding(
-                                  padding: const EdgeInsets.all(12.0),
-                                  child: _buildInputField(_paisController, "País", 15, readOnly: _paisReadOnly,isRequired: true),
-                                ),
+                        padding: const EdgeInsets.all(12.0),
+                        child: DropdownButtonFormField<String>(
+                          value: _selectedPaisId,
+                          decoration: InputDecoration(
+                            labelText: 'País',
+                            //fillColor: isPaisDropdownEnabled ? Colors.white : Colors.grey[200],
+                            filled: true,
+                          ),
+                          items: _allPaises.map<DropdownMenuItem<String>>((pais) {
+                            return DropdownMenuItem<String>(
+                              value: pais['id'],
+                              child: Text(pais['nome']),
+                            );
+                          }).toList(),
+                          // ▼▼▼ CORREÇÃO AQUI ▼▼▼
+                          onChanged: _paisReadOnly
+    ? null // Se for read-only, onChanged é nulo (desabilitado)
+    : (newValue) => setState(() => _selectedPaisId = newValue),
+                          validator: (value) => value == null ? 'Obrigatório.' : null,
+                        ),
+                      ),
                                 //const SizedBox(height: 10),
                                 Padding(
                                   padding: const EdgeInsets.all(12.0),
@@ -590,19 +700,20 @@ class _TabelaCidadeState extends State<TabelaCidade> {
             suffixText: '${controller.text.length}/$maxLength',
       inputFormatters: isNumeric ? [FilteringTextInputFormatter.digitsOnly] : [],
       readOnly: readOnly,
-      fillColor: readOnly ? Colors.grey[300] : Colors.white,
+      //fillColor: readOnly ? Colors.grey[300] : Colors.white,
       textCapitalization: textCapitalization,
     );
   }
 
  Widget _buildCheckboxRow() {
+  final theme = Theme.of(context); 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20.0),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color.fromARGB(255, 153, 205, 248),
-          borderRadius: BorderRadius.circular(5),
-          border: Border.all(color: Colors.blue, width: 2.0),
+          color: theme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(color: theme.colorScheme.primary, width: 1.0),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,

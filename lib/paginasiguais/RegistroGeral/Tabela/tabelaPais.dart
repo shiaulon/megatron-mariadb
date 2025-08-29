@@ -270,10 +270,13 @@ class _TabelaPaisState extends State<TabelaPais> {
   }
 
   Widget _buildCentralInputArea() {
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.all(25),
       child: Container(
-        decoration: BoxDecoration(color: Colors.blue[100], border: Border.all(color: Colors.black, width: 1.0), borderRadius: BorderRadius.circular(10.0)),
+        decoration: BoxDecoration(color: theme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(color: theme.colorScheme.primary, width: 1.0),),
         child: Form(
           key: _formKey,
           child: Column(

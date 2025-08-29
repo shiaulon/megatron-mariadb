@@ -1,19 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_application_1/services/log_services.dart';
-import 'package:flutter_application_1/submenus.dart';
+import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
+import 'package:flutter_application_1/providers/auth_provider.dart';
 import 'package:flutter_application_1/reutilizaveis/tela_base.dart';
 import 'package:flutter_application_1/reutilizaveis/barraSuperior.dart';
 import 'package:flutter_application_1/reutilizaveis/menuLateral.dart';
 import 'package:flutter_application_1/reutilizaveis/customImputField.dart';
-
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
+import 'package:flutter_application_1/services/credito_docs_service.dart';
+import 'package:flutter_application_1/submenus.dart';
 
 
 class TabelaCreditoDocumentosBasicos extends StatefulWidget {
@@ -29,18 +28,21 @@ class TabelaCreditoDocumentosBasicos extends StatefulWidget {
   });
 
   @override
-  State<TabelaCreditoDocumentosBasicos> createState() => _TabelaCreditoDocumentosBasicosState();
+  State<TabelaCreditoDocumentosBasicos> createState() =>
+      _TabelaCreditoDocumentosBasicosState();
 }
 
-class _TabelaCreditoDocumentosBasicosState extends State<TabelaCreditoDocumentosBasicos> {
+class _TabelaCreditoDocumentosBasicosState
+    extends State<TabelaCreditoDocumentosBasicos> {
   static const double _breakpoint = 700.0;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   late String _currentDate;
 
-  // Controladores para os novos campos
   final TextEditingController _codigoController = TextEditingController();
-  final TextEditingController _documentosBasicosController = TextEditingController();
+  final TextEditingController _documentosBasicosController =
+      TextEditingController();
   
+  final CreditoDocsService _service = CreditoDocsService();
   bool _isLoading = false;
 
   @override
@@ -50,22 +52,12 @@ class _TabelaCreditoDocumentosBasicosState extends State<TabelaCreditoDocumentos
     _codigoController.addListener(_onCodigoChanged);
   }
 
-  // Referência para a nova coleção no Firestore
-  CollectionReference get _collectionRef => FirebaseFirestore.instance
-      .collection('companies')
-      .doc(widget.mainCompanyId)
-      .collection('secondaryCompanies')
-      .doc(widget.secondaryCompanyId)
-      .collection('data')
-      .doc('credito_documentos_basicos') // <- NOME DA COLEÇÃO ATUALIZADO
-      .collection('items');
-
   void _clearFields({bool clearCode = false}) {
     if (clearCode) {
       _codigoController.clear();
     }
     _documentosBasicosController.clear();
-    setState(() {}); // Apenas para reconstruir a UI se necessário
+    if (mounted) setState(() {});
   }
 
   Future<void> _onCodigoChanged() async {
@@ -77,22 +69,27 @@ class _TabelaCreditoDocumentosBasicosState extends State<TabelaCreditoDocumentos
 
     setState(() => _isLoading = true);
     try {
-      final docSnapshot = await _collectionRef.doc(codigo).get();
-      if (docSnapshot.exists) {
-        final data = docSnapshot.data() as Map<String, dynamic>;
-        setState(() {
-          // Carrega os dados do campo 'documentos_basicos'
-          _documentosBasicosController.text = data['documentos_basicos'] ?? '';
-        });
-      } else {
-        _clearFields();
+      final token = Provider.of<AuthProvider>(context, listen: false).token;
+      if (token == null) return;
+
+      final data = await _service.getDocumento(codigo, token);
+      if (mounted) {
+        if (data.isNotEmpty) {
+          setState(() {
+            _documentosBasicosController.text = data['documentos_basicos'] ?? '';
+          });
+        } else {
+          _clearFields();
+        }
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao buscar documento: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao buscar documento: $e')),
+        );
+      }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -102,44 +99,32 @@ class _TabelaCreditoDocumentosBasicosState extends State<TabelaCreditoDocumentos
     final docId = _codigoController.text.trim();
     setState(() => _isLoading = true);
 
-    // Mapa de dados com os novos campos
     final dataToSave = {
-      'documentos_basicos': _documentosBasicosController.text.trim(),
-      'ultima_atualizacao': FieldValue.serverTimestamp(),
-      'criado_por': FirebaseAuth.instance.currentUser?.email ?? 'desconhecido',
+      'id': docId,
+      'descricao': _documentosBasicosController.text.trim(),
+      'mainCompanyId': widget.mainCompanyId,
+      'secondaryCompanyId': widget.secondaryCompanyId,
     };
 
     try {
-      final docExists = (await _collectionRef.doc(docId).get()).exists;
-      await _collectionRef.doc(docId).set(dataToSave);
-      /*await LogService.addLog(
-        modulo: LogModule.CREDITO, // <-- ADICIONADO
-      action: docExists ? LogAction.UPDATE : LogAction.CREATE,
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'credito_documentos_basicos',
-      targetDocId: docId,
-      details: 'Usuário salvou/atualizou o documento com código $docId.',
-    );*/
+      final token = Provider.of<AuthProvider>(context, listen: false).token;
+      if (token == null) return;
+      
+      await _service.saveData(dataToSave, token);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Documento salvo com sucesso!')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Documento salvo com sucesso!')),
+        );
+      }
     } catch (e) {
-      /*await LogService.addLog(
-        modulo: LogModule.CREDITO, // <-- ADICIONADO
-        action: LogAction.ERROR, // <-- Ação específica de erro
-        mainCompanyId: widget.mainCompanyId,
-        secondaryCompanyId: widget.secondaryCompanyId,
-        targetCollection: 'credito_documentos_basicos',
-        targetDocId: docId,
-        details: 'FALHA ao salvar/atualizar documento com código $docId. Erro: ${e.toString()}',
-      );*/
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao salvar: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao salvar: $e')),
+        );
+      }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -168,54 +153,44 @@ class _TabelaCreditoDocumentosBasicosState extends State<TabelaCreditoDocumentos
 
     setState(() => _isLoading = true);
     try {
-      await _collectionRef.doc(docId).delete();
-     /* await LogService.addLog(
-      action: LogAction.DELETE,
-      modulo: LogModule.CREDITO, // <-- ADICIONADO
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'credito_documentos_basicos',
-      targetDocId: docId,
-      details: 'Usuário excluiu o documento com código $docId.',
-    );*/
+      final token = Provider.of<AuthProvider>(context, listen: false).token;
+      if (token == null) return;
+      
+      await _service.deleteData(docId, widget.secondaryCompanyId, token);
       _clearFields(clearCode: true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Documento excluído com sucesso!')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Documento excluído com sucesso!')),
+        );
+      }
     } catch (e) {
-      /*await LogService.addLog(
-        action: LogAction.ERROR,
-        modulo: LogModule.CREDITO, // <-- ADICIONADO
-        mainCompanyId: widget.mainCompanyId,
-        secondaryCompanyId: widget.secondaryCompanyId,
-        targetCollection: 'credito_documentos_basicos', // Ajuste o nome da coleção
-        targetDocId: docId,
-        details: 'FALHA ao excluir documento com código $docId. Erro: ${e.toString()}',
-      );*/
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao excluir: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao excluir: $e')),
+        );
+      }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _generateReport() async {
     setState(() => _isLoading = true);
     try {
-      final querySnapshot = await _collectionRef.get();
-      if (querySnapshot.docs.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nenhum documento para gerar relatório.')));
+      final token = Provider.of<AuthProvider>(context, listen: false).token;
+      if (token == null) return;
+
+      final allData = await _service.getAllDocumentos(token);
+      if (allData.isEmpty) {
+        if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nenhum documento para gerar relatório.')));
         setState(() => _isLoading = false);
         return;
       }
 
       final pdf = pw.Document();
-      // Cabeçalhos e dados do relatório atualizados
       final headers = ['Código', 'Documentos Básicos'];
-      final data = querySnapshot.docs.map((doc) {
-        final item = doc.data() as Map<String, dynamic>;
-        return [doc.id, item['documentos_basicos'] ?? ''];
+      final data = allData.map((item) {
+        return [item['id'] ?? '', item['documentos_basicos'] ?? ''];
       }).toList();
 
       pdf.addPage(
@@ -241,29 +216,11 @@ class _TabelaCreditoDocumentosBasicosState extends State<TabelaCreditoDocumentos
         ),
       );
 
-      /*await LogService.addLog(
-        action: LogAction.GENERATE_REPORT,
-        modulo: LogModule.CREDITO, // <-- ADICIONADO
-        mainCompanyId: widget.mainCompanyId,
-        secondaryCompanyId: widget.secondaryCompanyId,
-        targetCollection: 'credito_documentos_basicos',
-        details: 'Usuário gerou um relatório da tabela de documentos básicos.',
-      );*/
-
-
       await Printing.layoutPdf(onLayout: (format) async => pdf.save());
     } catch (e) {
-      /*await LogService.addLog(
-        action: LogAction.ERROR,
-        modulo: LogModule.CREDITO, // <-- ADICIONADO
-        mainCompanyId: widget.mainCompanyId,
-        secondaryCompanyId: widget.secondaryCompanyId,
-        targetCollection: 'credito_documentos_basicos', // Ajuste o nome da coleção
-        details: 'FALHA ao gerar relatório. Erro: ${e.toString()}',
-      );*/
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao gerar PDF: $e')));
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao gerar PDF: $e')));
     } finally {
-      setState(() => _isLoading = false);
+      if(mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -274,7 +231,9 @@ class _TabelaCreditoDocumentosBasicosState extends State<TabelaCreditoDocumentos
     _documentosBasicosController.dispose();
     super.dispose();
   }
-
+  
+  // O resto do seu código de build (build, _buildDesktopLayout, etc.)
+  // permanece o mesmo. Nenhuma alteração visual é necessária.
   @override
   Widget build(BuildContext context) {
     return TelaBase(
@@ -339,7 +298,7 @@ class _TabelaCreditoDocumentosBasicosState extends State<TabelaCreditoDocumentos
             children: [
               const Padding(
                 padding: EdgeInsets.only(top: 20.0, bottom: 10.0),
-                child: Text('Documentos Básicos de Crédito', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)), // TÍTULO ATUALIZADO
+                child: Text('Documentos Básicos de Crédito', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
               ),
               Expanded(child: _buildCentralInputArea()),
             ],
@@ -355,7 +314,7 @@ class _TabelaCreditoDocumentosBasicosState extends State<TabelaCreditoDocumentos
         children: [
           const Padding(
             padding: EdgeInsets.only(top: 15.0, bottom: 8.0),
-            child: Text('Documentos Básicos de Crédito', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)), // TÍTULO ATUALIZADO
+            child: Text('Documentos Básicos de Crédito', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
           ),
           AppDrawer(
             parentMaxWidth: 0,
@@ -370,15 +329,16 @@ class _TabelaCreditoDocumentosBasicosState extends State<TabelaCreditoDocumentos
   }
 
   Widget _buildCentralInputArea() {
+    final theme = Theme.of(context);
     return Form(
       key: _formKey,
       child: Padding(
         padding: const EdgeInsets.all(25),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.blue[100],
-            border: Border.all(color: Colors.black),
-            borderRadius: BorderRadius.circular(10),
+            color: theme.primaryColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(5),
+            border: Border.all(color: theme.colorScheme.primary, width: 1.0),
           ),
           child: Column(
             children: [
@@ -395,28 +355,28 @@ class _TabelaCreditoDocumentosBasicosState extends State<TabelaCreditoDocumentos
                             child: CustomInputField(
                               controller: _codigoController,
                               label: 'Código',
-                              maxLength: 4, // Aumentado para 4 dígitos se necessário
+                              maxLength: 10,
                               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                               validator: (v) => v!.isEmpty ? 'Obrigatório' : null,
                             ),
                           ),
-                          
-                          
                         ],
                       ),
-                      Row(children: [
-                        Expanded(
+                      const SizedBox(height: 15),
+                      Row(
+                        children: [
+                          Expanded(
                             flex: 3,
                             child: CustomInputField(
                               controller: _documentosBasicosController,
-                              label: 'Documentos Básicos', // LABEL ATUALIZADA
-                              maxLength: 100, // Aumentado para mais texto
-                              maxLines: 3, // Permite múltiplas linhas
+                              label: 'Documentos Básicos',
+                              maxLength: 255,
+                              maxLines: 3,
                               validator: (v) => v!.isEmpty ? 'Obrigatório' : null,
                             ),
                           ),
-                      ],)
-                      // A seção de "Bloqueio" foi removida
+                        ],
+                      )
                     ],
                   ),
                 ),
@@ -429,7 +389,7 @@ class _TabelaCreditoDocumentosBasicosState extends State<TabelaCreditoDocumentos
       ),
     );
   }
- 
+  
   Widget _buildActionButtons() {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10.0),
