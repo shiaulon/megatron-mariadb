@@ -13,10 +13,12 @@ import 'services/api_service.dart'; // Nosso novo ApiService
 
 class SecondaryCompanySelectionPage extends StatefulWidget {
   final String mainCompanyId;
+  final String token; 
 
   const SecondaryCompanySelectionPage({
     super.key,
     required this.mainCompanyId,
+    required this.token,
   });
 
   @override
@@ -37,13 +39,12 @@ class _SecondaryCompanySelectionPageState extends State<SecondaryCompanySelectio
     // Os dados agora vêm do nosso AuthProvider, não do Firestore!
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final allowedIds = authProvider.allowedSecondaryCompanies;
-    final token = authProvider.token;
+    final token = widget.token; // DEPOIS: Usa o token recebido pelo construtor
 
-    if (token == null || allowedIds.isEmpty) {
+    if (token.isEmpty || allowedIds.isEmpty) { // Verificação ajustada
       throw Exception('Dados de autenticação ou empresas permitidas não encontrados.');
     }
     
-    // Usamos o ApiService para buscar os detalhes das empresas
     return _apiService.getSecondaryCompaniesDetails(allowedIds, token);
   }
 
@@ -104,6 +105,8 @@ class _SecondaryCompanySelectionPageState extends State<SecondaryCompanySelectio
                           title: Text(companyName, style: const TextStyle(fontWeight: FontWeight.bold)),
                           subtitle: Text('ID: $companyId'),
                           onTap: () async { // 1. Transforma a função em "async"
+
+                            
                             // 2. Pega os providers necessários
                             final authProvider = Provider.of<AuthProvider>(context, listen: false);
                             final permissionProvider = Provider.of<PermissionProvider>(context, listen: false);
@@ -116,7 +119,7 @@ class _SecondaryCompanySelectionPageState extends State<SecondaryCompanySelectio
                             );
 
                             // 4. Carrega as permissões da API para a filial selecionada
-                            await permissionProvider.loadUserPermissions(companyId, authProvider.token!);
+                            await permissionProvider.loadUserPermissions(companyId, widget.token);
                             
                             // 5. Garante que o widget ainda está na tela antes de continuar
                             if (!mounted) return;

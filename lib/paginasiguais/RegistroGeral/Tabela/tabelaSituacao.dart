@@ -1,20 +1,21 @@
+// lib/paginasiguais/RegistroGeral/Tabela/tabelaSituacao.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_application_1/providers/auth_provider.dart';
 import 'package:flutter_application_1/services/log_services.dart';
 import 'package:flutter_application_1/submenus.dart';
 import 'package:intl/intl.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-
 import 'package:flutter_application_1/reutilizaveis/tela_base.dart';
 import 'package:flutter_application_1/reutilizaveis/barraSuperior.dart';
 import 'package:flutter_application_1/reutilizaveis/menuLateral.dart';
 import 'package:flutter_application_1/reutilizaveis/customImputField.dart';
-
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:provider/provider.dart';
 
+import '../../../services/situacao_service.dart'; // <<< IMPORTE O NOVO SERVIÇO
 
 class TabelaSituacao extends StatefulWidget {
   final String mainCompanyId;
@@ -37,6 +38,9 @@ class _TabelaSituacaoState extends State<TabelaSituacao> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   late String _currentDate;
 
+  final SituacaoService _situacaoService = SituacaoService(); // <<< USE O NOVO SERVIÇO
+  List<Map<String, dynamic>> _allSituacoes = [];
+
   final TextEditingController _codigoController = TextEditingController();
   final TextEditingController _descricaoController = TextEditingController();
   
@@ -47,17 +51,28 @@ class _TabelaSituacaoState extends State<TabelaSituacao> {
   void initState() {
     super.initState();
     _currentDate = DateFormat('dd/MM/yyyy').format(DateTime.now());
+    _loadSituacoes();
     _codigoController.addListener(_onCodigoChanged);
   }
 
-  CollectionReference get _collectionRef => FirebaseFirestore.instance
-      .collection('companies')
-      .doc(widget.mainCompanyId)
-      .collection('secondaryCompanies')
-      .doc(widget.secondaryCompanyId)
-      .collection('data')
-      .doc('situacoes')
-      .collection('items');
+  Future<void> _loadSituacoes() async {
+    setState(() => _isLoading = true);
+    try {
+      final token = Provider.of<AuthProvider>(context, listen: false).token;
+      if (token == null) throw Exception("Usuário não autenticado.");
+      
+      final situacoes = await _situacaoService.getAll(token);
+      if (mounted) {
+        setState(() {
+          _allSituacoes = situacoes;
+        });
+      }
+    } catch (e) {
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao carregar situações: $e'), backgroundColor: Colors.red));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   void _clearFields({bool clearCode = false}) {
     if (clearCode) {
@@ -69,31 +84,24 @@ class _TabelaSituacaoState extends State<TabelaSituacao> {
     });
   }
 
-  Future<void> _onCodigoChanged() async {
+  void _onCodigoChanged() {
     final codigo = _codigoController.text.trim();
     if (codigo.isEmpty) {
       _clearFields();
       return;
     }
+    final situacao = _allSituacoes.firstWhere(
+      (s) => s['id'].toString() == codigo,
+      orElse: () => <String, dynamic>{},
+    );
 
-    setState(() => _isLoading = true);
-    try {
-      final docSnapshot = await _collectionRef.doc(codigo).get();
-      if (docSnapshot.exists) {
-        final data = docSnapshot.data() as Map<String, dynamic>;
-        setState(() {
-          _descricaoController.text = data['descricao'] ?? '';
-          _selectedBloqueioOption = data['bloqueio'] ?? 'Normal';
-        });
-      } else {
-        _clearFields();
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao buscar situação: $e')),
-      );
-    } finally {
-      setState(() => _isLoading = false);
+    if (situacao.isNotEmpty) {
+      setState(() {
+        _descricaoController.text = situacao['descricao'] ?? '';
+        _selectedBloqueioOption = situacao['bloqueio'] ?? 'Normal';
+      });
+    } else {
+      _clearFields();
     }
   }
 
@@ -104,54 +112,34 @@ class _TabelaSituacaoState extends State<TabelaSituacao> {
     setState(() => _isLoading = true);
 
     final dataToSave = {
+      'id': docId,
       'descricao': _descricaoController.text.trim(),
       'bloqueio': _selectedBloqueioOption,
-      'ultima_atualizacao': FieldValue.serverTimestamp(),
-      'criado_por': FirebaseAuth.instance.currentUser?.email ?? 'desconhecido',
+      'mainCompanyId': widget.mainCompanyId,
+      'secondaryCompanyId': widget.secondaryCompanyId,
     };
 
     try {
-      final docExists = (await _collectionRef.doc(docId).get()).exists;
-      await _collectionRef.doc(docId).set(dataToSave);
-     /* await LogService.addLog(
-        modulo: LogModule.TABELA, // <-- ADICIONADO
-      action: docExists ? LogAction.UPDATE : LogAction.CREATE,
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'situacoes', // <-- PARTE CUSTOMIZÁVEL 1
-      targetDocId: docId,
-      details: 'Usuário salvou/atualizou a situação com código $docId.', // <-- PARTE CUSTOMIZÁVEL 2
-    );*/
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Situação salva com sucesso!')),
-      );
+      final token = Provider.of<AuthProvider>(context, listen: false).token!;
+      await _situacaoService.saveData(dataToSave, token);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Situação salva com sucesso!'), backgroundColor: Colors.green),
+        );
+        _loadSituacoes(); // Recarrega a lista
+      }
     } catch (e) {
-      // --- LOG DE ERRO SAVE---
-    /*await LogService.addLog(
-      action: LogAction.ERROR,
-      modulo: LogModule.TABELA, // <-- ADICIONADO
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'situacoes', // <-- PARTE CUSTOMIZÁVEL 1
-      targetDocId: docId,
-      details: 'FALHA ao salvar situação com código $docId. Erro: ${e.toString()}', // <-- PARTE CUSTOMIZÁVEL 2
-    );*/
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao salvar: $e')),
-      );
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao salvar: $e')));
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _deleteData() async {
     final docId = _codigoController.text.trim();
     if (docId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Preencha o Código para excluir.')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Preencha o Código para excluir.')));
       return;
     }
 
@@ -171,56 +159,41 @@ class _TabelaSituacaoState extends State<TabelaSituacao> {
 
     setState(() => _isLoading = true);
     try {
-      await _collectionRef.doc(docId).delete();
-      // --- LOG DE SUCESSO DELETE---
-    /*await LogService.addLog(
-      action: LogAction.DELETE,
-      modulo: LogModule.TABELA, // <-- ADICIONADO
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'situacoes', // <-- PARTE CUSTOMIZÁVEL 1
-      targetDocId: docId,
-      details: 'Usuário excluiu a situação com código $docId.', // <-- PARTE CUSTOMIZÁVEL 2
-    );*/
-
-      _clearFields(clearCode: true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Situação excluída com sucesso!')),
-      );
+      final token = Provider.of<AuthProvider>(context, listen: false).token!;
+      await _situacaoService.deleteData(docId, widget.secondaryCompanyId, token);
+      
+      if(mounted) {
+        _clearFields(clearCode: true);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Situação excluída com sucesso!')));
+        _loadSituacoes(); // Recarrega a lista
+      }
     } catch (e) {
-      // --- LOG DE ERRO DELETE---
-    /*await LogService.addLog(
-      action: LogAction.ERROR,
-      modulo: LogModule.TABELA, // <-- ADICIONADO
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'situacoes', // <-- PARTE CUSTOMIZÁVEL 1
-      targetDocId: docId,
-      details: 'FALHA ao excluir situação com código $docId. Erro: ${e.toString()}', // <-- PARTE CUSTOMIZÁVEL 2
-    );
-*/
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao excluir: $e')),
-      );
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao excluir: $e')));
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _generateReport() async {
+    if (_allSituacoes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nenhuma situação para gerar relatório.')));
+      return;
+    }
     setState(() => _isLoading = true);
+    
     try {
-      final querySnapshot = await _collectionRef.get();
-      if (querySnapshot.docs.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nenhuma situação para gerar relatório.')));
-        return;
-      }
+      final token = Provider.of<AuthProvider>(context, listen: false).token!;
+      final logService = LogService(token);
+      await logService.addReportLog(
+        reportName: 'Relatório de Situações',
+        mainCompanyId: widget.mainCompanyId,
+        secondaryCompanyId: widget.secondaryCompanyId,
+      );
 
       final pdf = pw.Document();
       final headers = ['Código', 'Descrição', 'Bloqueio'];
-      final data = querySnapshot.docs.map((doc) {
-        final item = doc.data() as Map<String, dynamic>;
-        return [doc.id, item['descricao'] ?? '', item['bloqueio'] ?? ''];
+      final data = _allSituacoes.map((item) {
+        return [item['id'] ?? '', item['descricao'] ?? '', item['bloqueio'] ?? ''];
       }).toList();
 
       pdf.addPage(
@@ -240,32 +213,12 @@ class _TabelaSituacaoState extends State<TabelaSituacao> {
           ],
         ),
       );
-      // --- LOG DE SUCESSO REPORT---
-    /*await LogService.addLog(
-      action: LogAction.GENERATE_REPORT,
-      modulo: LogModule.TABELA, // <-- ADICIONADO
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'situacoes', // <-- PARTE CUSTOMIZÁVEL 1
-      details: 'Usuário gerou um relatório da tabela de situações.', // <-- PARTE CUSTOMIZÁVEL 2
-    );*/
-
 
       await Printing.layoutPdf(onLayout: (format) async => pdf.save());
     } catch (e) {
-      // --- LOG DE ERRO REPPORT---
-    /*await LogService.addLog(
-      modulo: LogModule.TABELA, // <-- ADICIONADO
-      action: LogAction.ERROR,
-      mainCompanyId: widget.mainCompanyId,
-      secondaryCompanyId: widget.secondaryCompanyId,
-      targetCollection: 'situacoes', // <-- PARTE CUSTOMIZÁVEL 1
-      details: 'FALHA ao gerar relatório de situações. Erro: ${e.toString()}', // <-- PARTE CUSTOMIZÁVEL 2
-    );*/
-
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao gerar PDF: $e')));
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao gerar PDF: $e')));
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -277,6 +230,10 @@ class _TabelaSituacaoState extends State<TabelaSituacao> {
     super.dispose();
   }
 
+  // A partir daqui, o método build e os sub-widgets
+  // permanecem os mesmos, pois a lógica de UI não muda.
+  // Cole o restante do seu código (build, _buildDesktopLayout, etc.) aqui.
+  
   @override
   Widget build(BuildContext context) {
     return TelaBase(

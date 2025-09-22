@@ -279,6 +279,7 @@ class CustomInputField extends StatelessWidget {
   final String? hintText;
   final bool isDense;
   final Color? fillColor; // Permite sobrescrever a cor de fundo do tema
+  final InputDecoration? decoration;
 
   const CustomInputField({
 
@@ -304,6 +305,8 @@ class CustomInputField extends StatelessWidget {
     this.hintText,
     this.isDense = true,
     this.fillColor,
+
+    this.decoration, // Adicionado ao construtor
   }) : super(key: key);
 
   @override
@@ -314,10 +317,21 @@ class CustomInputField extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: TextFormField(
+        
         // --- Conexões Funcionais ---
         controller: controller,
         focusNode: focusNode,
         validator: validator,
+
+        decoration: decoration ?? // Usa a decoração customizada ou a padrão
+            InputDecoration(
+              counterText: "", // Esconde o contador de caracteres
+              labelText: label,
+              border: const OutlineInputBorder(),
+              filled: true,
+              fillColor: readOnly ? Colors.grey[200] : Colors.white,
+            ),
+
         onTap: () {
           onTap?.call();
           onUserInteraction?.call();
@@ -344,7 +358,7 @@ class CustomInputField extends StatelessWidget {
         
         // --- Estilo ---
         style: const TextStyle(fontSize: 14.0),
-        decoration: InputDecoration(
+        /*decoration: InputDecoration(
           labelText: label,
           hintText: hintText,
           suffixText: suffixText,
@@ -358,7 +372,7 @@ class CustomInputField extends StatelessWidget {
           
           // A cor para o estado desabilitado será gerenciada automaticamente pelo tema,
           // que já define uma cor de preenchimento diferente para campos desabilitados.
-        ),
+        ),*/
       ),
     );
   }

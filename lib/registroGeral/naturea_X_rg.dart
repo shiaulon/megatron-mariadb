@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/providers/auth_provider.dart';
+import 'package:flutter_application_1/reutilizaveis/botao_ajuda_flutuante.dart';
 import 'package:flutter_application_1/services/log_services.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:flutter_application_1/reutilizaveis/barraSuperior.dart';
@@ -64,6 +65,41 @@ class _NaturezaXRgScreenState extends State<NaturezaXRgScreen> {
     super.initState();
     _currentDate = DateFormat('dd/MM/yyyy').format(DateTime.now());
     _loadInitialData();
+  }
+
+  Widget _buildHelpContent() {
+    final textTheme = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'Ajuda - Envio de Avisos',
+          style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+        ),
+        const Divider(height: 20),
+        const ListTile(
+          leading: Icon(Icons.info_outline),
+          title: Text('Esta tela permite enviar uma mensagem em tempo real para todos os usuários que estiverem online no sistema.'),
+        ),
+        const ListTile(
+          leading: Icon(Icons.history),
+          title: Text('Abaixo do campo de envio, você pode visualizar um histórico dos últimos avisos enviados.'),
+        ),
+         ListTile(
+          leading: Icon(Icons.warning_amber_rounded, color: Colors.orange.shade700),
+          title: RichText(
+            text: TextSpan(
+              style: textTheme.bodyMedium,
+              children: const [
+                TextSpan(text: 'Atenção: '),
+                TextSpan(text: 'As mensagens são enviadas instantaneamente e não podem ser desfeitas.', style: TextStyle(fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   void _clearForm() {
@@ -400,30 +436,33 @@ class _NaturezaXRgScreenState extends State<NaturezaXRgScreen> {
   @override
   Widget build(BuildContext context) {
     return TelaBase(
-      body: Stack(
-        children: [
-          Column(
-            children: [
-              TopAppBar(
-                onBackPressed: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => TelaSubPrincipal(mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, userRole: widget.userRole))),
-                currentDate: _currentDate,
-              ),
-              Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    if (constraints.maxWidth > _breakpoint) {
-                      return _buildDesktopLayout(constraints);
-                    } else {
-                      return _buildMobileLayout(constraints);
-                    }
-                  },
+      body: BotaoAjudaFlutuante(
+        helpContent: _buildHelpContent(),
+        child: Stack(
+          children: [
+            Column(
+              children: [
+                TopAppBar(
+                  onBackPressed: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => TelaSubPrincipal(mainCompanyId: widget.mainCompanyId, secondaryCompanyId: widget.secondaryCompanyId, userRole: widget.userRole))),
+                  currentDate: _currentDate,
                 ),
-              ),
-            ],
-          ),
-          if (_isLoading)
-            Container(color: Colors.black.withOpacity(0.5), child: const Center(child: CircularProgressIndicator())),
-        ],
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      if (constraints.maxWidth > _breakpoint) {
+                        return _buildDesktopLayout(constraints);
+                      } else {
+                        return _buildMobileLayout(constraints);
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+            if (_isLoading)
+              Container(color: Colors.black.withOpacity(0.5), child: const Center(child: CircularProgressIndicator())),
+          ],
+        ),
       ),
     );
   }

@@ -439,7 +439,7 @@ class _TelaSubPrincipalState extends State<TelaSubPrincipal> {
                             ),
                       // Área Central (agora flex 3) - ocupará 3/5 do total
                       Expanded(
-                        flex: 3, // 3/5 da largura total
+                        flex: 2, // 3/5 da largura total
                         child: _buildCentralEmptyArea(),
                       ),
                       // Campo de anotações agora com checkboxes

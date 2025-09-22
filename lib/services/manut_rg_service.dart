@@ -3,6 +3,8 @@ import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 class ManutRgService {
+  //static final String _host = '10.135.59.5';
+  //static final String _host = '192.168.1.5';
   static final String _host = kIsWeb ? 'localhost' : '10.0.2.2';
   static final String _baseUrl = 'http://$_host:8080/manut-rg';
 
@@ -91,8 +93,78 @@ class ManutRgService {
 
   // --- REGISTRO GERAL (DADOS PRINCIPAIS) ---
 
-  
+ 
 
+
+  // ▼▼▼ ADICIONE ESTE NOVO MÉTODO ▼▼▼
+  Future<void> updateRgAssociados({
+    required String rgId,
+    required String vendedorId,
+    required String atendenteId,
+    required String areaId,
+    required String secondaryCompanyId,
+    required String token,
+  }) async {
+    final url = Uri.parse('$_baseUrl/$rgId/associados'); // Novo endpoint
+    final response = await http.patch(
+      url,
+      headers: _getHeaders(token),
+      body: jsonEncode({
+        'vendedor_id': vendedorId,
+        'atendente_id': atendenteId,
+        'area_id': areaId,
+        'secondaryCompanyId': secondaryCompanyId, // Para o log
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      _handleError(response);
+    }
+  }
+  // ▲▲▲ FIM DO NOVO MÉTODO ▲▲▲
+
+  // ▼▼▼ ADICIONE ESTE NOVO MÉTODO ▼▼▼
+  Future<void> updateRgCredito(String rgId, Map<String, dynamic> data, String token) async {
+    final url = Uri.parse('$_baseUrl/$rgId/credito');
+    final response = await http.patch(
+      url,
+      headers: _getHeaders(token),
+      body: jsonEncode(data),
+    );
+
+    if (response.statusCode != 200) {
+      _handleError(response);
+    }
+  }
+  // ▲▲▲ FIM DO NOVO MÉTODO ▲▲▲
+
+
+  
+   // ▼▼▼ ADICIONE ESTE NOVO MÉTODO ▼▼▼
+  Future<void> updateRgSituacao({
+    required String rgId,
+    required String situacaoId,
+    required String secondaryCompanyId,
+    required String token,
+  }) async {
+    final url = Uri.parse('$_baseUrl/$rgId/situacao');
+    final response = await http.patch(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'situacao_id': situacaoId,
+        'secondaryCompanyId': secondaryCompanyId, // Para o log
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Falha ao atualizar situação: ${response.body}');
+    }
+  }
+  // ▲▲▲ FIM DO NOVO MÉTODO ▲▲▲
   
 
   // --- TELEFONES ---

@@ -7,7 +7,9 @@ enum LogAction { CREATE, UPDATE, DELETE, LOGIN, LOGOUT, ERROR, PERMISSION_CHANGE
 enum LogModule { LOGIN, ADMINISTRACAO, TABELA, REGISTRO_GERAL, CREDITO, RELATORIO, CRM }
 
 class LogService {
-  static final String _host = kIsWeb ? 'localhost' : '10.0.2.2';
+  static final String _host = '10.135.59.5';
+  //static final String _host = '192.168.1.5';
+  //static final String _host = kIsWeb ? 'localhost' : '10.0.2.2';
   static final String _baseUrl = 'http://$_host:8080/logs';
 
   final String _token; 

@@ -343,52 +343,68 @@ class _TabelaCreditoFaixasState extends State<TabelaCreditoFaixas> {
     );
   }
 
-  Widget _buildFaixasColumn() {
-    return ListView.builder(
-      itemCount: 5,
-      itemBuilder: (context, index) {
-        bool isSelected = _selectedFaixaIndex == index;
-        return GestureDetector(
-          onTap: () => setState(() => _selectedFaixaIndex = index),
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 10),
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: isSelected ? Theme.of(context).primaryColor.withOpacity(0.2) : Colors.transparent,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: isSelected ? Theme.of(context).primaryColor : Colors.grey.shade300),
-            ),
-            child: Row(
-              children: [
-                Text('Faixa ${index + 1}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: CustomInputField(
-                    controller: _faixaInicioControllers[index],
-                    label: 'De',
-                    inputFormatters: [MoneyInputFormatter()],
-                    keyboardType: TextInputType.number,
-                  ),
-                ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 8.0),
-                  child: Text('a'),
-                ),
-                Expanded(
-                  child: CustomInputField(
-                    controller: _faixaFimControllers[index],
-                    label: 'Até',
-                    inputFormatters: [MoneyInputFormatter()],
-                    keyboardType: TextInputType.number,
-                  ),
-                ),
-              ],
-            ),
+  // lib/telas/tabela_credito_faixas.dart
+
+Widget _buildFaixasColumn() {
+  return ListView.builder(
+    itemCount: 5,
+    itemBuilder: (context, index) {
+      bool isSelected = _selectedFaixaIndex == index;
+      return GestureDetector(
+        // Mantemos o GestureDetector para que clicar na área ao redor ainda funcione
+        onTap: () => setState(() => _selectedFaixaIndex = index),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            // Usamos um cinza transparente para não interferir no clique do campo
+            color: isSelected ? Theme.of(context).primaryColor.withOpacity(0.2) : Colors.grey.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: isSelected ? Theme.of(context).primaryColor : Colors.grey.shade300),
           ),
-        );
-      },
-    );
-  }
+          child: Row(
+            children: [
+              Text('Faixa ${index + 1}', style: const TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: CustomInputField(
+                  controller: _faixaInicioControllers[index],
+                  label: 'De',
+                  inputFormatters: [MoneyInputFormatter()],
+                  keyboardType: TextInputType.number,
+                  // ▼▼▼ ADICIONE O onTap AQUI ▼▼▼
+                  onTap: () {
+                    if (_selectedFaixaIndex != index) {
+                      setState(() => _selectedFaixaIndex = index);
+                    }
+                  },
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8.0),
+                child: Text('a'),
+              ),
+              Expanded(
+                child: CustomInputField(
+                  controller: _faixaFimControllers[index],
+                  label: 'Até',
+                  inputFormatters: [MoneyInputFormatter()],
+                  keyboardType: TextInputType.number,
+                  // ▼▼▼ E ADICIONE O onTap AQUI TAMBÉM ▼▼▼
+                  onTap: () {
+                    if (_selectedFaixaIndex != index) {
+                      setState(() => _selectedFaixaIndex = index);
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
 
   Widget _buildDocumentosColumn() {
     if (_selectedFaixaIndex == null) {

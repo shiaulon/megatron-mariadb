@@ -3,6 +3,7 @@ import 'package:flutter/services.dart'; // Para FilteringTextInputFormatter
 import 'package:flutter_application_1/ajuda/ajuda.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/admin/logs_page.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/admin/user_management_page.dart';
+import 'package:flutter_application_1/providers/auth_provider.dart';
 import 'package:flutter_application_1/providers/permission_provider.dart';
 import 'package:flutter_application_1/secondary_company_selection_page.dart';
 import 'package:intl/intl.dart'; // Importe para formatar a data
@@ -476,23 +477,37 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
                 Row(
                   children: [
                     IconButton(
-                       icon: Icon(Icons.arrow_back, color: theme.appBarTheme.iconTheme?.color),
-                      tooltip: 'Voltar para seleção de empresa',
-                      onPressed: () {
-                        // Navega de volta para a SecondaryCompanySelectionPage
-                        // Mantenha o usuário logado para que ele possa escolher outra empresa
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => SecondaryCompanySelectionPage(
-                              mainCompanyId: widget.mainCompanyId,
-                            ),
-                          ),
-                        );
-                      },
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
+  icon: Icon(Icons.arrow_back, color: theme.appBarTheme.iconTheme?.color),
+  tooltip: 'Voltar para seleção de empresa',
+  onPressed: () {
+    // 1. Pega o AuthProvider
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    // 2. Pega o token
+    final token = authProvider.token;
+
+    // 3. Adiciona uma verificação de segurança (importante!)
+    if (token == null) {
+      // Se por algum motivo o token sumir, desloga o usuário por segurança.
+      authProvider.logout();
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const LoginPage()),
+        (route) => false,
+      );
+      return;
+    }
+
+    // 4. Passa o token na navegação
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SecondaryCompanySelectionPage(
+          mainCompanyId: widget.mainCompanyId,
+          token: token, // <-- PARÂMETRO ADICIONADO
+        ),
+      ),
+    );
+  },
+),
                     const SizedBox(width: 8),
                     const CircleAvatar(
                       backgroundImage: AssetImage('assets/images/logo.jpeg'),

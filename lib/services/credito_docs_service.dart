@@ -5,7 +5,9 @@ import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 class CreditoDocsService {
-  static final String _host = kIsWeb ? 'localhost' : '10.0.2.2';
+  static final String _host = '10.135.59.5';
+  //static final String _host = '192.168.1.5';
+  //static final String _host = kIsWeb ? 'localhost' : '10.0.2.2';
   static final String _baseUrl = 'http://$_host:8080/credito-documentos';
 
   Map<String, String> _getHeaders(String token) {

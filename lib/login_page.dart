@@ -1,6 +1,7 @@
 // lib/login_page.dart (Versão Final e Limpa)
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/services/log_services.dart';
+import 'package:flutter_application_1/services/notification_service.dart';
 import 'package:provider/provider.dart';
 
 import 'reutilizaveis/tela_base.dart';
@@ -30,64 +31,73 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _signIn() async {
+  setState(() {
+    _isLoading = true;
+    _errorMessage = null;
+  });
+
+  try {
+    // 1. Chama a função de login no provider
+    await Provider.of<AuthProvider>(context, listen: false).login(
+      _emailController.text.trim(),
+      _passwordController.text.trim(),
+    );
+
+    // 2. Após o login, buscamos o estado mais atual do provider
+    //    A esta altura, o notifyListeners() já foi chamado
+    final authState = Provider.of<AuthProvider>(context, listen: false);
+    final mainCompanyId = authState.mainCompanyId;
+    final allowedCompanies = authState.allowedSecondaryCompanies;
+
+    final token = authState.token; 
+
+    if (!mounted) return;
+
+    // 3. Verificação de segurança CRUCIAL antes de navegar
+    if (mainCompanyId == null || mainCompanyId.isEmpty || token == null || token.isEmpty) { // Validação mais robusta
+      throw Exception('Dados de login inválidos recebidos do servidor.');
+    }
+
+    NotificationService().connect();
+    
+    // 4. Lógica de navegação
+    if (allowedCompanies.isEmpty) {
+       throw Exception('Este usuário não tem empresas secundárias associadas.');
+    }
+
+    // Usamos o Navigator.of(context) para garantir o contexto correto
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (ctx) {
+          if (allowedCompanies.length == 1) {
+            return TelaPrincipal(
+              mainCompanyId: mainCompanyId,
+              secondaryCompanyId: allowedCompanies.first,
+            );
+          } else {
+            // ▼▼▼ PASSE O TOKEN AQUI ▼▼▼
+            return SecondaryCompanySelectionPage(
+              mainCompanyId: mainCompanyId,
+              token: token, // Passando o token explicitamente
+            );
+          }
+        },
+      ),
+    );
+
+  } catch (e) {
     setState(() {
-      _isLoading = true;
-      _errorMessage = null;
+      _errorMessage = e.toString().replaceFirst('Exception: ', '');
     });
-
-    try {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      await authProvider.login(
-        _emailController.text.trim(),
-        _passwordController.text.trim(),
-      );
-
-      if (!mounted) return;
-
-      final mainCompanyId = authProvider.mainCompanyId;
-      final allowedCompanies = authProvider.allowedSecondaryCompanies;
-
-     
-
-
-      if (allowedCompanies.isNotEmpty) {
-        if (allowedCompanies.length == 1) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => TelaPrincipal(
-                mainCompanyId: mainCompanyId!,
-                secondaryCompanyId: allowedCompanies.first,
-              ),
-            ),
-          );
-        } else {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => SecondaryCompanySelectionPage(
-                mainCompanyId: mainCompanyId!,
-              ),
-            ),
-          );
-        }
-      } else {
-        throw Exception('Este usuário não tem empresas secundárias associadas.');
-      }
-
-    } catch (e) {
+  } finally {
+    // Garante que o loading pare, não importa o que aconteça
+    if (mounted) {
       setState(() {
-        _errorMessage = e.toString().replaceFirst('Exception: ', '');
+        _isLoading = false;
       });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
     }
   }
-
+}
   Future<bool> _showAlert() async {
     return await showDialog<bool>(
       context: context,

@@ -19,16 +19,22 @@ import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaS
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaTipoBemCredito.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tabelaTipoHistorico.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/Tabela/tipoTelefone.dart';
+import 'package:flutter_application_1/paginasiguais/RegistroGeral/admin/tela_avisos.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/credito/credito_faixa_x_documento.dart';
+import 'package:flutter_application_1/paginasiguais/RegistroGeral/credito/liberacao_credito.dart';
 import 'package:flutter_application_1/paginasiguais/RegistroGeral/credito/tab_documento.dart';
+import 'package:flutter_application_1/providers/auth_provider.dart';
 import 'package:flutter_application_1/registroGeral/cnpj_iscricao.dart';
 import 'package:flutter_application_1/registroGeral/consulta_rg_page.dart';
 import 'package:flutter_application_1/registroGeral/manut_rg.dart';
+import 'package:flutter_application_1/registroGeral/manut_rg_situacao.dart';
+import 'package:flutter_application_1/registroGeral/manut_vendedor_atendente_area.dart';
 import 'package:flutter_application_1/registroGeral/naturea_X_rg.dart';
 import 'package:flutter_application_1/registroGeral/natureza_caracteristica.dart';
 import 'package:flutter_application_1/reutilizaveis/settings_page.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_application_1/providers/permission_provider.dart';
+import 'package:jwt_decoder/jwt_decoder.dart'; 
 
 
 // NOVO WIDGET: Item de menu com efeito de hover
@@ -57,6 +63,8 @@ class _HoverMenuItemState extends State<HoverMenuItem> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+
+    
     // Define as cores e tamanhos de fonte baseados no estado de hover e se é sub-item
     final Color backgroundColor = _isHovering ? colorScheme.primary : colorScheme.surface.withOpacity(0.5);
     final Color textColor = _isHovering ? colorScheme.onPrimary : colorScheme.onSurface;
@@ -229,6 +237,22 @@ class AppDrawer extends StatelessWidget {
      final theme = Theme.of(context); // Pega o tema
     final permissionProvider = Provider.of<PermissionProvider>(context); // Acessa o provider
 
+    // ▼▼▼ ADICIONE ESTA LÓGICA AQUI ▼▼▼
+    // Lógica para verificar se o usuário é admin a partir do token
+    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    bool isAdmin = false;
+    if (token != null) {
+      try {
+        Map<String, dynamic> decodedToken = JwtDecoder.decode(token);
+        // O 'isAdmin' pode ser um booleano ou um inteiro (0/1) no token
+        isAdmin = decodedToken['isAdmin'] == true || decodedToken['isAdmin'] == 1;
+      } catch (e) {
+        print("Erro ao decodificar token: $e");
+        isAdmin = false;
+      }
+    }
+    // ▲▲▲ FIM DA LÓGICA DE VERIFICAÇÃO ▲▲▲
+
     return Container(
       margin: parentMaxWidth > breakpoint
           ? const EdgeInsets.only(right: 10.0, top: 10.0, bottom: 10.0)
@@ -330,6 +354,24 @@ class AppDrawer extends StatelessWidget {
                           secondaryCompanyId: secondaryCompanyId
                         )))
                       ),
+                      _buildSubMenuItem(
+                        context, 
+                        'RG X Situação', 
+                        () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => ManutRgSituacao(
+                          mainCompanyId: mainCompanyId, 
+                          secondaryCompanyId: secondaryCompanyId
+                        )))
+                      ),
+                      // ▼▼▼ ADICIONE O NOVO ITEM DE MENU AQUI ▼▼▼
+                      _buildSubMenuItem(
+                          context, 
+                          'RG X Vendedor/Atend./Área', 
+                          () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => ManutRgVAA(
+                            mainCompanyId: mainCompanyId, 
+                            secondaryCompanyId: secondaryCompanyId
+                          )))
+                      ),
+                      // ▲▲▲ FIM DO NOVO ITEM DE MENU ▲▲▲
                   ]),
               ],
             ),
@@ -353,6 +395,14 @@ class AppDrawer extends StatelessWidget {
                         context, 
                         'Tab Crédito X Documento', 
                         () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => TabelaCreditoFaixas (
+                          mainCompanyId: mainCompanyId, 
+                          secondaryCompanyId: secondaryCompanyId
+                        )))
+                      ),
+                 _buildSubMenuItem(
+                        context, 
+                        'Liberaçao de crédito', 
+                        () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => LiberacaoCreditoPage (
                           mainCompanyId: mainCompanyId, 
                           secondaryCompanyId: secondaryCompanyId
                         )))
@@ -382,6 +432,30 @@ class AppDrawer extends StatelessWidget {
           if (permissionProvider.hasAccess(['follow_up', 'acesso']))
             _buildMenuItem(context, 'Follow-up', Icons.follow_the_signs, () => print('Clicou em Follow-up')),
           // Em reutilizaveis/menuLateral.dart (exemplo)
+          // ▼▼▼ ADICIONE O NOVO ITEM DE MENU AQUI (ex: antes de Configurações) ▼▼▼
+           // O item só aparece se o usuário for admin
+            _buildMenuItem(
+              context,
+              'Enviar Avisos',
+              Icons.campaign, // Ícone de megafone/campanha
+              () {
+                // Fecha o menu antes de navegar para a nova tela
+                if (Scaffold.of(context).isDrawerOpen) {
+                  Navigator.of(context).pop();
+                }
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => TelaAvisos(
+                      mainCompanyId: mainCompanyId,
+                      secondaryCompanyId: secondaryCompanyId,
+                    ),
+                  ),
+                );
+              },
+            ),
+
+          
 _buildMenuItem(
   context,
   'Configurações',
